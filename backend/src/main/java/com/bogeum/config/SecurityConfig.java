@@ -109,7 +109,7 @@ public class SecurityConfig {
 			.csrf(csrf -> csrf.csrfTokenRepository(csrfRepository))
 			.authorizeHttpRequests(authorize -> authorize
 				.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
-				.requestMatchers(HttpMethod.GET, "/api/health", "/api/auth/csrf", "/api/terms").permitAll()
+				.requestMatchers(HttpMethod.GET, "/api/health", "/api/auth/csrf", "/api/auth/recent-login", "/api/terms").permitAll()
 				.requestMatchers(HttpMethod.GET, "/api/auth/social/providers", "/api/oauth2/authorization/**",
 					"/api/login/oauth2/code/**").permitAll()
 				.requestMatchers("/api/auth/social/pending", "/api/auth/social/signup", "/api/auth/social/link")

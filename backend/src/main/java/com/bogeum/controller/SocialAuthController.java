@@ -17,6 +17,8 @@ import com.bogeum.dto.SocialAccountResponseDTO;
 import com.bogeum.exception.ApiException;
 import com.bogeum.exception.ErrorCode;
 import com.bogeum.security.SessionLoginService;
+import com.bogeum.security.RecentLoginService;
+import com.bogeum.security.RecentLoginService.LoginType;
 import com.bogeum.security.PasswordPolicy;
 import com.bogeum.security.dto.MemberSecurityDTO;
 import com.bogeum.security.handler.OAuth2LoginSuccessHandler.PendingResponse;
@@ -40,6 +42,7 @@ public class SocialAuthController {
 	private final AuthenticationManager authenticationManager;
 	private final SessionLoginService sessionLoginService;
 	private final SocialAuthorizationRequestRepository authorizationRequests;
+	private final RecentLoginService recentLoginService;
 
 	@GetMapping("/auth/social/providers")
 	public List<Map<String, String>> providers() {
@@ -68,7 +71,9 @@ public class SocialAuthController {
 			@Valid @RequestBody SocialJoinDTO body, HttpServletRequest request, HttpServletResponse response) {
 		MemberSecurityDTO principal = socialAccountService.register(pending, body);
 		sessionLoginService.login(principal, request, response);
-		return memberService.getCurrentMember(principal.getMemberId());
+		var member = memberService.getCurrentMember(principal.getMemberId());
+		recentLoginService.remember(LoginType.fromProvider(pending.profile().provider()), request, response);
+		return member;
 	}
 
 	@PostMapping("/auth/social/link")
@@ -79,7 +84,9 @@ public class SocialAuthController {
 		MemberSecurityDTO target = verifyPassword(body.getEmail(), body.getPassword());
 		MemberSecurityDTO principal = socialAccountService.link(pending, target.getMemberId());
 		sessionLoginService.login(principal, request, response);
-		return memberService.getCurrentMember(principal.getMemberId());
+		var member = memberService.getCurrentMember(principal.getMemberId());
+		recentLoginService.remember(LoginType.fromProvider(pending.profile().provider()), request, response);
+		return member;
 	}
 
 	@GetMapping("/auth/social/accounts")

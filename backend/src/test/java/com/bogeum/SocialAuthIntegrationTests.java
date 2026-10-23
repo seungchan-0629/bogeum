@@ -8,6 +8,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static com.bogeum.security.RecentLoginService.COOKIE_NAME;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -17,6 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -113,6 +115,7 @@ class SocialAuthIntegrationTests {
 		Start start = start(provider);
 		String oldId = start.session().getId();
 		MvcResult result = callback(start).andExpect(status().isOk())
+			.andExpect(cookie().doesNotExist(COOKIE_NAME))
 			.andExpect(jsonPath("$.status").value("REGISTRATION_REQUIRED"))
 			.andExpect(jsonPath("$.provider").value(provider))
 			.andExpect(content().string(not(containsString("provider-token"))))
@@ -136,10 +139,15 @@ class SocialAuthIntegrationTests {
 		Member member = createMember("original@example.com");
 		String userId = provider.equals("kakao") ? "123" : provider + "-123";
 		socialAccounts.saveAndFlush(new SocialAccount(member, provider, userId));
-		MockHttpSession session = (MockHttpSession) callback(start(provider))
+		MvcResult login = callback(start(provider))
 			.andExpect(status().isOk()).andExpect(jsonPath("$.id").value(member.getId()))
 			.andExpect(jsonPath("$.email").value("original@example.com"))
-			.andExpect(jsonPath("$.passwordHash").doesNotExist()).andReturn().getRequest().getSession(false);
+			.andExpect(cookie().value(COOKIE_NAME, provider.toUpperCase(Locale.ROOT)))
+			.andExpect(jsonPath("$.passwordHash").doesNotExist()).andReturn();
+		MockHttpSession session = (MockHttpSession) login.getRequest().getSession(false);
+		mvc.perform(get("/api/auth/recent-login").cookie(login.getResponse().getCookie(COOKIE_NAME)))
+			.andExpect(status().isOk()).andExpect(jsonPath("$.loginType").value(provider.toUpperCase(Locale.ROOT)))
+			.andExpect(jsonPath("$.available").value(true));
 		mvc.perform(get("/api/auth/me").session(session)).andExpect(status().isOk())
 			.andExpect(jsonPath("$.id").value(member.getId()));
 		assertThat(members.count()).isEqualTo(1);
@@ -181,7 +189,8 @@ class SocialAuthIntegrationTests {
 		assertThat(TOKEN_CALLS.get()).isEqualTo(calls);
 		Start denied = start("google");
 		mvc.perform(get("/api/login/oauth2/code/google").session(denied.session())
-			.param("error", "access_denied").param("state", denied.state())).andExpect(status().isUnauthorized());
+			.param("error", "access_denied").param("state", denied.state()))
+			.andExpect(status().isUnauthorized()).andExpect(cookie().doesNotExist(COOKIE_NAME));
 		Start accepted = start("google");
 		callback(accepted).andExpect(status().isOk());
 		callback(accepted).andExpect(status().isUnauthorized());
@@ -210,7 +219,8 @@ class SocialAuthIntegrationTests {
 		body.put("consents", List.of(Map.of("type", "PRIVACY_COLLECTION", "version", "general-dev-v1", "agreed", true)));
 		mvc.perform(post("/api/auth/social/signup").session(session).with(csrf())
 			.contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(body)))
-			.andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("CONSENT_REQUIRED"));
+			.andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("CONSENT_REQUIRED"))
+			.andExpect(cookie().doesNotExist(COOKIE_NAME));
 		assertThat(members.count()).isZero();
 		assertThat(socialAccounts.count()).isZero();
 		mvc.perform(post("/api/auth/social/signup").session(session).with(csrf())
@@ -218,7 +228,8 @@ class SocialAuthIntegrationTests {
 			.andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_IDENTITY_VERIFICATION"));
 		MvcResult signup = mvc.perform(post("/api/auth/social/signup").session(session).with(csrf())
 			.contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(signupBody("new@example.com", token))))
-			.andExpect(status().isCreated()).andExpect(jsonPath("$.memberType").value("GENERAL")).andReturn();
+			.andExpect(status().isCreated()).andExpect(jsonPath("$.memberType").value("GENERAL"))
+			.andExpect(cookie().value(COOKIE_NAME, "KAKAO")).andReturn();
 		long id = mapper.readTree(signup.getResponse().getContentAsString()).get("id").asLong();
 		assertThat(session.getId()).isNotEqualTo(oldId);
 		assertThat(members.count()).isEqualTo(1);
@@ -242,11 +253,12 @@ class SocialAuthIntegrationTests {
 			.andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("EMAIL_ALREADY_EXISTS"));
 		mvc.perform(post("/api/auth/social/link").session(session).with(csrf())
 			.contentType(MediaType.APPLICATION_JSON).content(credentials("social@example.com", "wrong-password")))
-			.andExpect(status().isUnauthorized());
+			.andExpect(status().isUnauthorized()).andExpect(cookie().doesNotExist(COOKIE_NAME));
 		assertThat(socialAccounts.count()).isZero();
 		mvc.perform(post("/api/auth/social/link").session(session).with(csrf())
 			.contentType(MediaType.APPLICATION_JSON).content(credentials("social@example.com", PASSWORD)))
-			.andExpect(status().isOk()).andExpect(jsonPath("$.id").value(member.getId()));
+			.andExpect(status().isOk()).andExpect(jsonPath("$.id").value(member.getId()))
+			.andExpect(cookie().value(COOKIE_NAME, "GOOGLE"));
 		assertThat(members.count()).isEqualTo(1);
 		callback(start("google")).andExpect(status().isOk()).andExpect(jsonPath("$.id").value(member.getId()));
 	}
@@ -300,7 +312,8 @@ class SocialAuthIntegrationTests {
 		String oldId = session.getId();
 		assertThat(socialAccounts.count()).isZero();
 		callback(link).andExpect(status().isOk()).andExpect(jsonPath("$.id").value(member.getId()))
-			.andExpect(jsonPath("$.email").value(member.getEmail()));
+			.andExpect(jsonPath("$.email").value(member.getEmail()))
+			.andExpect(cookie().doesNotExist(COOKIE_NAME));
 		assertThat(session.getId()).isNotEqualTo(oldId);
 		assertThat(members.count()).isEqualTo(1);
 		assertThat(members.findById(member.getId()).orElseThrow().getPasswordHash()).isEqualTo(passwordHash);

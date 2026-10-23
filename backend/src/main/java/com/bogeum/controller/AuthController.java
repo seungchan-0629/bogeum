@@ -9,8 +9,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.bogeum.dto.MemberResponseDTO;
+import com.bogeum.security.RecentLoginService;
+import com.bogeum.security.RecentLoginService.RecentLoginResponse;
 import com.bogeum.security.dto.MemberSecurityDTO;
 import com.bogeum.service.MemberService;
+
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 import lombok.RequiredArgsConstructor;
 
@@ -24,6 +29,13 @@ import lombok.RequiredArgsConstructor;
 public class AuthController {
 
 	private final MemberService memberService;
+	private final RecentLoginService recentLoginService;
+
+	@GetMapping("/recent-login")
+	public RecentLoginResponse recentLogin(HttpServletRequest request, HttpServletResponse response) {
+		response.setHeader("Cache-Control", "no-store");
+		return recentLoginService.read(request);
+	}
 
 	@GetMapping("/csrf")
 	public Map<String, String> csrf(CsrfToken csrfToken) {
