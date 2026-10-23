@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import clsx from 'clsx'
 import Skyline from '../common/Skyline.jsx'
+import logoIcon from '../../assets/logo-icon.svg'
 
 function IntroSection({ animate, nextSectionId }) {
   const contentRef = useRef(null)
@@ -23,8 +24,12 @@ function IntroSection({ animate, nextSectionId }) {
       aria-label="서비스 소개"
       className="flex min-h-svh flex-col overflow-hidden bg-night pt-10 text-white"
     >
-      <div className="mx-auto w-full max-w-[1200px] px-6 text-[22px] font-extrabold text-blue-400">
-        보금
+      <div className="mx-auto flex w-full max-w-[1200px] items-center gap-3 px-6">
+        <img src={logoIcon} alt="" className="size-11" />
+        <div className="flex flex-col gap-1">
+          <span className="font-logo text-[32px] leading-none">보금</span>
+          <span className="text-xs font-medium tracking-[3px] text-slate-300">보증금 보장 · 보금자리</span>
+        </div>
       </div>
       <div
         ref={contentRef}

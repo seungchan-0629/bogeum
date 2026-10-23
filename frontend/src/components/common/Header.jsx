@@ -2,6 +2,7 @@
 import { Link } from 'react-router'
 import { useAuthStore } from '../../stores/authStore.js'
 import { ROLE_LABELS } from '../../constants/auth.js'
+import logoIcon from '../../assets/logo-icon.svg'
 
 // 각 메뉴의 페이지가 아직 없어서 링크는 비워 둔다
 const NAV_ITEMS = ['매물 찾기', '관심 매물', '내 계약 관리', '채팅']
@@ -33,7 +34,8 @@ function Header({ id }) {
   return (
     <header id={id} className="border-b border-gray-200 bg-white">
       <div className="mx-auto flex max-w-[1200px] flex-wrap items-center gap-6 px-6 py-4">
-        <Link to="/" className="text-2xl font-extrabold tracking-tight text-blue-600">
+        <Link to="/" className="flex items-center gap-2.5 font-logo text-[28px] leading-none text-blue-900">
+          <img src={logoIcon} alt="" className="size-10" />
           보금
         </Link>
         <nav aria-label="주요 메뉴" className="flex grow flex-wrap gap-6 text-[15px] font-medium">
