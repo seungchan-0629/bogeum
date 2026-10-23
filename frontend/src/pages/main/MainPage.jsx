@@ -5,7 +5,10 @@ import IntroSection from '../../components/main/IntroSection.jsx'
 import SearchSection from '../../components/main/SearchSection.jsx'
 import ListingSection from '../../components/main/ListingSection.jsx'
 import ValueSection from '../../components/main/ValueSection.jsx'
+import RoleSummarySection from '../../components/main/RoleSummarySection.jsx'
+import ChatbotLauncher from '../../components/chatbot/ChatbotLauncher.jsx'
 import { useAuthStore } from '../../stores/authStore.js'
+import { ROLES } from '../../constants/auth.js'
 
 const INTRO_SEEN_KEY = 'bogeum.introSeen'
 const MAIN_SECTION_ID = 'main-content'
@@ -37,11 +40,14 @@ function MainPage() {
       {!user && <IntroSection animate={isFirstVisit} nextSectionId={MAIN_SECTION_ID} />}
       <Header id={MAIN_SECTION_ID} />
       <main>
+        {user && <RoleSummarySection user={user} />}
         <SearchSection />
         <ListingSection />
         <ValueSection />
       </main>
       <Footer />
+      {/* 챗봇은 임대인·임차인·관리자만 쓴다 (CHATBOT_001) */}
+      {user && user.role !== ROLES.AGENT && <ChatbotLauncher role={user.role} />}
     </>
   )
 }
