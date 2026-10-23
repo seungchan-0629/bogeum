@@ -1,4 +1,3 @@
-# dev 프로필 활성화 시 기본 설정에 덮어쓴다. 개발 편의를 위해 엔티티 변경을 DB 스키마에 반영한다.
 spring:
   datasource:
     url: ${DB_URL}
@@ -11,29 +10,3 @@ spring:
     properties:
       hibernate:
         format_sql: true
-
-
-  bogeum:
-    oauth2:
-      kakao:
-        client-id: ${KAKAO_CLIENT_ID:}
-        client-secret: ${KAKAO_CLIENT_SECRET:}
-      naver:
-        client-id: ${NAVER_CLIENT_ID:}
-        client-secret: ${NAVER_CLIENT_SECRET:}
-      google:
-        client-id: ${GOOGLE_CLIENT_ID:}
-        client-secret: ${GOOGLE_CLIENT_SECRET:}
-
-  server:
-    port: 8080
-    servlet:
-      session:
-        # 인증 상태는 서버 세션에 보관하고, 클라이언트는 쿠키로 세션을 식별한다.
-        timeout: 30m
-        tracking-modes: cookie
-        cookie:
-          http-only: true
-          same-site: lax
-          # HTTPS 환경에서는 BOGEUM_COOKIE_SECURE=true로 설정해 HTTPS 요청에만 세션 쿠키를 전송한다.
-          secure: ${BOGEUM_COOKIE_SECURE:false}
