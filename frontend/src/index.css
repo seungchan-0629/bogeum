@@ -2,6 +2,7 @@
 
 @theme {
   --font-sans: 'Noto Sans KR', system-ui, sans-serif;
+  --font-logo: 'Black Han Sans', 'Noto Sans KR', sans-serif;
 
   --color-night: #0b1730;
   --color-night-building: #15223d;
