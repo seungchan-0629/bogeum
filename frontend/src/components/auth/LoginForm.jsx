@@ -1,5 +1,6 @@
 // USER_001, USER_005, USER_018 (아이디·비밀번호 로그인), USER_007 (최근 로그인 수단 안내), USER_008 (소셜 로그인)
 import { useState } from 'react'
+import { Link } from 'react-router'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -128,10 +129,9 @@ function LoginForm() {
         ))}
       </div>
 
-      {/* 회원가입 화면이 아직 없어서 링크는 비워 둔다 (USER_003, USER_016) */}
       <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-gray-600">
-        <a href="#" className="hover:text-gray-900">회원가입</a>
-        <a href="#" className="hover:text-gray-900">중개사 회원가입</a>
+        <Link to="/signup" className="hover:text-gray-900">회원가입</Link>
+        <Link to="/signup/agent" className="hover:text-gray-900">중개사 회원가입</Link>
       </div>
     </div>
   )
