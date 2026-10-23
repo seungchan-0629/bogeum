@@ -1,39 +1,8 @@
 spring:
   application:
     name: backend
-  datasource:
-    # 환경 변수가 없으면 로컬 파일 H2를 사용한다. 상대 경로는 서버 실행 디렉터리를 기준으로 한다.
-    url: ${BOGEUM_DB_URL:jdbc:h2:file:./data/bogeum}
-    username: ${BOGEUM_DB_USERNAME:sa}
-    password: ${BOGEUM_DB_PASSWORD:}
-  jpa:
-    # 컨트롤러 응답 직렬화까지 DB 세션을 열어 두지 않으므로, 서비스 안에서 필요한 데이터를 DTO로 만든다.
-    open-in-view: false
-    hibernate:
-      # 기본 환경은 스키마를 변경하지 않고 엔티티와 일치하는지만 검사한다. 테이블은 미리 준비되어야 한다.
-      ddl-auto: validate
-
-bogeum:
-  oauth2:
-    kakao:
-      client-id: ${KAKAO_CLIENT_ID:}
-      client-secret: ${KAKAO_CLIENT_SECRET:}
-    naver:
-      client-id: ${NAVER_CLIENT_ID:}
-      client-secret: ${NAVER_CLIENT_SECRET:}
-    google:
-      client-id: ${GOOGLE_CLIENT_ID:}
-      client-secret: ${GOOGLE_CLIENT_SECRET:}
+  profiles:
+    default: dev
 
 server:
   port: 8080
-  servlet:
-    session:
-      # 인증 상태는 서버 세션에 보관하고, 클라이언트는 쿠키로 세션을 식별한다.
-      timeout: 30m
-      tracking-modes: cookie
-      cookie:
-        http-only: true
-        same-site: lax
-        # HTTPS 환경에서는 BOGEUM_COOKIE_SECURE=true로 설정해 HTTPS 요청에만 세션 쿠키를 전송한다.
-        secure: ${BOGEUM_COOKIE_SECURE:false}

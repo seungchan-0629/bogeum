@@ -1,13 +1,13 @@
 # dev 프로필 활성화 시 기본 설정에 덮어쓴다. 개발 편의를 위해 엔티티 변경을 DB 스키마에 반영한다.
 spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
   jpa:
     hibernate:
       ddl-auto: update
-
-bogeum:
-  registration:
-    # ConsentService는 이 값과 dev/test 프로필을 함께 확인해 가입 가능 여부를 결정한다.
-    enabled: true
-  dev:
-    # 값이 제공될 때만 DevMemberInitializer가 로그인 확인용 일반 회원·중개사 계정을 생성한다.
-    login-password: ${BOGEUM_DEV_PASSWORD:}
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
