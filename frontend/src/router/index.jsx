@@ -1,6 +1,6 @@
 import { createBrowserRouter } from 'react-router'
-import App from '../App.jsx'
+import MainPage from '../pages/main/MainPage.jsx'
 
 export const router = createBrowserRouter([
-  { path: '/', element: <App /> },
+  { path: '/', element: <MainPage /> },
 ])
