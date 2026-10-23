@@ -38,6 +38,23 @@ class ProductionRegistrationTests {
 	@Autowired private MemberRepository members;
 
 	@Test
+	void socialSignupAlsoRequiresProductionIdentityAndFinalTerms() throws Exception {
+		var pending = new com.bogeum.security.oauth.PendingSocialUser(
+			new com.bogeum.security.oauth.SocialProfile("google", "prod-user", "prod@example.com"));
+		var auth = new org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken(
+			pending, pending.getAuthorities(), "google");
+		Map<String, Object> body = Map.of("email", "prod@example.com", "identityVerificationToken", "token",
+			"consents", List.of(
+				Map.of("type", "PRIVACY_COLLECTION", "version", "general-dev-v1", "agreed", true),
+				Map.of("type", "THIRD_PARTY_PROVISION", "version", "general-dev-v1", "agreed", true)));
+		mockMvc.perform(post("/api/auth/social/signup").with(csrf())
+			.with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication(auth))
+			.contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(body)))
+			.andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.code").value("REGISTRATION_UNAVAILABLE"));
+		assertThat(members.count()).isZero();
+	}
+
+	@Test
 	void developmentIdentityEndpointAndServiceAreAbsentInProduction() throws Exception {
 		assertThat(context.containsBean("devIdentityVerificationController")).isFalse();
 		assertThat(context.containsBean("devIdentityVerificationService")).isFalse();

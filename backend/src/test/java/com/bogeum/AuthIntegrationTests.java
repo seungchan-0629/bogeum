@@ -60,6 +60,25 @@ class AuthIntegrationTests {
 	}
 
 	@Test
+	void noSocialKeysKeepsLocalLoginAvailableAndReportsSocialUnavailable() throws Exception {
+		mockMvc.perform(get("/api/auth/social/providers"))
+			.andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(0));
+		mockMvc.perform(get("/api/oauth2/authorization/google"))
+			.andExpect(status().isServiceUnavailable())
+			.andExpect(jsonPath("$.code").value("SOCIAL_LOGIN_UNAVAILABLE"));
+		MockHttpSession session = (MockHttpSession) mockMvc.perform(post("/api/auth/login").with(csrf())
+			.contentType(MediaType.APPLICATION_JSON).content(credentials("member@example.com", PASSWORD)))
+			.andExpect(status().isOk()).andReturn().getRequest().getSession(false);
+		mockMvc.perform(post("/api/auth/social/link/google").session(session).with(csrf())
+			.contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(Map.of("password", PASSWORD))))
+			.andExpect(status().isServiceUnavailable()).andExpect(jsonPath("$.code").value("SOCIAL_LOGIN_UNAVAILABLE"));
+		mockMvc.perform(get("/api/auth/social/accounts").session(session)).andExpect(status().isOk())
+			.andExpect(content().json("[]"));
+		mockMvc.perform(get("/api/auth/me").session(session)).andExpect(status().isOk())
+			.andExpect(jsonPath("$.email").value("member@example.com"));
+	}
+
+	@Test
 	void healthRemainsPublicAndProtectedApiRequiresLogin() throws Exception {
 		mockMvc.perform(get("/api/health")).andExpect(status().isOk());
 		mockMvc.perform(get("/api/auth/me"))

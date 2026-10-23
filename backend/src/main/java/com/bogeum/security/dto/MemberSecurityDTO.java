@@ -1,9 +1,11 @@
 package com.bogeum.security.dto;
 
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.User;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 
 import com.bogeum.domain.AccountStatus;
 import com.bogeum.domain.Member;
@@ -15,7 +17,7 @@ import lombok.Getter;
  * 회원 ID, 비밀번호 해시, 활성 여부, ROLE_ 접두사의 권한을 인증 과정에 제공한다.
  */
 @Getter
-public class MemberSecurityDTO extends User {
+public class MemberSecurityDTO extends User implements OAuth2User {
 
 	private static final long serialVersionUID = 1L;
 
@@ -26,5 +28,16 @@ public class MemberSecurityDTO extends User {
 			member.getStatus() == AccountStatus.ACTIVE, true, true, true,
 			List.of(new SimpleGrantedAuthority("ROLE_" + member.getMemberType().name())));
 		this.memberId = member.getId();
+	}
+
+	@Override
+	public Map<String, Object> getAttributes() {
+		// 제공자의 원본 개인정보나 Access Token을 세션 주체에 보관하지 않는다.
+		return Map.of("memberId", memberId);
+	}
+
+	@Override
+	public String getName() {
+		return memberId.toString();
 	}
 }

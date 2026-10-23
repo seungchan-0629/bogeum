@@ -13,6 +13,18 @@ spring:
       # 기본 환경은 스키마를 변경하지 않고 엔티티와 일치하는지만 검사한다. 테이블은 미리 준비되어야 한다.
       ddl-auto: validate
 
+bogeum:
+  oauth2:
+    kakao:
+      client-id: ${KAKAO_CLIENT_ID:}
+      client-secret: ${KAKAO_CLIENT_SECRET:}
+    naver:
+      client-id: ${NAVER_CLIENT_ID:}
+      client-secret: ${NAVER_CLIENT_SECRET:}
+    google:
+      client-id: ${GOOGLE_CLIENT_ID:}
+      client-secret: ${GOOGLE_CLIENT_SECRET:}
+
 server:
   port: 8080
   servlet:

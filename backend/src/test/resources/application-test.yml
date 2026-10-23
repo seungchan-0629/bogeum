@@ -9,5 +9,16 @@ spring:
       ddl-auto: create-drop
 
 bogeum:
+  # 개발자 PC의 실제 소셜 앱 키를 테스트에서 사용하지 않는다.
+  oauth2:
+    google:
+      client-id: ""
+      client-secret: ""
+    kakao:
+      client-id: ""
+      client-secret: ""
+    naver:
+      client-id: ""
+      client-secret: ""
   registration:
     enabled: true

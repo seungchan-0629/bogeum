@@ -1,0 +1,93 @@
+@baseUrl = http://localhost:8080
+@csrfToken = replace-with-latest-csrf-token
+@identityToken = replace-with-identity-token
+
+### 기존 계정에서 소셜 연결 시작: 먼저 /api/auth/login으로 로그인한다.
+# 1. GET /api/auth/csrf로 로그인 후의 새 CSRF 토큰을 받는다.
+# 2. 아래 POST에 현재 계정 비밀번호를 보낸다. 연결 대상 ID/이메일은 세션에서 결정한다.
+# 3. 응답의 authorizationUrl로 같은 브라우저에서 이동해 제공자 인증을 마친다.
+# 4. 콜백은 기존 회원 JSON을 반환한다. 이후 CSRF 토큰을 다시 조회한다.
+# Google/Kakao/Naver의 설정된 제공자만 지원하며 연결 요청은 10분 동안 유효하다.
+# 같은 세션에서 다시 시작하면 가장 최근 요청만 유효하다.
+POST {{baseUrl}}/api/auth/social/link/kakao
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "password": "existing-account-password"
+}
+
+### 현재 회원에 연결된 소셜 계정 목록: [{provider, linkedAt}], 연결 전에는 []
+# 제공자 사용자 ID/Access Token/다른 회원의 정보는 반환하지 않는다.
+GET {{baseUrl}}/api/auth/social/accounts
+
+# 연결 시작: 비밀번호 오류 401 INVALID_CREDENTIALS, 미설정 제공자 503 SOCIAL_LOGIN_UNAVAILABLE
+# 시작/콜백: 이미 연결된 제공자 또는 다른 회원에게 연결된 소셜 계정은 409 SOCIAL_ACCOUNT_ALREADY_LINKED
+# 콜백: 만료 401 SOCIAL_LINK_EXPIRED, 취소/잘못된 state/로그인 회원 변경 401 SOCIAL_LOGIN_FAILED
+# 연결 실패/취소 시 기존 로그인은 유지하며 다른 회원으로 로그인하지 않는다.
+# 연결해도 기존 비밀번호, 회원 유형과 프로필은 유지된다. 이후 비밀번호/소셜 양쪽 로그인이 가능하다.
+
+### 설정한 제공자 목록. Client ID/Secret이 모두 없는 제공자는 표시하지 않는다.
+GET {{baseUrl}}/api/auth/social/providers
+
+### 브라우저 주소창에서 시작: /api/oauth2/authorization/kakao (naver, google도 동일)
+# 콜백: /api/login/oauth2/code/kakao
+# 같은 브라우저/쿠키 저장소에서 이어서 요청해야 한다. 다른 REST 클라이언트와 세션이 공유되지 않는다.
+# 이미 연결됨: 200 회원 JSON + JSESSIONID
+# 처음 인증함: 200 {status: "REGISTRATION_REQUIRED", provider, email, expiresAt}
+# 소셜 제공자 응답에는 사용자 이메일이 없을 수도 있다. 가입 이메일은 본인 인증 결과로 확인한다.
+# 제공자 인증 실패/취소/잘못된 state: 401 SOCIAL_LOGIN_FAILED
+
+### 로그인·추가 가입·계정 연결 성공 후 CSRF 토큰을 반드시 다시 조회한다.
+GET {{baseUrl}}/api/auth/csrf
+
+### 미가입 소셜 인증 상태 확인 (유효시간 10분)
+GET {{baseUrl}}/api/auth/social/pending
+
+### 일반 회원 약관 조회. 실제 요청에는 여기서 받은 최신 version을 사용한다.
+GET {{baseUrl}}/api/terms?memberType=GENERAL
+
+### dev/test 전용 모의 본인 인증. 실서비스 본인 인증이 아니다.
+POST {{baseUrl}}/api/dev/identity-verifications
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "email": "social@example.com",
+  "name": "소셜 테스트",
+  "phoneNumber": "01012345678"
+}
+
+### 최초 가입 완료 → 일반 회원 세션으로 교체. provider/id는 요청에서 받지 않는다.
+POST {{baseUrl}}/api/auth/social/signup
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "email": "social@example.com",
+  "identityVerificationToken": "{{identityToken}}",
+  "consents": [
+    {"type": "PRIVACY_COLLECTION", "version": "general-dev-v1", "agreed": true},
+    {"type": "THIRD_PARTY_PROVISION", "version": "general-dev-v1", "agreed": true}
+  ]
+}
+
+### 또는 기존 계정 연결: 미가입 소셜 세션에서 기존 계정 비밀번호로 재인증한다.
+# 기존 계정과 제공자의 이메일이 같아도 자동 연결하지 않는다.
+# 해당 회원에 같은 제공자가 연결되어 있거나 다른 회원에게 연결된 소셜 ID면 409.
+# 계정 비밀번호가 없는 소셜 전용 회원 간 병합/다른 제공자 연결은 별도 재인증 기능이 필요하다.
+POST {{baseUrl}}/api/auth/social/link
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "email": "existing@example.com",
+  "password": "existing-account-password"
+}
+
+### 정식 가입/연결 이후 기존 API를 그대로 사용한다.
+GET {{baseUrl}}/api/auth/me
+
+### 최신 CSRF 토큰으로 보금 세션 로그아웃. 제공자 자체의 로그인 세션은 별개다.
+POST {{baseUrl}}/api/auth/logout
+X-CSRF-TOKEN: {{csrfToken}}
