@@ -1,0 +1,32 @@
+package com.bogeum.common.enums;
+
+/**
+ * 알림 종류
+ */
+public enum NotificationType {
+	RISK_CANDIDATE_CREATED, // 위험 정보 후보 생성 (NOTIFY_002)
+	RENT_FINAL_RETRY_FAILED, // 월세 최종 재시도 실패 (NOTIFY_003)
+	SETTLEMENT_FAILED, // 월세 지급 실패 (NOTIFY_004)
+	CLAIM_UNHANDLED, // 클레임 장기 미처리 (NOTIFY_005)
+	SYSTEM_ERROR, // 시스템 오류 (NOTIFY_006)
+	RENT_PAID, // 월세 납부 성공 (NOTIFY_008)
+	RENT_PAYMENT_FAILED, // 월세 납부 실패 (NOTIFY_009)
+	RENT_DUE_SOON, // 월세 납부일 임박 (NOTIFY_010)
+	PAYMENT_METHOD_GUIDE, // 결제 수단 등록 안내 (NOTIFY_011)
+	RISK_REGISTERED, // 위험 정보 등록 (NOTIFY_012)
+	RISK_RELEASED, // 위험 정보 해제 (NOTIFY_012)
+	RENT_UNPAID_TO_LANDLORD, // 월세 미입금 (NOTIFY_013)
+	SETTLEMENT_COMPLETED, // 월세 지급 완료 (SETTLE_001)
+	SETTLEMENT_ACCOUNT_MISSING, // 정산 계좌 미등록 (NOTIFY_014)
+	AS_REQUESTED, // AS 요청 접수 (NOTIFY_015)
+	AS_ANSWERED, // AS 요청 응답 (NOTIFY_016)
+	DEFECT_PHOTO_UPLOADED, // 입주 하자 사진 업로드 (NOTIFY_017)
+	DEFECT_PHOTO_DEADLINE, // 하자 사진 업로드 기한 (NOTIFY_018)
+	CLAIM_STATUS_CHANGED, // 클레임 처리 상태 (NOTIFY_019)
+	FAVORITE_CHANGED, // 관심 매물 변동 (NOTIFY_020)
+	BROKERAGE_REQUESTED, // 중개 신청 생성 (NOTIFY_022)
+	CHAT_MESSAGE, // 새 채팅 메시지 (NOTIFY_023, CHAT_008)
+	AGENT_DOCUMENT_DEADLINE, // 인증 서류 기한 임박 (NOTIFY_024)
+	AGENT_APPROVED, // 가입 승인 (NOTIFY_025)
+	AGENT_REJECTED // 가입 반려 (NOTIFY_025)
+}
