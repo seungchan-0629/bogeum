@@ -10,17 +10,18 @@ const BUILDINGS = [
   { cols: 3, rows: 8, hasAntenna: false },
 ]
 
-// 창문마다 켜짐 여부와 켜지는 시점을 고정된 규칙으로 정한다 (새로고침해도 같은 모양)
+// 창문마다 seed와 켜지는 시점을 고정된 규칙으로 정한다 (새로고침해도 같은 모양)
 let windowIndex = 0
 const SKYLINE = BUILDINGS.map((building) => ({
   ...building,
   windows: Array.from({ length: building.cols * building.rows }, () => {
     const seed = (windowIndex++ * 7919 + 13) % 101
-    return { isLit: seed < 70, delay: 0.2 + ((seed % 37) / 37) * 1.4 }
+    return { seed, delay: 0.2 + ((seed % 37) / 37) * 1.4 }
   }),
 }))
 
-function Skyline({ animate }) {
+// litRatio: 불 켜진 창문 비율 (0~1). 안내 페이지는 상황에 맞게 다르게 쓴다 (예: 404는 거의 꺼짐)
+function Skyline({ animate, litRatio = 0.7 }) {
   return (
     <div aria-hidden="true" className="flex items-end justify-center gap-3.5 px-6">
       {SKYLINE.map((building, i) => (
@@ -30,19 +31,23 @@ function Skyline({ animate }) {
             className="grid gap-2 rounded-t bg-night-building p-3.5"
             style={{ gridTemplateColumns: `repeat(${building.cols}, 14px)` }}
           >
-            {building.windows.map((win, j) => (
-              <div
-                key={j}
-                className={clsx(
-                  'h-[18px] w-3.5 rounded-sm',
-                  win.isLit
-                    ? 'bg-window-on shadow-[0_0_10px_rgba(252,211,77,0.6)]'
-                    : 'bg-window-off',
-                  win.isLit && animate && 'animate-lit motion-reduce:animate-none',
-                )}
-                style={animate ? { animationDelay: `${win.delay}s` } : undefined}
-              />
-            ))}
+            {building.windows.map((win, j) => {
+              const isLit = win.seed < litRatio * 100
+              return (
+                <div
+                  key={j}
+                  className={clsx(
+                    'h-[18px] w-3.5 rounded-sm',
+                    isLit
+                      ? 'bg-window-on shadow-[0_0_10px_rgba(252,211,77,0.6)]'
+                      : 'bg-window-off',
+                    isLit && animate && 'animate-lit motion-reduce:animate-none',
+                  )}
+                  style={animate ? { animationDelay: `${win.delay}s` } : undefined}
+                  data-lit={isLit || undefined} // 메인 소개 화면이 다가갈 창문을 고를 때 쓴다
+                />
+              )
+            })}
           </div>
         </div>
       ))}

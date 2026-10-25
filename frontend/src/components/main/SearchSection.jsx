@@ -1,14 +1,18 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router'
 import clsx from 'clsx'
 
 const TRADE_TYPES = ['전세', '월세', '매매']
 
 function SearchSection() {
   const [tradeType, setTradeType] = useState(TRADE_TYPES[0])
+  const navigate = useNavigate()
 
-  // 매물 검색 페이지가 아직 없어서 제출은 막아 둔다
+  // 매물 찾기 화면으로 이동한다. 로그인하지 않았으면 그 화면에서 로그인 안내가 뜬다
+  // TODO: 고른 거래 유형과 검색어를 주소 쿼리로 넘겨 매물 찾기 화면의 검색 조건(BE-018)에 채운다
   const handleSubmit = (event) => {
     event.preventDefault()
+    navigate('/properties')
   }
 
   return (

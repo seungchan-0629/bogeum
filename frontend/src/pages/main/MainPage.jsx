@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Header from '../../components/common/Header.jsx'
 import Footer from '../../components/common/Footer.jsx'
 import IntroSection from '../../components/main/IntroSection.jsx'
+import OnboardingSection from '../../components/main/OnboardingSection.jsx'
 import SearchSection from '../../components/main/SearchSection.jsx'
 import ListingSection from '../../components/main/ListingSection.jsx'
 import ValueSection from '../../components/main/ValueSection.jsx'
@@ -10,36 +11,42 @@ import ChatbotLauncher from '../../components/chatbot/ChatbotLauncher.jsx'
 import { useAuthStore } from '../../stores/authStore.js'
 import { ROLES } from '../../constants/auth.js'
 
-const INTRO_SEEN_KEY = 'bogeum.introSeen'
-const MAIN_SECTION_ID = 'main-content'
-
-function readIntroSeen() {
-  try {
-    return localStorage.getItem(INTRO_SEEN_KEY) === 'true'
-  } catch {
-    return false // 저장소를 못 쓰는 환경(사생활 보호 모드 등)에서는 첫 방문으로 본다
-  }
-}
+// 소개 화면을 이번 접속에서 이미 봤는지. 새로고침하거나 새로 들어오면 다시 false가 된다
+// 사이트 안에서 다른 화면(로그인·회원가입 등)에 갔다가 뒤로 가기로 돌아왔을 때는 소개를 다시 틀지 않는다
+let hasPlayedIntro = false
 
 function MainPage() {
   const user = useAuthStore((state) => state.user)
-  // 첫 방문에만 애니메이션을 재생하고, 이후에는 완성된 화면을 바로 보여준다
-  const [isFirstVisit] = useState(() => !readIntroSeen())
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(INTRO_SEEN_KEY, 'true')
-    } catch {
-      // 저장하지 못하면 다음 방문에도 애니메이션이 재생될 뿐이라 무시한다
-    }
+  // 로그인하지 않은 사용자는 접속할 때마다 소개 화면부터 본다. 로그인한 사용자는 바로 본문을 본다
+  const [shouldPlayIntro] = useState(() => !user && !hasPlayedIntro)
+  const [isIntroOpen, setIsIntroOpen] = useState(shouldPlayIntro)
+  const closeIntro = useCallback(() => {
+    hasPlayedIntro = true
+    setIsIntroOpen(false)
   }, [])
+
+  // 소개 화면이 덮고 있는 동안에는 뒤의 본문이 스크롤되지 않게 막고, 끝나면 맨 위(온보딩)부터 보여준다
+  // 새로고침하면 브라우저가 예전 스크롤 위치를 되살리는데(scrollRestoration: auto), 소개 중에는 이를 꺼 둔다
+  useEffect(() => {
+    if (!isIntroOpen) return
+    const previousRestoration = window.history.scrollRestoration
+    window.history.scrollRestoration = 'manual'
+    window.scrollTo(0, 0)
+    document.documentElement.style.overflow = 'hidden'
+    return () => {
+      document.documentElement.style.overflow = ''
+      window.scrollTo(0, 0)
+      window.history.scrollRestoration = previousRestoration
+    }
+  }, [isIntroOpen])
 
   return (
     <>
-      {/* 로그인한 사용자는 소개 없이 바로 본문을 본다 */}
-      {!user && <IntroSection animate={isFirstVisit} nextSectionId={MAIN_SECTION_ID} />}
-      <Header id={MAIN_SECTION_ID} />
+      {isIntroOpen && <IntroSection onFinish={closeIntro} />}
+      <Header />
       <main>
+        {/* 로그인하지 않은 사용자: 역할별 이용 방법 → 회원가입 안내. 소개 화면이 걷히면 차례로 나타난다 */}
+        {!user && <OnboardingSection animate={shouldPlayIntro} isPlaying={!isIntroOpen} />}
         {user && <RoleSummarySection user={user} />}
         <SearchSection />
         <ListingSection />
