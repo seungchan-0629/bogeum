@@ -133,7 +133,7 @@ function PropertyListPage() {
                   key={property.propertyId}
                   property={property}
                   isFavorite={favoriteIds.has(property.propertyId)}
-                  onToggleFavorite={user.role === ROLES.TENANT ? toggleFavorite : undefined}
+                  onToggleFavorite={user.role === ROLES.USER ? toggleFavorite : undefined}
                 />
               ))}
             </div>

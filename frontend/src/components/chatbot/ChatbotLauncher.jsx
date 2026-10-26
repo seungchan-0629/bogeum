@@ -4,15 +4,12 @@ import { useState } from 'react'
 // TODO: GET /api/v1/chatbot/quick-replies (BE-104) 응답의 quickReplies[id, label, message]로 교체
 // - 역할별로 다른 질문을 주는 것으로 가정(BE-104 비고)
 const SAMPLE_QUICK_REPLIES_BY_ROLE = {
-  TENANT: [
+  USER: [
     { id: 1, label: '매물 검색' },
     { id: 2, label: '월세 납부 내역' },
-    { id: 3, label: 'AS 요청' },
-  ],
-  LANDLORD: [
-    { id: 1, label: '매물 검색' },
-    { id: 2, label: '월세 수납·지급 내역' },
-    { id: 3, label: '서비스 이용 안내' },
+    { id: 3, label: '월세 수납·지급 내역' },
+    { id: 4, label: 'AS 요청' },
+    { id: 5, label: '서비스 이용 안내' },
   ],
   ADMIN: [
     { id: 1, label: '월세 연체 현황' },

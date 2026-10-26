@@ -25,8 +25,8 @@ function HeartIcon({ isFilled }) {
 
 function ListingSection() {
   const user = useAuthStore((state) => state.user)
-  // 관심 매물은 임차인만 등록할 수 있다 (FAVORITE_001)
-  const canFavorite = user?.role === ROLES.TENANT
+  // 관심 매물은 사용자만 등록할 수 있다 (FAVORITE_001)
+  const canFavorite = user?.role === ROLES.USER
   const [favoriteIds, setFavoriteIds] = useState(() => new Set())
 
   // TODO: 등록은 POST /api/v1/favorites (BE-031, 요청: propertyId),

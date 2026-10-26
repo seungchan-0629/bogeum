@@ -1,5 +1,5 @@
 // [페이지] 클레임 접수 — /my-home/claim (임차인), /care/claim (임대인)
-// 로그인한 역할에 따라 대상과 고를 수 있는 사유가 바뀐다
+// 계약상 역할(contractRole: 라우터가 넘겨준다)에 따라 대상과 고를 수 있는 사유가 바뀐다
 // - 임차인 → 임대인에 대한 클레임: AS 요청 미응답, 실제 매물과 다름
 // - 임대인 → 임차인에 대한 클레임: 월세 미납, 악성 세입자
 // 요구사항: CLAIM_001
@@ -8,8 +8,7 @@ import { useState } from 'react'
 import clsx from 'clsx'
 import FileDropzone from '../../components/common/FileDropzone.jsx'
 import { Field, SelectInput, TextArea } from '../../components/common/FormControls.jsx'
-import { useAuthStore } from '../../stores/authStore.js'
-import { ROLES } from '../../constants/auth.js'
+import { CONTRACT_ROLES } from '../../constants/auth.js'
 import { CLAIM_REASONS_BY_ROLE } from '../../constants/residence.js'
 
 // TODO: 내 계약 매물 목록 API가 명세에 없어 백엔드와 협의 필요. 지금은 예시 매물
@@ -18,11 +17,10 @@ const SAMPLE_PROPERTY_OPTIONS = [
   { value: '2', label: '공덕동 아파트' },
 ]
 
-function ClaimPage() {
-  const user = useAuthStore((state) => state.user)
-  const reasons = CLAIM_REASONS_BY_ROLE[user.role]
+function ClaimPage({ contractRole }) {
+  const reasons = CLAIM_REASONS_BY_ROLE[contractRole]
   const [reason, setReason] = useState(reasons[0])
-  const targetLabel = user.role === ROLES.TENANT ? '임대인' : '임차인'
+  const targetLabel = contractRole === CONTRACT_ROLES.TENANT ? '임대인' : '임차인'
 
   // TODO: POST /api/v1/claims (BE-073) — 요청: { propertyId, reason, content, files }. 사유 값 형식은 백엔드와 협의
   const handleSubmit = (event) => {

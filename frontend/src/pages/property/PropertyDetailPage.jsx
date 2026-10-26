@@ -33,7 +33,7 @@ function PropertyDetailPage() {
   const user = useAuthStore((state) => state.user)
   const navigate = useNavigate()
   const { favoriteIds, toggleFavorite } = useFavoriteToggle()
-  const isTenant = user.role === ROLES.TENANT
+  const isUser = user.role === ROLES.USER
 
   const property = { ...(SAMPLE_PROPERTIES.find((item) => String(item.propertyId) === propertyId) ?? SAMPLE_PROPERTIES[0]), ...SAMPLE_DETAIL }
   // TODO: GET /api/v1/properties/{propertyId}/similar (BE-030) 응답으로 교체. 본인 매물·삭제·계약 완료 매물은 서버에서 뺀다
@@ -80,8 +80,8 @@ function PropertyDetailPage() {
             <p className="text-gray-600">{property.nearbySubway} · 등기 확인 완료</p>
           </div>
 
-          {/* RISK_006: 임차인에게는 안내 문구만 보여주고 사유 상세·근거 자료는 보여주지 않는다 */}
-          {isTenant && property.riskNotices.map((notice) => (
+          {/* RISK_006: 사용자에게는 안내 문구만 보여주고 사유 상세·근거 자료는 보여주지 않는다 */}
+          {isUser && property.riskNotices.map((notice) => (
             <p key={notice} className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
               <strong>{notice}</strong>
               <span className="block text-sm">계약 전에 등기부등본을 꼭 다시 확인하세요.</span>
@@ -116,8 +116,9 @@ function PropertyDetailPage() {
             <span className="font-bold">{property.agent.officeName}</span>
             <span className="text-sm text-gray-600">담당 중개사 · {property.agent.agentName}</span>
           </div>
-          {/* 중개사는 자신의 매물에 채팅방을 만들 수 없다 (CHAT_002). 임차인만 문의 버튼을 보여준다 */}
-          {isTenant && (
+          {/* 중개사는 자신의 매물에 채팅방을 만들 수 없다 (CHAT_002). 사용자만 문의 버튼을 보여준다
+              TODO: 본인이 중개 신청한 매물이면 문의 버튼을 숨길지 팀 확인 필요 (상세 응답에 본인 매물 여부가 있는지 백엔드와 협의) */}
+          {isUser && (
             <>
               <button type="button" onClick={handleStartChat} className="btn-primary h-12">
                 <Icon name="chat" size={18} /> 채팅으로 문의하기

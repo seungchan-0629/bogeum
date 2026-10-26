@@ -7,7 +7,7 @@ export const AS_STATUS = {
   DONE: { label: '처리 완료', tone: 'green' },
 }
 
-// 클레임 사유 (CLAIM_001). 역할마다 고를 수 있는 사유가 다르다
+// 클레임 사유 (CLAIM_001). 계약상 역할(CONTRACT_ROLES)마다 고를 수 있는 사유가 다르다
 export const CLAIM_REASONS_BY_ROLE = {
   TENANT: ['AS 요청 미응답', '실제 매물과 다름', '기타'],
   LANDLORD: ['월세 미납', '악성 세입자', '기타'],
