@@ -1,0 +1,17 @@
+# 개발용 MySQL (팀 공통 환경)
+# 비밀번호는 같은 폴더의 .env(DB_PASSWORD)에서 읽는다
+# 로컬 MySQL(3306)과 함께 쓰도록 호스트 포트는 3307
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: bogeum-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: bogeum
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+
+volumes:
+  mysql-data:
