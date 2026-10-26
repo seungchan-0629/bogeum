@@ -9,6 +9,7 @@ import AgreementFields from './AgreementFields.jsx'
 const agentSignupSchema = z
   .object({
     officeName: z.string().trim().min(1, '중개사무소 이름을 입력해 주세요.'),
+    representativeName: z.string().trim().min(1, '대표자 이름을 입력해 주세요.'),
     officeAddress: z.string().trim().min(1, '중개사무소 주소를 입력해 주세요.'),
     phone: z.string().trim().min(1, '휴대폰 번호를 입력해 주세요.'),
     email: z.email({ error: '이메일 형식으로 입력해 주세요.' }),
@@ -30,6 +31,7 @@ function AgentSignupForm() {
     resolver: zodResolver(agentSignupSchema),
     defaultValues: {
       officeName: '',
+      representativeName: '',
       officeAddress: '',
       phone: '',
       email: '',
@@ -44,7 +46,7 @@ function AgentSignupForm() {
   } = methods
 
   // TODO: POST /api/v1/auth/signup/agent (BE-011) 연결
-  // - 요청: { officeName, officeAddress, phone, email, password, passwordConfirm, agreements: { privacyCollect, thirdPartyProvide } }
+  // - 요청: { officeName, representativeName, officeAddress, phone, email, password, passwordConfirm, agreements: { privacyCollect, thirdPartyProvide } }
   // - 응답: { agentId, status: 'PENDING' } → 서류 제출 안내 후 '/login'으로 이동
   const onSubmit = async () => {}
 
@@ -56,6 +58,7 @@ function AgentSignupForm() {
         </p>
 
         <TextField name="officeName" label="중개사무소 이름" autoComplete="organization" />
+        <TextField name="representativeName" label="대표자 이름" autoComplete="name" />
         <TextField name="officeAddress" label="중개사무소 주소" autoComplete="street-address" />
         <TextField name="phone" label="휴대폰 번호" type="tel" inputMode="numeric" autoComplete="tel" />
         <TextField name="email" label="이메일" type="email" autoComplete="email" />
