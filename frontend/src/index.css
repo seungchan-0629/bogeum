@@ -2,6 +2,7 @@
 
 @theme {
   --font-sans: 'Noto Sans KR', system-ui, sans-serif;
+  --font-logo: 'Black Han Sans', 'Noto Sans KR', sans-serif;
 
   --color-night: #0b1730;
   --color-night-building: #15223d;
@@ -10,16 +11,9 @@
   --color-window-off: #1e2c4a;
   --color-window-on: #fcd34d;
 
-  --animate-rise: rise 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
   --animate-lit: lit 0.45s ease-out both;
-  --animate-nudge: nudge 1.6s ease-in-out infinite;
-
-  @keyframes rise {
-    from {
-      opacity: 0;
-      transform: translateY(24px);
-    }
-  }
+  --animate-blink: blink 1s steps(1) infinite;
+  --animate-fade-in: fade-in 0.5s 0.6s ease-out both;
 
   /* 창문 불이 켜지는 효과. 끝 상태는 요소의 기본 색(bg-window-on)을 따른다 */
   @keyframes lit {
@@ -29,9 +23,40 @@
     }
   }
 
-  @keyframes nudge {
+  /* 소개 화면 타이핑 커서 */
+  @keyframes blink {
     50% {
-      transform: translateY(8px);
+      opacity: 0;
     }
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+}
+
+/* 화면 곳곳에서 반복되는 모양. 새 화면은 이 클래스를 쓴다 */
+@layer components {
+  /* 주요 동작 버튼 (화면마다 하나) */
+  .btn-primary {
+    @apply inline-flex h-11 items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-5 text-[15px] font-bold whitespace-nowrap text-white hover:bg-blue-700 disabled:opacity-60;
+  }
+  /* 보조 버튼 (흰 바탕 + 테두리) */
+  .btn-secondary {
+    @apply inline-flex h-11 items-center justify-center gap-1.5 rounded-xl border border-gray-300 bg-white px-5 text-[15px] font-medium whitespace-nowrap text-gray-900 hover:bg-gray-50;
+  }
+  /* 표나 목록 안의 작은 버튼. btn-primary·btn-secondary와 함께 쓴다 */
+  .btn-sm {
+    @apply h-9 rounded-lg px-3 text-sm;
+  }
+  /* 흰 카드 */
+  .card {
+    @apply rounded-2xl border border-gray-200 bg-white p-5;
+  }
+  /* 화면 본문 폭과 여백 */
+  .page-container {
+    @apply mx-auto flex w-full max-w-[1200px] flex-col gap-6 px-6 pt-8 pb-16;
   }
 }

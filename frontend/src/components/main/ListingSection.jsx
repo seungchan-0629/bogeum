@@ -1,5 +1,6 @@
 // RECOMMEND_001 (조회 지역 기반 인기 매물 추천), FAVORITE_001, FAVORITE_002 (관심 매물 등록·해제)
 import { useState } from 'react'
+import { Link } from 'react-router'
 import clsx from 'clsx'
 import { useAuthStore } from '../../stores/authStore.js'
 import { ROLES } from '../../constants/auth.js'
@@ -43,9 +44,9 @@ function ListingSection() {
     <section className="mx-auto flex max-w-[1200px] flex-col gap-6 px-6 py-16">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <h2 className="text-[26px] font-extrabold">추천 매물</h2>
-        <a href="#" className="text-[15px] font-medium text-blue-700 hover:text-blue-900">
+        <Link to="/properties" className="text-[15px] font-medium text-blue-700 hover:text-blue-900">
           전체 보기
-        </a>
+        </Link>
       </div>
       <div className="flex flex-wrap gap-5">
         {SAMPLE_PROPERTIES.map((property) => {
