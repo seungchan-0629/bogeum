@@ -104,7 +104,7 @@ function OnboardingSection({ animate, isPlaying }) {
           <h2 className="text-3xl font-extrabold">보금은 회원가입 후 이용할 수 있어요</h2>
           <p className="text-slate-300">가입하면 매물 검색부터 계약 후 월세 관리까지 바로 시작할 수 있어요.</p>
           <div className="mt-2 flex flex-wrap justify-center gap-2.5">
-            <Link to="/signup" className="btn-primary h-12 px-6">임대·임차인 회원가입</Link>
+            <Link to="/signup" className="btn-primary h-12 px-6">사용자 회원가입</Link>
             <Link to="/signup/agent" className="btn-secondary h-12 px-6">중개사 회원가입</Link>
           </div>
           <Link to="/login" className="text-sm text-blue-300 hover:text-blue-200">이미 계정이 있어요 · 로그인</Link>

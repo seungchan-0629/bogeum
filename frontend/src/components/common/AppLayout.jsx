@@ -9,8 +9,8 @@ import { ROLES } from '../../constants/auth.js'
 
 function AppLayout({ children }) {
   const user = useAuthStore((state) => state.user)
-  // 챗봇은 임대인·임차인·관리자만 쓴다 (CHATBOT_001). 관리자는 AdminLayout에서 띄운다
-  const canUseChatbot = user?.role === ROLES.TENANT || user?.role === ROLES.LANDLORD
+  // 챗봇은 사용자(임대인·임차인)·관리자만 쓴다 (CHATBOT_001). 관리자는 AdminLayout에서 띄운다
+  const canUseChatbot = user?.role === ROLES.USER
 
   return (
     <div className="flex min-h-svh flex-col bg-slate-50">

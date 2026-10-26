@@ -114,7 +114,7 @@ function LoginForm() {
       <div className="flex flex-col gap-3">
         <div className="flex items-center gap-3 text-sm text-gray-500">
           <span className="h-px grow bg-gray-200" />
-          간편 로그인 (임대인·임차인)
+          간편 로그인 (사용자)
           <span className="h-px grow bg-gray-200" />
         </div>
         {SOCIAL_BUTTONS.map(({ type, className }) => (

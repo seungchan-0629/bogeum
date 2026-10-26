@@ -14,15 +14,14 @@ import { Link, useParams } from 'react-router'
 import clsx from 'clsx'
 import Icon from '../../components/common/Icon.jsx'
 import PhotoPlaceholder from '../../components/common/PhotoPlaceholder.jsx'
-import { useAuthStore } from '../../stores/authStore.js'
-import { ROLES } from '../../constants/auth.js'
 
 // TODO: GET /api/v1/chat/rooms (BE-038) 응답의 rooms[]로 교체
 // - readOnlyReason: 매물 삭제(DELETED)·계약 체결(CONTRACTED) 시 읽기 전용 (CHAT_009). 필드 이름은 백엔드와 협의 필요
+// - isMyProperty: 내가 중개 신청한(임대인인) 매물의 방인지. 임차인 위험 안내(RISK_007)에 쓴다. 필드 이름은 백엔드와 협의 필요
 const SAMPLE_ROOMS = [
-  { roomId: 1, partnerName: '보금공인중개사', propertyTitle: '역삼동 오피스텔 · 월세 1,000/65', lastMessage: '내일 오후 3시에 방문 가능하세요?', time: '12분 전', unreadCount: 2, readOnlyReason: null },
-  { roomId: 2, partnerName: '한강부동산', propertyTitle: '공덕동 아파트 · 전세 3억 2,000', lastMessage: '사진 더 보내드릴게요.', time: '어제', unreadCount: 0, readOnlyReason: null },
-  { roomId: 3, partnerName: '새집중개', propertyTitle: '안암동 투룸 · 전세 1억 8,000', lastMessage: '해당 매물은 계약이 체결 되었습니다', time: '10.12', unreadCount: 0, readOnlyReason: 'CONTRACTED' },
+  { roomId: 1, partnerName: '보금공인중개사', propertyTitle: '역삼동 오피스텔 · 월세 1,000/65', lastMessage: '내일 오후 3시에 방문 가능하세요?', time: '12분 전', unreadCount: 2, readOnlyReason: null, isMyProperty: true },
+  { roomId: 2, partnerName: '한강부동산', propertyTitle: '공덕동 아파트 · 전세 3억 2,000', lastMessage: '사진 더 보내드릴게요.', time: '어제', unreadCount: 0, readOnlyReason: null, isMyProperty: false },
+  { roomId: 3, partnerName: '새집중개', propertyTitle: '안암동 투룸 · 전세 1억 8,000', lastMessage: '해당 매물은 계약이 체결 되었습니다', time: '10.12', unreadCount: 0, readOnlyReason: 'CONTRACTED', isMyProperty: false },
 ]
 
 // CHAT_009 안내 문구 (요구사항 그대로)
@@ -74,7 +73,7 @@ function ChatRoomList({ activeRoomId }) {
   )
 }
 
-function ChatRoom({ room, isLandlord }) {
+function ChatRoom({ room }) {
   const [messages, setMessages] = useState(SAMPLE_MESSAGES)
   const [draft, setDraft] = useState('')
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -125,9 +124,9 @@ function ChatRoom({ room, isLandlord }) {
         </div>
       </header>
 
-      {/* RISK_007: 임대인에게만 보이고 사유 상세·연체 금액은 보여주지 않는다
+      {/* RISK_007: 해당 매물 등록자(임대인)에게만 보이고 사유 상세·연체 금액은 보여주지 않는다
           참고: CHAT_002 기준으로 임대인은 중개사와만 채팅하므로 이 안내가 뜨는 경우가 있는지 팀 확인 필요 */}
-      {isLandlord && room.roomId === 1 && (
+      {room.isMyProperty && (
         <p className="border-b border-amber-200 bg-amber-50 px-5 py-2.5 text-sm text-amber-900">
           이 임차인은 월세 미납이나 연체 이력이 있는 임차인입니다
         </p>
@@ -162,7 +161,6 @@ function ChatRoom({ room, isLandlord }) {
 
 function ChatPage() {
   const { roomId } = useParams()
-  const user = useAuthStore((state) => state.user)
   const activeRoom = SAMPLE_ROOMS.find((room) => String(room.roomId) === roomId)
 
   return (
@@ -173,7 +171,7 @@ function ChatPage() {
         </div>
         {activeRoom ? (
           // key: 방을 바꾸면 입력 중이던 글과 메시지 목록을 새로 시작한다
-          <ChatRoom key={activeRoom.roomId} room={activeRoom} isLandlord={user.role === ROLES.LANDLORD} />
+          <ChatRoom key={activeRoom.roomId} room={activeRoom} />
         ) : (
           <p className="hidden items-center justify-center bg-slate-50 p-10 text-gray-500 md:flex">왼쪽에서 채팅방을 골라 주세요.</p>
         )}
