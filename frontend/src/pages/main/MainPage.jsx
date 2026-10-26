@@ -53,7 +53,7 @@ function MainPage() {
         <ValueSection />
       </main>
       <Footer />
-      {/* 챗봇은 임대인·임차인·관리자만 쓴다 (CHATBOT_001) */}
+      {/* 챗봇은 사용자(임대인·임차인)·관리자만 쓴다 (CHATBOT_001) */}
       {user && user.role !== ROLES.AGENT && <ChatbotLauncher role={user.role} />}
     </>
   )

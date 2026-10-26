@@ -1,5 +1,5 @@
 // [페이지] 403 · 권한 없음 — 주소가 따로 없고, RequireRole이 역할이 맞지 않을 때 대신 보여준다
-// 예: 임차인이 임대인 전용 화면(/my-properties)에 들어온 경우
+// 예: 중개사가 사용자 전용 화면(/my-properties)에 들어온 경우
 // - allowedRoles: 이 화면을 볼 수 있는 역할 목록 (안내 문구에 쓴다)
 import { Link, useNavigate } from 'react-router'
 import GuideScreen from '../../components/common/GuideScreen.jsx'

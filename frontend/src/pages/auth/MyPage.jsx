@@ -1,5 +1,5 @@
-// [페이지] 마이페이지 (임대인·임차인) — /mypage
-// 누가: 임대인·임차인. 중개사는 /agent/mypage 를 쓴다
+// [페이지] 마이페이지 (사용자) — /mypage
+// 누가: 사용자. 중개사는 /agent/mypage 를 쓴다
 // 요구사항: USER_009 (소셜 계정 연결), USER_010 (조회), USER_011 (수정), USER_012 (회원탈퇴 + 재확인)
 // API:
 // - 조회: GET /api/v1/users/me (BE-013)
@@ -13,7 +13,7 @@ import StatusBadge from '../../components/common/StatusBadge.jsx'
 import ConfirmModal from '../../components/common/ConfirmModal.jsx'
 import { Field, TextInput } from '../../components/common/FormControls.jsx'
 import { useAuthStore } from '../../stores/authStore.js'
-import { ROLES, ROLE_LABELS } from '../../constants/auth.js'
+import { CONTRACT_ROLES, ROLE_LABELS } from '../../constants/auth.js'
 
 // TODO: GET /api/v1/users/me (BE-013) 응답으로 교체 (name, phone, role, loginId, address, socialAccounts[])
 const SAMPLE_PROFILE = {
@@ -34,7 +34,8 @@ function MyPage() {
   const logout = useAuthStore((state) => state.logout)
   const navigate = useNavigate()
   const [isWithdrawOpen, setIsWithdrawOpen] = useState(false)
-  const isTenant = user.role === ROLES.TENANT
+  const isTenant = user.contractRoles.includes(CONTRACT_ROLES.TENANT)
+  const isLandlord = user.contractRoles.includes(CONTRACT_ROLES.LANDLORD)
 
   // TODO: PUT/PATCH /api/v1/users/me (BE-014) — 바뀐 항목만 보낸다
   const handleSave = (event) => {
@@ -87,14 +88,25 @@ function MyPage() {
             ))}
           </section>
 
-          {/* 임차인은 월세 결제 수단, 임대인은 월세 받을 정산 계좌 */}
-          <section aria-labelledby="payment-title" className="card flex items-center justify-between gap-3">
-            <div>
-              <h2 id="payment-title" className="text-lg font-bold">{isTenant ? '월세 결제 수단' : '정산 계좌'}</h2>
-              <p className="text-sm text-gray-600">{isTenant ? '카드 등록됨' : '국민은행 계좌 등록됨'}</p>
-            </div>
-            <Link to={isTenant ? '/mypage/payment-method' : '/mypage/settlement-account'} className="btn-secondary btn-sm">변경</Link>
-          </section>
+          {/* 임차인으로 계약했으면 월세 결제 수단, 임대인으로 계약했으면 월세 받을 정산 계좌. 둘 다면 둘 다 보여준다 */}
+          {isTenant && (
+            <section aria-labelledby="payment-title" className="card flex items-center justify-between gap-3">
+              <div>
+                <h2 id="payment-title" className="text-lg font-bold">월세 결제 수단</h2>
+                <p className="text-sm text-gray-600">카드 등록됨</p>
+              </div>
+              <Link to="/mypage/payment-method" className="btn-secondary btn-sm">변경</Link>
+            </section>
+          )}
+          {isLandlord && (
+            <section aria-labelledby="settlement-title" className="card flex items-center justify-between gap-3">
+              <div>
+                <h2 id="settlement-title" className="text-lg font-bold">정산 계좌</h2>
+                <p className="text-sm text-gray-600">국민은행 계좌 등록됨</p>
+              </div>
+              <Link to="/mypage/settlement-account" className="btn-secondary btn-sm">변경</Link>
+            </section>
+          )}
         </div>
 
         <div className="flex flex-col gap-3">

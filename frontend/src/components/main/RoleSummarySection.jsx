@@ -1,9 +1,10 @@
 // 로그인한 사용자의 역할별 요약
 // 요약 전용 API가 없어 각 화면의 조회 API를 묶어 쓰는 것으로 가정했다. 백엔드와 요약 API 여부 협의 필요
 import { Link } from 'react-router'
-import { ROLE_LABELS } from '../../constants/auth.js'
+import { ROLES } from '../../constants/auth.js'
 
 // TODO: 아래 임시 값을 각 항목 주석의 API 응답으로 교체
+// 사용자(USER)는 계약상 역할(TENANT·LANDLORD)마다 해당 요약을 모아 보여준다
 const SAMPLE_SUMMARY_BY_ROLE = {
   TENANT: [
     // RENT_005: GET /api/v1/tenants/me/rent-payments?size=1 (BE-054) 의 가장 최근 payments[0]
@@ -36,13 +37,16 @@ const SAMPLE_SUMMARY_BY_ROLE = {
 }
 
 function RoleSummarySection({ user }) {
-  const items = SAMPLE_SUMMARY_BY_ROLE[user.role] ?? []
+  const items =
+    user.role === ROLES.USER
+      ? user.contractRoles.flatMap((contractRole) => SAMPLE_SUMMARY_BY_ROLE[contractRole])
+      : (SAMPLE_SUMMARY_BY_ROLE[user.role] ?? [])
 
   return (
     <section className="border-b border-gray-200 bg-white">
       <div className="mx-auto flex max-w-[1200px] flex-col gap-5 px-6 py-10">
         <h2 className="text-2xl font-extrabold">
-          {ROLE_LABELS[user.role]}님, 한눈에 확인하세요
+          {user.name}님, 한눈에 확인하세요
         </h2>
         <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
           {/* 항목을 누르면 해당 상세 화면으로 이동한다 */}
