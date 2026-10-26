@@ -1,4 +1,4 @@
-// 역할 값은 API 명세(BE-010 role)의 LANDLORD, TENANT, AGENT를 따른다. ADMIN은 명세에 없어 협의 필요
+// 백엔드 Role과 로그인 응답의 role 값을 따른다
 export const ROLES = {
   ADMIN: 'ADMIN',
   LANDLORD: 'LANDLORD',
@@ -13,20 +13,20 @@ export const ROLE_LABELS = {
   AGENT: '중개사',
 }
 
-// 로그인 응답의 loginType 값 (BE-001, BE-004). 실제 값은 백엔드와 협의 필요
+// 백엔드 LoginProvider와 로그인 응답의 lastLoginProvider 값을 따른다
 export const LOGIN_TYPES = {
-  NORMAL: 'NORMAL',
+  LOCAL: 'LOCAL',
   NAVER: 'NAVER',
   KAKAO: 'KAKAO',
   GOOGLE: 'GOOGLE',
 }
 
 export const LOGIN_TYPE_LABELS = {
-  NORMAL: '아이디',
+  LOCAL: '아이디',
   NAVER: '네이버',
   KAKAO: '카카오',
   GOOGLE: '구글',
 }
 
-// 최근 로그인 수단은 프론트가 저장한다 (BE-004 비고)
+// 응답의 lastLoginProvider를 최근 로그인 수단 안내용으로 저장한다. 인증 상태 저장용이 아니다
 export const LAST_LOGIN_TYPE_KEY = 'bogeum.lastLoginType'

@@ -80,4 +80,9 @@ public class User {
 	@UpdateTimestamp
 	@Column(nullable = false)
 	private LocalDateTime updatedAt;
+
+	/** 일반 로그인 검증에 성공한 경우에만 최근 로그인 수단을 변경한다. */
+	public void recordLocalLogin() {
+		this.lastLoginProvider = LoginProvider.LOCAL;
+	}
 }
