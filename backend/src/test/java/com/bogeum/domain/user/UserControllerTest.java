@@ -1,10 +1,12 @@
 package com.bogeum.domain.user;
 
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import org.junit.jupiter.api.DisplayName;
@@ -22,9 +24,17 @@ import com.bogeum.common.enums.LoginProvider;
 import com.bogeum.common.enums.Role;
 import com.bogeum.domain.user.model.User;
 
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ObjectNode;
+
 /** 실제 컨트롤러의 JSON 변환·검증·오류 처리를 DB 없이 확인한다. */
 @WebMvcTest(UserController.class)
 class UserControllerTest {
+
+	private static final String SIGNUP_REQUEST = """
+		{"email":"user@example.com","password":" password ","name":"가입자","phone":"01012345678",
+		 "agreements":{"privacyCollect":true,"thirdPartyProvide":true}}
+		""";
 
 	private final MockMvc mockMvc;
 
@@ -35,6 +45,65 @@ class UserControllerTest {
 	@Autowired
 	UserControllerTest(MockMvc mockMvc) {
 		this.mockMvc = mockMvc;
+	}
+
+	@Test
+	@DisplayName("회원가입은 201과 사용자 식별자만 반환하며 입력 비밀번호를 그대로 전달한다")
+	void signupReturnsCreatedUserIdOnly() throws Exception {
+		when(userService.signup("user@example.com", " password ", "가입자", "01012345678",
+			true, true)).thenReturn(User.builder().userId(1L).passwordHash("secret").build());
+
+		mockMvc.perform(post("/api/v1/auth/signup/user").contentType(MediaType.APPLICATION_JSON)
+			.content(SIGNUP_REQUEST))
+			.andExpect(status().isCreated())
+			.andExpect(content().json("{\"userId\":1}", JsonCompareMode.STRICT));
+		verify(userService).signup("user@example.com", " password ", "가입자", "01012345678",
+			true, true);
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {
+		"{}", "{", "{\"email\":\"invalid\"}", "{\"email\":null}",
+		"{\"password\":\"   \"}", "{\"password\":null}", "{\"name\":\"\"}", "{\"phone\":null}",
+		"{\"agreements\":null}",
+		"{\"agreements\":{}}", "{\"agreements\":{\"privacyCollect\":true}}",
+		"{\"agreements\":{\"privacyCollect\":false,\"thirdPartyProvide\":true}}",
+		"{\"agreements\":{\"privacyCollect\":true,\"thirdPartyProvide\":false}}",
+		"{\"agreements\":{\"privacyCollect\":null,\"thirdPartyProvide\":true}}"
+	})
+	@DisplayName("잘못된 가입 정보와 필수 동의 누락은 서비스 호출 전에 거절한다")
+	void rejectsInvalidSignupRequest(String overrides) throws Exception {
+		String request = overrides;
+		if (!overrides.equals("{}") && !overrides.equals("{")) {
+			JsonMapper mapper = new JsonMapper();
+			ObjectNode fields = (ObjectNode) mapper.readTree(SIGNUP_REQUEST);
+			fields.setAll((ObjectNode) mapper.readTree(overrides));
+			request = mapper.writeValueAsString(fields);
+		}
+		mockMvc.perform(post("/api/v1/auth/signup/user").contentType(MediaType.APPLICATION_JSON)
+			.content(request))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+		verifyNoInteractions(userService);
+	}
+
+	@Test
+	@DisplayName("가입 서비스의 중복·가입 조건·저장 충돌 오류를 공통 응답으로 반환한다")
+	void signupErrorsUseCommonResponse() throws Exception {
+		UserException[] exceptions = {
+			UserException.emailAlreadyExists(), UserException.invalidSignup(),
+			UserException.signupConflict(new IllegalStateException("internal-detail"))
+		};
+		for (UserException exception : exceptions) {
+			doThrow(exception).when(userService).signup("user@example.com", " password ", "가입자", "01012345678",
+				true, true);
+			mockMvc.perform(post("/api/v1/auth/signup/user").contentType(MediaType.APPLICATION_JSON)
+				.content(SIGNUP_REQUEST))
+				.andExpect(status().is(exception.getErrorCode().getHttpStatus().value()))
+				.andExpect(jsonPath("$.code").value(exception.getErrorCode().name()))
+				.andExpect(jsonPath("$.message").value(exception.getErrorCode().getMessage()))
+				.andExpect(jsonPath("$.cause").doesNotExist());
+		}
 	}
 
 	@Test

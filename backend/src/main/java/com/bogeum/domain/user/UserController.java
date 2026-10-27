@@ -1,9 +1,11 @@
 package com.bogeum.domain.user;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 
 import com.bogeum.domain.user.model.UserDto;
 
@@ -17,6 +19,15 @@ import lombok.RequiredArgsConstructor;
 public class UserController {
 
 	private final UserService userService;
+
+	/** 일반 회원가입 정보를 검증하고 생성된 사용자 식별자를 반환한다. */
+	@PostMapping("/signup/user")
+	@ResponseStatus(HttpStatus.CREATED)
+	public UserDto.SignupResponse signup(@Valid @RequestBody UserDto.SignupRequest request) {
+		return UserDto.SignupResponse.from(userService.signup(
+			request.getEmail(), request.getPassword(), request.getName(), request.getPhone(),
+			request.getAgreements().getPrivacyCollect(), request.getAgreements().getThirdPartyProvide()));
+	}
 
 	/**
 	 * 일반 로그인 요청을 검증하고 공개 가능한 사용자 정보만 반환한다.

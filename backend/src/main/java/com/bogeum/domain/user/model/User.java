@@ -1,6 +1,8 @@
 package com.bogeum.domain.user.model;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -8,16 +10,19 @@ import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.type.SqlTypes;
 
 import com.bogeum.common.enums.LoginProvider;
+import com.bogeum.common.enums.ConsentType;
 import com.bogeum.common.enums.Role;
 import com.bogeum.common.enums.UserStatus;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -73,6 +78,11 @@ public class User {
 	@Column(length = 20)
 	private LoginProvider lastLoginProvider;
 
+	// 가입 시 계정과 필수 동의를 같은 트랜잭션에서 저장한다.
+	@Builder.Default
+	@OneToMany(mappedBy = "user", cascade = CascadeType.PERSIST)
+	private List<Consent> consents = new ArrayList<>();
+
 	@CreationTimestamp
 	@Column(nullable = false, updatable = false)
 	private LocalDateTime createdAt;
@@ -80,6 +90,12 @@ public class User {
 	@UpdateTimestamp
 	@Column(nullable = false)
 	private LocalDateTime updatedAt;
+
+	/** 서비스에서 두 필수 동의를 확인한 후 가입 시 한 번 호출한다. */
+	public void agreeToRequiredTerms() {
+		consents.add(Consent.builder().user(this).consentType(ConsentType.PRIVACY_COLLECTION).build());
+		consents.add(Consent.builder().user(this).consentType(ConsentType.THIRD_PARTY_PROVISION).build());
+	}
 
 	/** 일반 로그인 검증에 성공한 경우에만 최근 로그인 수단을 변경한다. */
 	public void recordLocalLogin() {

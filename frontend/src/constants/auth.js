@@ -1,5 +1,5 @@
 // 회원 종류. 가입할 때 사용자(USER) / 중개사(AGENT)로 나뉘고 바뀌지 않는다
-// TODO: API 명세(BE-010 role)는 아직 LANDLORD, TENANT, AGENT라 USER로 바꾸는 것을 백엔드와 협의 필요. ADMIN도 명세에 없어 협의 필요
+// 일반 가입 API는 role을 받지 않고 서버에서 USER로 지정한다.
 export const ROLES = {
   ADMIN: 'ADMIN',
   USER: 'USER',

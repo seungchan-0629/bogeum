@@ -81,6 +81,8 @@ function LoginForm() {
 
     // 사용자 정보는 메모리에 보관한다. 새로고침 후 복원은 후속 세션 연동에서 구현한다.
     login(user)
+    //user["contractRoles"] = []
+    console.log(user)
     try {
       localStorage.setItem(LAST_LOGIN_TYPE_KEY, user.lastLoginProvider)
     } catch {

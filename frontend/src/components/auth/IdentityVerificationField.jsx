@@ -5,7 +5,7 @@ import { useFormContext, useWatch } from 'react-hook-form'
 // 본인 인증 수단(휴대폰, PASS 등)이 미정이라 휴대폰 인증번호 방식으로 화면을 구성했다 (BE-008 비고)
 function IdentityVerificationField() {
   const {
-    formState: { errors },
+    formState: { errors },setValue
   } = useFormContext()
   const [phone, setPhone] = useState('')
   const [code, setCode] = useState('')
@@ -21,7 +21,12 @@ function IdentityVerificationField() {
   // TODO: POST /api/v1/auth/identity-verification/confirm (BE-009) 호출
   // - 요청: { verificationId, code } / 응답: { verified, verificationToken }
   // - verified가 true면 setValue('verificationToken', verificationToken, { shouldValidate: true })
-  const handleConfirm = () => {}
+  const handleConfirm = () =>
+  {
+    //임시로 집어넣은 인증 토큰
+    setValue('verificationToken', '1111', { shouldValidate: true });
+    console.log("asdfasdf");
+  }
 
   return (
     <fieldset className="flex flex-col gap-3">
@@ -35,7 +40,10 @@ function IdentityVerificationField() {
           autoComplete="tel"
           placeholder="휴대폰 번호"
           value={phone}
-          onChange={(event) => setPhone(event.target.value)}
+          onChange={(event) => {
+            setPhone(event.target.value)
+            setValue('phone', event.target.value, { shouldValidate: true })
+          }}
           disabled={isVerified}
           className="h-12 min-w-0 flex-1 rounded-xl border border-gray-300 px-4 text-base disabled:bg-gray-100"
         />
@@ -72,8 +80,8 @@ function IdentityVerificationField() {
         </div>
       )}
       {isVerified && <p className="text-sm font-medium text-emerald-700">본인 인증이 완료되었어요.</p>}
-      {errors.verificationToken && !isVerified && (
-        <p className="text-sm text-red-600">{errors.verificationToken.message}</p>
+      {(errors.phone || (errors.verificationToken && !isVerified)) && (
+        <p className="text-sm text-red-600">{errors.phone?.message || errors.verificationToken.message}</p>
       )}
     </fieldset>
   )
