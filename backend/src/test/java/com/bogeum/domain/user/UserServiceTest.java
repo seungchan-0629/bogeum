@@ -6,6 +6,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.when;
 
 import java.util.Optional;
+import com.bogeum.common.enums.Role;
+import com.bogeum.config.CustomSecurityConfig;
+import com.bogeum.utils.JwtUtil;
+import com.bogeum.domain.user.UserRepository.RefreshTokenRepository;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -13,6 +17,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.support.DefaultListableBeanFactory;
+import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import com.bogeum.common.enums.LoginProvider;
@@ -27,20 +33,28 @@ class UserServiceTest {
 	@Mock
 	private UserRepository userRepository;
 
+	@Mock
+	private RefreshTokenRepository refreshTokenRepository;
+
 	// 테스트 속도를 위한 비용 값이며 운영 설정의 기본 비용에는 영향을 주지 않는다.
 	private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder(4);
 	private UserService userService;
 
 	@BeforeEach
 	void setUp() {
-		userService = new UserService(userRepository, passwordEncoder);
+		var config = new CustomSecurityConfig();
+		var beanFactory = new DefaultListableBeanFactory();
+		userService = new UserService(passwordEncoder, beanFactory.getBeanProvider(AuthenticationManager.class), userRepository, refreshTokenRepository,
+			new JwtUtil());
+		beanFactory.registerSingleton("authenticationManager", config.authenticationManager(userService, passwordEncoder));
 	}
 
 	@Test
 	@DisplayName("해시와 일치하는 비밀번호만 성공하고 로그인 수단을 LOCAL로 변경한다")
 	void loginWithMatchingPassword() {
 		User user = storedUser(passwordEncoder.encode(" password "), UserStatus.ACTIVE);
-		assertSame(user, userService.login("user@example.com", " password "));
+		when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+		assertSame(user, userService.login("user@example.com", " password ").user());
 		assertEquals(LoginProvider.LOCAL, user.getLastLoginProvider());
 	}
 
@@ -74,7 +88,7 @@ class UserServiceTest {
 	}
 
 	private User storedUser(String passwordHash, UserStatus userStatus) {
-		User user = User.builder().email("user@example.com").passwordHash(passwordHash)
+		User user = User.builder().userId(1L).role(Role.USER).email("user@example.com").passwordHash(passwordHash)
 			.userStatus(userStatus).lastLoginProvider(LoginProvider.NAVER).build();
 		when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
 		return user;

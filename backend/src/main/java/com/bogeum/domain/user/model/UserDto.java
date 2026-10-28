@@ -2,17 +2,21 @@ package com.bogeum.domain.user.model;
 
 import com.bogeum.common.enums.LoginProvider;
 import com.bogeum.common.enums.Role;
-
+import com.bogeum.common.enums.UserStatus;
+import com.bogeum.domain.user.UserService.AuthResult;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import java.util.List;
+import java.time.Instant;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 /**
  * 사용자 기능의 요청·응답 DTO.
@@ -120,4 +124,38 @@ public class UserDto {
 				.build();
 		}
 	}
+
+	/**
+	 * DB의 User를 Security가 이해하는 사용자 정보로 바꾸는 어댑터.
+	 * extends 뒤의 User는 우리 엔티티가 아닌 Spring Security 클래스다.
+	 * 이 객체는 서버 내부용이다. JSON 응답이나 JWT에 비밀번호 해시를 넣지 않는다.
+	 */
+	@Getter
+	public static class LoginUser extends org.springframework.security.core.userdetails.User {
+		private final Long userId;
+		private final String name;
+
+		public LoginUser(com.bogeum.domain.user.model.User user) {
+			// 부모 순서: 로그인 아이디, 저장된 해시, 활성, 계정미만료, 암호미만료, 잠금해제, 권한
+			super(user.getEmail(), user.getPasswordHash(),
+				user.getUserStatus() == UserStatus.ACTIVE, true, true, true,
+				List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name())));
+			// 부모에 없는 우리 서비스 정보만 추가한다. pw 필드를 중복으로 만들지 않는다.
+			this.userId = user.getUserId();
+			this.name = user.getName();
+		}
+	}
+
+	/** 갱신·로그아웃 요청. 토큰의 유효성은 서비스에서 JwtUtil로 검증한다. */
+	public record RefreshRequest(String refreshToken) { }
+
+	/** 프론트에서 쿠키로 저장할 토큰 응답. 비밀번호 해시는 포함하지 않는다. */
+	public record TokenResponse(LoginRes user, String accessToken, String refreshToken, Instant refreshExpiresAt) {
+		public static TokenResponse from(AuthResult result) {
+			return new TokenResponse(LoginRes.from(result.user()), result.accessToken(),
+				result.refreshToken(), result.refreshExpiresAt());
+		}
+	}
+
+	public record CsrfResponse(String headerName, String token) { }
 }

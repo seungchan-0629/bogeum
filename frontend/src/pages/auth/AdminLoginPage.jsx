@@ -5,24 +5,32 @@
 import { useNavigate } from 'react-router'
 import Logo from '../../components/common/Logo.jsx'
 import { Field, TextInput } from '../../components/common/FormControls.jsx'
-import { useAuthStore } from '../../stores/authStore.js'
-import { DEV_USERS } from '../../constants/devUsers.js'
+import { login, logout } from '../../utils/jwtUtil.js'
+import { useState } from 'react'
 
 function AdminLoginPage() {
-  const login = useAuthStore((state) => state.login)
   const navigate = useNavigate()
 
-  // TODO: POST /api/v1/auth/login (BE-001) 연결
-  // - 요청: { loginId, password } / 응답: { userId, role, loginType }
-  // - role이 ADMIN이면 login() 후 /admin 으로 이동, 아니면 "관리자 계정이 아니에요" 안내
-  const handleSubmit = (event) => {
+  const [error, setError] = useState('')
+  const [pending, setPending] = useState(false)
+  const handleSubmit = async (event) => {
     event.preventDefault()
-  }
-
-  // [개발용] API 연결 전 관리자 화면 확인용. 로그인 API가 연결되면 지운다
-  const handleDevLogin = () => {
-    login(DEV_USERS.find((devUser) => devUser.user.role === 'ADMIN').user)
-    navigate('/admin')
+    const form = new FormData(event.currentTarget)
+    setError('')
+    setPending(true)
+    try {
+      const user = await login(form.get('email'), form.get('password'))
+      if (user.role !== 'ADMIN') {
+        await logout()
+        setError('관리자 계정이 아닙니다.')
+        return
+      }
+      navigate('/admin')
+    } catch (failure) {
+      setError(failure.response?.data?.message || '인증 요청을 완료하지 못했습니다.')
+    } finally {
+      setPending(false)
+    }
   }
 
   return (
@@ -31,18 +39,15 @@ function AdminLoginPage() {
       <form onSubmit={handleSubmit} className="card flex w-full max-w-sm flex-col gap-4 p-8">
         <h1 className="text-[22px] font-extrabold">관리자 로그인</h1>
         <Field label="관리자 아이디" htmlFor="admin-login-id">
-          <TextInput id="admin-login-id" autoComplete="username" />
+          <TextInput id="admin-login-id" name="email" type="email" required autoComplete="username" />
         </Field>
         <Field label="비밀번호" htmlFor="admin-login-password">
-          <TextInput id="admin-login-password" type="password" autoComplete="current-password" />
+          <TextInput id="admin-login-password" name="password" required type="password" autoComplete="current-password" />
         </Field>
-        <button type="submit" className="btn-primary h-12">로그인</button>
+        {error && <p role="alert">{error}</p>}
+        <button disabled={pending} type="submit" className="btn-primary h-12">로그인</button>
         <p className="text-sm text-gray-500">관리자 계정은 회원가입이 없어요. 운영팀에서 발급해요.</p>
-        {import.meta.env.DEV && (
-          <button type="button" onClick={handleDevLogin} className="rounded-xl border-2 border-dashed border-amber-400 bg-amber-50 py-2.5 text-sm font-bold text-amber-900">
-            개발용: 관리자로 바로 로그인
-          </button>
-        )}
+
       </form>
     </section>
   )

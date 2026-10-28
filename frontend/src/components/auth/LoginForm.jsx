@@ -6,8 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import clsx from 'clsx'
 import { LAST_LOGIN_TYPE_KEY, LOGIN_TYPES, LOGIN_TYPE_LABELS } from '../../constants/auth.js'
-import { useAuthStore } from '../../stores/authStore.js'
-import DevLoginPanel from './DevLoginPanel.jsx'
+import { login } from '../../utils/jwtUtil.js'
 
 const loginSchema = z.object({
   email: z.string().trim().min(1, '이메일을 입력해 주세요.').pipe(z.email({ error: '이메일 형식으로 입력해 주세요.' })),
@@ -36,7 +35,6 @@ function RecentBadge() {
 
 function LoginForm() {
   const navigate = useNavigate()
-  const login = useAuthStore((state) => state.login)
   const [lastLoginType] = useState(readLastLoginType)
   const {
     register,
@@ -47,42 +45,14 @@ function LoginForm() {
 
   // 검증된 입력을 실제 API로 보낸다. 비밀번호는 콘솔이나 브라우저 저장소에 기록하지 않는다.
   const onSubmit = async ({ email, password }) => {
-    let response
-    try {
-      response = await fetch('/api/v1/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      })
-    } catch {
-      setError('root', { message: '서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.' })
-      return
-    }
-
-    if (!response.ok) {
-      // 프록시 장애처럼 JSON이 아닌 오류도 화면에서 안내한다.
-      setError('root', {
-        message: response.status === 401
-          ? '이메일 또는 비밀번호를 확인해 주세요.'
-          : response.status === 400
-            ? '요청값을 확인해 주세요.'
-            : '로그인 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.',
-      })
-      return
-    }
-
     let user
     try {
-      user = await response.json()
-    } catch {
-      setError('root', { message: '로그인 응답을 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.' })
+      user = await login(email, password)
+    } catch (error) {
+      setError('root', { message: error.response?.data?.message || '서버에 연결할 수 없습니다.' })
       return
     }
 
-    // 사용자 정보는 메모리에 보관한다. 새로고침 후 복원은 후속 세션 연동에서 구현한다.
-    login(user)
-    //user["contractRoles"] = []
-    console.log(user)
     try {
       localStorage.setItem(LAST_LOGIN_TYPE_KEY, user.lastLoginProvider)
     } catch {
@@ -181,8 +151,6 @@ function LoginForm() {
         <Link to="/signup/agent" className="hover:text-gray-900">중개사 회원가입</Link>
       </div>
 
-      {/* 개발 모드(npm run dev)에서만 보이는 역할별 테스트 로그인 */}
-      {import.meta.env.DEV && <DevLoginPanel />}
     </div>
   )
 }

@@ -4,17 +4,21 @@
 import { Link, useNavigate } from 'react-router'
 import GuideScreen from '../../components/common/GuideScreen.jsx'
 import { useAuthStore } from '../../stores/authStore.js'
+import { logout } from '../../utils/jwtUtil.js'
 import { ROLE_LABELS } from '../../constants/auth.js'
 
 function ForbiddenPage({ allowedRoles = [] }) {
   const user = useAuthStore((state) => state.user)
-  const logout = useAuthStore((state) => state.logout)
   const navigate = useNavigate()
   const allowedLabel = allowedRoles.map((role) => ROLE_LABELS[role]).join('·')
 
-  // TODO: POST /api/v1/auth/logout (BE-002) 호출 후 logout() 실행
-  const handleSwitchAccount = () => {
-    logout()
+  const handleSwitchAccount = async () => {
+    try {
+      await logout()
+    } catch {
+      window.alert('서버 로그아웃을 완료하지 못했습니다. 다시 시도해 주세요.')
+      return
+    }
     navigate('/login')
   }
 
@@ -22,7 +26,7 @@ function ForbiddenPage({ allowedRoles = [] }) {
     <GuideScreen
       code="403"
       title="들어갈 수 없는 방이에요"
-      description={`이 화면은 ${allowedLabel}만 볼 수 있어요. 지금은 ${ROLE_LABELS[user.role]}(으)로 로그인되어 있어요.`}
+      description={`이 화면은 ${allowedLabel}만 볼 수 있어요. 지금은 ${ROLE_LABELS[user?.role]}(으)로 로그인되어 있어요.`}
       litRatio={0.3}
     >
       <Link to="/" className="btn-primary">메인으로</Link>

@@ -9,7 +9,7 @@ import PageHeader from '../../components/common/PageHeader.jsx'
 import StatusBadge from '../../components/common/StatusBadge.jsx'
 import ConfirmModal from '../../components/common/ConfirmModal.jsx'
 import { Field, TextInput } from '../../components/common/FormControls.jsx'
-import { useAuthStore } from '../../stores/authStore.js'
+import { logout } from '../../utils/jwtUtil.js'
 
 // TODO: 중개사 정보 조회 API가 명세에 없어 백엔드와 협의 필요 (사무소명, 이메일, 주소, 전화번호, 승인 상태)
 const SAMPLE_AGENT = {
@@ -20,7 +20,6 @@ const SAMPLE_AGENT = {
 }
 
 function AgentMyPage() {
-  const logout = useAuthStore((state) => state.logout)
   const navigate = useNavigate()
   const [isWithdrawOpen, setIsWithdrawOpen] = useState(false)
 
@@ -30,8 +29,13 @@ function AgentMyPage() {
   }
 
   // TODO: 중개사 탈퇴 API가 명세에 없다. 생기면 호출 후 로그아웃
-  const handleWithdraw = () => {
-    logout()
+  const handleWithdraw = async () => {
+    try {
+      await logout()
+    } catch {
+      window.alert('서버 로그아웃을 완료하지 못했습니다. 다시 로그인한 후 로그아웃해 주세요.')
+      return
+    }
     navigate('/')
   }
 

@@ -7,6 +7,7 @@ import clsx from 'clsx'
 import Logo from './Logo.jsx'
 import Icon from './Icon.jsx'
 import { useAuthStore } from '../../stores/authStore.js'
+import { logout } from '../../utils/jwtUtil.js'
 import { ROLE_LABELS } from '../../constants/auth.js'
 import { MY_PAGE_PATH_BY_ROLE, NAV_ITEMS_BY_ROLE } from '../../constants/navigation.js'
 
@@ -84,14 +85,17 @@ function NavGroup({ item }) {
 
 function Header() {
   const user = useAuthStore((state) => state.user)
-  const logout = useAuthStore((state) => state.logout)
   const navigate = useNavigate()
   const navItems = NAV_ITEMS_BY_ROLE[user?.role ?? 'GUEST']
   const myPagePath = user && MY_PAGE_PATH_BY_ROLE[user.role]
 
-  // TODO: POST /api/v1/auth/logout (BE-002) 호출 후 logout() 실행
-  const handleLogout = () => {
-    logout()
+  const handleLogout = async () => {
+    try {
+      await logout()
+    } catch {
+      window.alert('서버 로그아웃을 완료하지 못했습니다. 다시 로그인한 후 로그아웃해 주세요.')
+      return
+    }
     navigate('/')
   }
 

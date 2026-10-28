@@ -38,4 +38,9 @@ public class UserException extends RuntimeException {
 	public static UserException loginFailed() {
 		return new UserException(ErrorCode.LOGIN_FAILED);
 	}
+
+	public static UserException required() { return new UserException(ErrorCode.AUTH_REQUIRED); }
+	public static UserException expired() { return new UserException(ErrorCode.ACCESS_TOKEN_EXPIRED); }
+	public static UserException invalidAccess() { return new UserException(ErrorCode.ACCESS_TOKEN_INVALID); }
+	public static UserException invalidRefresh() { return new UserException(ErrorCode.REFRESH_TOKEN_INVALID); }
 }

@@ -11,6 +11,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import java.time.Instant;
+import com.bogeum.domain.user.UserService.AuthResult;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,6 +32,7 @@ import tools.jackson.databind.node.ObjectNode;
 
 /** 실제 컨트롤러의 JSON 변환·검증·오류 처리를 DB 없이 확인한다. */
 @WebMvcTest(UserController.class)
+@AutoConfigureMockMvc(addFilters = false)
 class UserControllerTest {
 
 	private static final String SIGNUP_REQUEST = """
@@ -41,7 +45,6 @@ class UserControllerTest {
 	// 테스트 안에서만 서비스를 대체한다. 실제 실행 시에는 UserService가 DB를 조회한다.
 	@MockitoBean
 	private UserService userService;
-
 	@Autowired
 	UserControllerTest(MockMvc mockMvc) {
 		this.mockMvc = mockMvc;
@@ -107,12 +110,12 @@ class UserControllerTest {
 	}
 
 	@Test
-	@DisplayName("요청을 서비스에 전달하고 비밀번호 없이 정해진 네 필드만 반환한다")
+	@DisplayName("요청을 서비스에 전달하고 회원 정보와 두 토큰 및 만료 시각을 반환한다")
 	void loginReturnsPublicFieldsOnly() throws Exception {
 		User user = User.builder().userId(1L).email("user@example.com")
 			.name("홍길동").role(Role.TENANT).passwordHash("not-for-response")
 			.lastLoginProvider(LoginProvider.LOCAL).build();
-		when(userService.login("user@example.com", " password ")).thenReturn(user);
+		when(userService.login("user@example.com", " password ")).thenReturn(new AuthResult(user, "test-access", "test-refresh", Instant.parse("2030-01-01T00:00:00Z")));
 
 		mockMvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
 			.content("""
@@ -120,7 +123,7 @@ class UserControllerTest {
 				"""))
 			.andExpect(status().isOk())
 			.andExpect(content().json("""
-				{"userId":1,"name":"홍길동","role":"TENANT","lastLoginProvider":"LOCAL"}
+				{"user":{"userId":1,"name":"홍길동","role":"TENANT","lastLoginProvider":"LOCAL","contractRoles":[]},"accessToken":"test-access","refreshToken":"test-refresh","refreshExpiresAt":"2030-01-01T00:00:00Z"}
 				""", JsonCompareMode.STRICT));
 		verify(userService).login("user@example.com", " password ");
 	}

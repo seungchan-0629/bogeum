@@ -13,6 +13,7 @@ import StatusBadge from '../../components/common/StatusBadge.jsx'
 import ConfirmModal from '../../components/common/ConfirmModal.jsx'
 import { Field, TextInput } from '../../components/common/FormControls.jsx'
 import { useAuthStore } from '../../stores/authStore.js'
+import { logout } from '../../utils/jwtUtil.js'
 import { CONTRACT_ROLES, ROLE_LABELS } from '../../constants/auth.js'
 
 // TODO: GET /api/v1/users/me (BE-013) 응답으로 교체 (name, phone, role, loginId, address, socialAccounts[])
@@ -31,7 +32,6 @@ const SOCIAL_PROVIDERS = [
 
 function MyPage() {
   const user = useAuthStore((state) => state.user)
-  const logout = useAuthStore((state) => state.logout)
   const navigate = useNavigate()
   const [isWithdrawOpen, setIsWithdrawOpen] = useState(false)
   const isTenant = user.contractRoles.includes(CONTRACT_ROLES.TENANT)
@@ -46,8 +46,13 @@ function MyPage() {
   const handleConnect = () => {}
 
   // TODO: DELETE /api/v1/users/me (BE-015, 확인용 비밀번호 포함 여부는 백엔드와 협의) 성공 후 로그아웃
-  const handleWithdraw = () => {
-    logout()
+  const handleWithdraw = async () => {
+    try {
+      await logout()
+    } catch {
+      window.alert('서버 로그아웃을 완료하지 못했습니다. 다시 로그인한 후 로그아웃해 주세요.')
+      return
+    }
     navigate('/')
   }
 

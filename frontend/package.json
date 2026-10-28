@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "test": "node --test src/utils/jwtUtil.test.js",
     "dev": "vite",
     "build": "vite build",
     "lint": "oxlint",
@@ -13,6 +14,7 @@
     "@hookform/resolvers": "^5.9.2",
     "@tailwindcss/vite": "^4.3.3",
     "@tanstack/react-query": "^5.104.5",
+    "axios": "^1.20.0",
     "clsx": "^2.1.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",

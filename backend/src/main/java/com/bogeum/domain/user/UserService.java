@@ -1,29 +1,43 @@
 package com.bogeum.domain.user;
 
-import java.nio.charset.StandardCharsets;
-
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.stereotype.Service;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.validation.annotation.Validated;
-
 import com.bogeum.common.enums.Role;
 import com.bogeum.common.enums.UserStatus;
+import com.bogeum.domain.user.UserRepository.RefreshTokenRepository;
+import com.bogeum.domain.user.model.User.RefreshToken;
+import io.jsonwebtoken.Claims;
+import java.time.Instant;
+import java.util.UUID;
+import com.bogeum.utils.JwtUtil;
 import com.bogeum.domain.user.model.User;
-
+import com.bogeum.domain.user.model.UserDto.LoginUser;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import java.nio.charset.StandardCharsets;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.validation.annotation.Validated;
 
 @Service
 @Validated
 @RequiredArgsConstructor
-public class UserService {
-
-	private final UserRepository userRepository;
+public class UserService implements UserDetailsService {
 	private final PasswordEncoder passwordEncoder;
+	// 인증 관리자가 이 서비스를 사용자 조회에 사용하므로 로그인 시점에 가져온다.
+	private final ObjectProvider<AuthenticationManager> authenticationManagerProvider;
+	private final UserRepository userRepository;
+	private final RefreshTokenRepository refreshTokenRepository;
+	private final JwtUtil jwtUtil;
 
 	/**
 	 * 일반 사용자의 계정과 필수 동의를 함께 저장한다.
@@ -63,32 +77,103 @@ public class UserService {
 		}
 	}
 
-	/**
-	 * 이메일과 비밀번호를 검증하고 최근 로그인 수단을 갱신한다.
-	 * HTTP 요청·응답 변환과 세션 생성은 컨트롤러 및 인증 설정의 책임이다.
-	 *
-	 * @param email 로그인 아이디인 이메일
-	 * @param password 사용자가 입력한 원문 비밀번호
-	 * @return 인증에 성공한 사용자
-	 * @throws UserException 계정이 없거나 일반 로그인이 불가능한 경우
-	 */
+
+	/** 비밀번호 인증과 최근 로그인 수단 갱신 후 토큰 발급을 요청한다. */
 	@Transactional
-	public User login(String email, String password) {
-		// BCrypt 입력 한도를 넘으면 인코더 예외 대신 기존 인증 실패 응답을 반환한다.
+	public AuthResult login(String email, String password) {
 		if (password.getBytes(StandardCharsets.UTF_8).length > 72) {
 			throw UserException.loginFailed();
 		}
-		User user = userRepository.findByEmail(email).orElseThrow(UserException::loginFailed);
-
-		// 소셜 전용 계정은 해시가 없다. 실패 사유를 통일해 계정 존재 여부를 노출하지 않는다.
-		if (user.getUserStatus() != UserStatus.ACTIVE
-				|| user.getPasswordHash() == null || user.getPasswordHash().isBlank()
-				|| !passwordEncoder.matches(password, user.getPasswordHash())) {
+		LoginUser principal;
+		try {
+			var authentication = authenticationManagerProvider.getObject().authenticate(
+				UsernamePasswordAuthenticationToken.unauthenticated(email, password));
+			principal = (LoginUser) authentication.getPrincipal();
+		} catch (AuthenticationException exception) {
 			throw UserException.loginFailed();
 		}
-
-		// 관리 중인 엔티티이므로 트랜잭션 종료 시 변경 감지로 저장된다.
+		User user = userRepository.findById(principal.getUserId()).orElseThrow(UserException::loginFailed);
 		user.recordLocalLogin();
-		return user;
+		Instant now = Instant.now();
+		Instant expiresAt = jwtUtil.calculateRefreshExpiresAt(now);
+		String sessionKey = UUID.randomUUID().toString();
+		String refresh = jwtUtil.createRefresh(user.getUserId(), sessionKey, expiresAt);
+		refreshTokenRepository.save(new RefreshToken(user, sessionKey, jwtUtil.hashToken(refresh), expiresAt, now));
+		return new AuthResult(user, jwtUtil.createAccess(user.getUserId(), sessionKey), refresh, expiresAt);
 	}
+
+	/** 회원을 찾는다. 비밀번호 비교는 DaoAuthenticationProvider가 담당한다. */
+	@Override
+	@Transactional(readOnly = true)
+	public UserDetails loadUserByUsername(String email) {
+		User user = userRepository.findByEmail(email)
+			.orElseThrow(() -> new UsernameNotFoundException("로그인할 수 없습니다."));
+		if (user.getPasswordHash() == null || user.getPasswordHash().isBlank()) {
+			// 소셜 전용 계정에는 일반 로그인용 해시가 없다.
+			throw new UsernameNotFoundException("로그인할 수 없습니다.");
+		}
+		return new LoginUser(user);
+	}
+
+	/** R: 로그인 기록과 회원 상태를 확인해 로그아웃·탈퇴를 즉시 반영한다. */
+	@Transactional(readOnly = true)
+	public User findUserForSession(Long userId, String sessionKey) {
+		RefreshToken token = refreshTokenRepository.findWithUser(sessionKey)
+			.orElseThrow(UserException::required);
+		if (!isUsable(token, userId)) {
+			throw UserException.required();
+		}
+		return token.getUser();
+	}
+
+	@Transactional(readOnly = true)
+	public User findUser(Long userId) {
+		return userRepository.findById(userId).orElseThrow(UserException::required);
+	}
+
+	/** U: 갱신 때마다 원문을 교체한다. 최초 로그인 시 정한 최종 만료시각은 연장하지 않는다. */
+	@Transactional
+	public AuthResult refresh(String rawToken) {
+		Claims claims = jwtUtil.validateRefreshToken(rawToken);
+		RefreshToken token = refreshTokenRepository.findForUpdate(claims.get("sid", String.class))
+			.orElseThrow(UserException::invalidRefresh);
+		if (!isUsable(token, Long.valueOf(claims.getSubject())) || !jwtUtil.matchesTokenHash(rawToken, token.getTokenHash())) {
+			throw UserException.invalidRefresh();
+		}
+		User user = token.getUser();
+		String refresh = jwtUtil.createRefresh(user.getUserId(), token.getSessionKey(), token.getExpiresAt());
+		token.rotate(jwtUtil.hashToken(refresh), Instant.now());
+		return new AuthResult(user, jwtUtil.createAccess(user.getUserId(), token.getSessionKey()),
+			refresh, token.getExpiresAt());
+	}
+
+	/** D: 해당 로그인 기록을 폐기한다. 잘못된/만료된 쿠키도 브라우저에서는 삭제할 수 있다. */
+	@Transactional
+	public void logout(String rawToken) {
+		if (rawToken == null || rawToken.isBlank()) {
+			return;
+		}
+		Claims claims;
+		try {
+			claims = jwtUtil.validateRefreshToken(rawToken);
+		} catch (UserException exception) {
+			// 로그아웃은 이미 무효인 자격증명도 성공으로 처리하는 멱등 동작이다.
+			return;
+		}
+		refreshTokenRepository.findForUpdate(claims.get("sid", String.class)).ifPresent(token -> {
+			if (jwtUtil.matchesTokenHash(rawToken, token.getTokenHash())) {
+				token.revoke(Instant.now());
+			}
+		});
+	}
+
+	private boolean isUsable(RefreshToken token, Long userId) {
+		return token.isUsable(Instant.now())
+			&& token.getUser().getUserStatus() == UserStatus.ACTIVE
+			&& token.getUser().getUserId().equals(userId);
+	}
+
+	/** 서비스 내부 결과. Controller가 프론트에 전달할 토큰 응답 DTO로 변환한다. */
+	public record AuthResult(User user, String accessToken, String refreshToken, Instant refreshExpiresAt) { }
+
 }

@@ -1,3 +1,4 @@
+import { publicApi } from '../../utils/jwtUtil.js'
 // USER_003 (사용자 회원가입), USER_004 (동의 항목 필수)
 // 가입할 때는 임대인·임차인을 고르지 않는다. 계약을 등록할 때 정해진다 (PROPERTY_011)
 import { FormProvider, useForm } from 'react-hook-form'
@@ -51,21 +52,10 @@ function UserSignupForm() {
 
   // 현재 API는 email을 로그인 아이디로 사용하며, 비밀번호 확인과 임시 인증 토큰은 받지 않는다.
   const onSubmit = async ({ name, email, phone, password, agreements }) => {
-    let response
     try {
-      response = await fetch('/api/v1/auth/signup/user', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, phone, password, agreements }),
-      })
-    } catch {
-      window.alert('서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.')
-      return
-    }
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => null)
-      window.alert(error?.message || '회원가입 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.')
+      await publicApi.post('/v1/auth/signup/user', { name, email, phone, password, agreements })
+    } catch (error) {
+      window.alert(error.response?.data?.message || '서버에 연결할 수 없습니다.')
       return
     }
 
