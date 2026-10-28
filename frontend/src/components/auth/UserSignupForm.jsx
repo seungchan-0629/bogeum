@@ -1,6 +1,7 @@
 // USER_003 (사용자 회원가입), USER_004 (동의 항목 필수)
 // 가입할 때는 임대인·임차인을 고르지 않는다. 계약을 등록할 때 정해진다 (PROPERTY_011)
 import { FormProvider, useForm } from 'react-hook-form'
+import { useNavigate } from 'react-router'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import TextField from './TextField.jsx'
@@ -13,6 +14,7 @@ const userSignupSchema = z
     name: z.string().trim().min(1, '이름을 입력해 주세요.'),
     loginId: z.email({ error: '아이디는 이메일 형식으로 입력해 주세요.' }),
     email: z.email({ error: '이메일 형식으로 입력해 주세요.' }),
+    phone: z.string().trim().min(1, '휴대폰 번호를 입력해 주세요.'),
     password: z.string().min(1, '비밀번호를 입력해 주세요.'),
     passwordConfirm: z.string().min(1, '비밀번호를 한 번 더 입력해 주세요.'),
     verificationToken: z.string().min(1, '본인 인증을 완료해 주세요.'),
@@ -28,12 +30,14 @@ const userSignupSchema = z
   })
 
 function UserSignupForm() {
+  const navigate = useNavigate()
   const methods = useForm({
     resolver: zodResolver(userSignupSchema),
     defaultValues: {
       name: '',
       loginId: '',
       email: '',
+      phone: '',
       password: '',
       passwordConfirm: '',
       verificationToken: '',
@@ -45,12 +49,29 @@ function UserSignupForm() {
     formState: { isSubmitting },
   } = methods
 
-  // TODO: POST /api/v1/auth/signup/user (BE-010) 연결
-  // - 요청: { name, loginId, email, password, verificationToken, agreements: { privacyCollect, thirdPartyProvide } }
-  //   role(USER)은 이 API에서 서버가 정하는 것으로 가정. 명세(BE-010)의 role 필드를 뺄지 백엔드와 협의 필요
-  //   (passwordConfirm은 화면 확인용이라 보내지 않는다)
-  // - 응답: { userId } → 가입 완료 안내 후 '/login'으로 이동
-  const onSubmit = async () => {}
+  // 현재 API는 email을 로그인 아이디로 사용하며, 비밀번호 확인과 임시 인증 토큰은 받지 않는다.
+  const onSubmit = async ({ name, email, phone, password, agreements }) => {
+    let response
+    try {
+      response = await fetch('/api/v1/auth/signup/user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, phone, password, agreements }),
+      })
+    } catch {
+      window.alert('서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.')
+      return
+    }
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => null)
+      window.alert(error?.message || '회원가입 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.')
+      return
+    }
+
+    window.alert('회원가입이 완료되었습니다. 로그인해 주세요.')
+    navigate('/login')
+  }
 
   return (
     <FormProvider {...methods}>

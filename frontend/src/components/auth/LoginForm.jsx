@@ -1,16 +1,17 @@
 // USER_001, USER_005, USER_018 (아이디·비밀번호 로그인), USER_007 (최근 로그인 수단 안내), USER_008 (소셜 로그인)
 import { useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import clsx from 'clsx'
 import { LAST_LOGIN_TYPE_KEY, LOGIN_TYPES, LOGIN_TYPE_LABELS } from '../../constants/auth.js'
+import { useAuthStore } from '../../stores/authStore.js'
 import DevLoginPanel from './DevLoginPanel.jsx'
 
 const loginSchema = z.object({
-  loginId: z.string().trim().min(1, '아이디를 입력해 주세요.'),
-  password: z.string().min(1, '비밀번호를 입력해 주세요.'),
+  email: z.string().trim().min(1, '이메일을 입력해 주세요.').pipe(z.email({ error: '이메일 형식으로 입력해 주세요.' })),
+  password: z.string().refine((password) => password.trim().length > 0, '비밀번호를 입력해 주세요.'),
 })
 
 const SOCIAL_BUTTONS = [
@@ -34,18 +35,62 @@ function RecentBadge() {
 }
 
 function LoginForm() {
+  const navigate = useNavigate()
+  const login = useAuthStore((state) => state.login)
   const [lastLoginType] = useState(readLastLoginType)
   const {
     register,
     handleSubmit,
+    setError,
     formState: { errors, isSubmitting },
   } = useForm({ resolver: zodResolver(loginSchema) })
 
-  // TODO: POST /api/v1/auth/login (BE-001) 연결
-  // - 요청: { loginId, password } / 응답: { userId, role, loginType }
-  // - 성공 시: authStore의 login({ userId, role }) 호출 → localStorage에 LAST_LOGIN_TYPE_KEY로 loginType 저장(USER_007) → '/'로 이동
-  // - 인증 방식(세션/토큰)이 미정이라 토큰 저장 여부는 확정 후 반영
-  const onSubmit = async () => {}
+  // 검증된 입력을 실제 API로 보낸다. 비밀번호는 콘솔이나 브라우저 저장소에 기록하지 않는다.
+  const onSubmit = async ({ email, password }) => {
+    let response
+    try {
+      response = await fetch('/api/v1/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      })
+    } catch {
+      setError('root', { message: '서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.' })
+      return
+    }
+
+    if (!response.ok) {
+      // 프록시 장애처럼 JSON이 아닌 오류도 화면에서 안내한다.
+      setError('root', {
+        message: response.status === 401
+          ? '이메일 또는 비밀번호를 확인해 주세요.'
+          : response.status === 400
+            ? '요청값을 확인해 주세요.'
+            : '로그인 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.',
+      })
+      return
+    }
+
+    let user
+    try {
+      user = await response.json()
+    } catch {
+      setError('root', { message: '로그인 응답을 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.' })
+      return
+    }
+
+    // 사용자 정보는 메모리에 보관한다. 새로고침 후 복원은 후속 세션 연동에서 구현한다.
+    login(user)
+    //user["contractRoles"] = []
+    console.log(user)
+    try {
+      localStorage.setItem(LAST_LOGIN_TYPE_KEY, user.lastLoginProvider)
+    } catch {
+      // 최근 사용 안내를 저장하지 못해도 인증 성공 흐름은 계속 진행한다.
+      console.warn('최근 로그인 수단을 저장하지 못했습니다.')
+    }
+    navigate('/')
+  }
 
   // TODO: 소셜 로그인 (BE-005) 연결
   // - 각 제공자의 로그인 창으로 이동 → 돌아온 authorizationCode로 POST /api/v1/auth/social/{provider} 호출
@@ -62,23 +107,23 @@ function LoginForm() {
 
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-4">
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="login-id" className="text-sm font-medium text-gray-700">
-            아이디
+          <label htmlFor="login-email" className="text-sm font-medium text-gray-700">
+            아이디(이메일)
           </label>
           <input
-            id="login-id"
-            type="text"
+            id="login-email"
+            type="email"
             autoComplete="username"
-            aria-invalid={Boolean(errors.loginId)}
-            aria-describedby={errors.loginId ? 'login-id-error' : undefined}
+            aria-invalid={Boolean(errors.email)}
+            aria-describedby={errors.email ? 'login-email-error' : undefined}
             className={clsx(
               'h-12 rounded-xl border px-4 text-base',
-              errors.loginId ? 'border-red-500' : 'border-gray-300',
+              errors.email ? 'border-red-500' : 'border-gray-300',
             )}
-            {...register('loginId')}
+            {...register('email')}
           />
-          {errors.loginId && (
-            <p id="login-id-error" className="text-sm text-red-600">{errors.loginId.message}</p>
+          {errors.email && (
+            <p id="login-email-error" className="text-sm text-red-600">{errors.email.message}</p>
           )}
         </div>
         <div className="flex flex-col gap-1.5">
@@ -101,13 +146,14 @@ function LoginForm() {
             <p id="login-password-error" className="text-sm text-red-600">{errors.password.message}</p>
           )}
         </div>
+        {errors.root && <p role="alert" className="text-sm text-red-600">{errors.root.message}</p>}
         <button
           type="submit"
           disabled={isSubmitting}
           className="mt-2 flex h-12 items-center justify-center gap-2 rounded-xl bg-blue-600 text-base font-bold text-white hover:bg-blue-700 disabled:opacity-60"
         >
           로그인
-          {lastLoginType === LOGIN_TYPES.NORMAL && <RecentBadge />}
+          {lastLoginType === LOGIN_TYPES.LOCAL && <RecentBadge />}
         </button>
       </form>
 
