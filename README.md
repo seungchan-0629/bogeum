@@ -24,4 +24,4 @@ npm run dev
 개발 중에는 Vite가 `/api` 요청을 `http://localhost:8080`으로 프록시합니다.
 
 
-github에 pr 생기면 slack 으로 알림 오는지 테스트.v3
+github에 pr 생기면 slack 으로 알림 오는지 테스트.v4
