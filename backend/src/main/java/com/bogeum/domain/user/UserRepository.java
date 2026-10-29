@@ -1,7 +1,7 @@
 package com.bogeum.domain.user;
 
 import com.bogeum.domain.user.model.User;
-import com.bogeum.domain.user.model.User.RefreshToken;
+import com.bogeum.utils.JwtUtil.RefreshToken;
 import jakarta.persistence.LockModeType;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;

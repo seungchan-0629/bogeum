@@ -3,7 +3,7 @@ package com.bogeum.domain.user;
 import com.bogeum.common.enums.Role;
 import com.bogeum.common.enums.UserStatus;
 import com.bogeum.domain.user.UserRepository.RefreshTokenRepository;
-import com.bogeum.domain.user.model.User.RefreshToken;
+import com.bogeum.utils.JwtUtil.RefreshToken;
 import io.jsonwebtoken.Claims;
 import java.time.Instant;
 import java.util.UUID;
