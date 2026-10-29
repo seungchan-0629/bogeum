@@ -209,3 +209,21 @@ test('손상된 쿠키는 지우고 갱신 거절 시 비로그인 상태로 복
   assert.equal(client.state.user, null)
   assert.equal(client.cookies.getCookie('member'), undefined)
 })
+
+
+test('중개사도 공통 로그인·복원·로그아웃을 사용하고 갱신된 승인 상태를 저장한다', async () => {
+  const client = setup()
+  const agent = { userId: 30, agentId: 7, name: '중개사', role: 'AGENT', approvalStatus: 'PENDING' }
+  publicAdapter(client, (config) => {
+    if (config.url === '/v1/auth/login') return response(config, { user: agent, accessToken: 'agent-login' })
+    if (config.url === '/v1/auth/refresh') return response(config, { user: { ...agent, approvalStatus: 'APPROVED' }, accessToken: 'agent-refresh' })
+    return response(config, null, 204)
+  })
+  assert.deepEqual(await client.login('agent@example.com', 'password'), agent)
+  await client.restoreSession()
+  assert.equal(client.state.user.approvalStatus, 'APPROVED')
+  assert.equal(client.state.user.agentId, 7)
+  await client.logout()
+  assert.equal(client.state.user, null)
+  assert.equal(client.cookies.getCookie('member'), undefined)
+})

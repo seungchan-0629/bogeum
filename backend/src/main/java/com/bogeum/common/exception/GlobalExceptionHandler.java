@@ -1,5 +1,7 @@
 package com.bogeum.common.exception;
 
+import com.bogeum.domain.agent.AgentException;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -11,6 +13,11 @@ import com.bogeum.domain.user.UserException;
 /** 컨트롤러의 검증 오류와 사용자 인증 실패를 공통 JSON 응답으로 변환한다. */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+	@ExceptionHandler(AgentException.class)
+	public ResponseEntity<ErrorResponse> handleAgentException(AgentException exception) {
+		return toResponse(exception.getErrorCode());
+	}
 
 	/** 서비스가 판단한 인증 실패를 401로 반환한다. */
 	@ExceptionHandler(UserException.class)

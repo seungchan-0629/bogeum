@@ -1,5 +1,9 @@
 package com.bogeum.domain.user.model;
 
+import com.bogeum.common.enums.ApprovalStatus;
+import com.bogeum.domain.agent.model.Agent;
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import com.bogeum.common.enums.LoginProvider;
 import com.bogeum.common.enums.Role;
 import com.bogeum.common.enums.UserStatus;
@@ -22,6 +26,39 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
  * 사용자 기능의 요청·응답 DTO.
  */
 public class UserDto {
+
+	/** 전화번호와 선택적인 비밀번호 변경 요청. 회원 번호와 역할은 받지 않는다. */
+	@Getter
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class ProfileReq {
+		@Size(max = 20, message = "전화번호는 20자 이하로 입력해 주세요.")
+		private String phone;
+		@Size(max = 72, message = "현재 비밀번호 길이를 확인해 주세요.")
+		private String currentPassword;
+		@Size(max = 72, message = "새 비밀번호는 UTF-8 기준 72바이트 이하로 입력해 주세요.")
+		private String newPassword;
+		@Size(max = 72, message = "비밀번호 확인 길이를 확인해 주세요.")
+		private String passwordConfirm;
+	}
+
+	/** 회원 정보에 필요한 값만 반환하며 비밀번호와 해시는 제외한다. */
+	@Getter
+	@Builder
+	public static class ProfileRes {
+		private Long userId;
+		private String name;
+		private Role role;
+		private String email;
+		private String phone;
+
+		/** DB에 저장된 본인의 정보를 화면 응답으로 변환한다. */
+		public static ProfileRes from(User user) {
+			return ProfileRes.builder().userId(user.getUserId()).name(user.getName())
+				.role(user.getRole()).email(user.getEmail()).phone(user.getPhone()).build();
+		}
+	}
+
 
 	/** 임대인·임차인의 일반 회원가입 요청. 본인 인증 결과는 받지 않는다. */
 	@Getter
@@ -107,6 +144,10 @@ public class UserDto {
 		private Long userId;
 		private String name;
 		private Role role;
+		@JsonInclude(JsonInclude.Include.NON_NULL)
+		private Long agentId;
+		@JsonInclude(JsonInclude.Include.NON_NULL)
+		private ApprovalStatus approvalStatus;
 		private LoginProvider lastLoginProvider;
 		//계약목록(임시)
 		private String[] contractRoles;
@@ -115,10 +156,16 @@ public class UserDto {
 		 * 사용자 엔티티를 로그인 응답으로 변환한다.
 		 */
 		public static LoginRes from(User user) {
+			return from(user, null);
+		}
+
+		public static LoginRes from(User user, Agent agent) {
 			return LoginRes.builder()
 				.userId(user.getUserId())
 				.name(user.getName())
 				.role(user.getRole())
+				.agentId(agent == null ? null : agent.getAgentProfileId())
+				.approvalStatus(agent == null ? null : agent.getApprovalStatus())
 				.contractRoles(new String[]{})
 				.lastLoginProvider(user.getLastLoginProvider())
 				.build();
@@ -152,7 +199,10 @@ public class UserDto {
 	/** 프론트에서 쿠키로 저장할 토큰 응답. 비밀번호 해시는 포함하지 않는다. */
 	public record TokenResponse(LoginRes user, String accessToken, String refreshToken, Instant refreshExpiresAt) {
 		public static TokenResponse from(AuthResult result) {
-			return new TokenResponse(LoginRes.from(result.user()), result.accessToken(),
+			return from(result, null);
+		}
+		public static TokenResponse from(AuthResult result, Agent agent) {
+			return new TokenResponse(LoginRes.from(result.user(), agent), result.accessToken(),
 				result.refreshToken(), result.refreshExpiresAt());
 		}
 	}

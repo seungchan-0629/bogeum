@@ -1,4 +1,6 @@
 // USER_016 (중개사 회원가입), USER_017 (동의 항목 필수), USER_021 (가입 후 서류 제출 안내)
+import { publicApi } from '../../utils/jwtUtil.js'
+import { useNavigate } from 'react-router'
 import { FormProvider, useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -27,6 +29,7 @@ const agentSignupSchema = z
   })
 
 function AgentSignupForm() {
+  const navigate = useNavigate()
   const methods = useForm({
     resolver: zodResolver(agentSignupSchema),
     defaultValues: {
@@ -42,19 +45,28 @@ function AgentSignupForm() {
   })
   const {
     handleSubmit,
-    formState: { isSubmitting },
+    setError,
+    formState: { isSubmitting, errors },
   } = methods
 
-  // TODO: POST /api/v1/auth/signup/agent (BE-011) 연결
-  // - 요청: { officeName, representativeName, officeAddress, phone, email, password, passwordConfirm, agreements: { privacyCollect, thirdPartyProvide } }
-  // - 응답: { agentId, status: 'PENDING' } → 서류 제출 안내 후 '/login'으로 이동
-  const onSubmit = async () => {}
+  const onSubmit = async ({ officeName, representativeName, officeAddress, phone, email, password, agreements }) => {
+    try {
+      await publicApi.post('/v1/auth/signup/agent', {
+        officeName, representativeName, officeAddress, phone, email, password, agreements,
+      })
+    } catch (error) {
+      setError('root', { message: error.response?.data?.message || '서버에 연결할 수 없습니다.' })
+      return
+    }
+    window.alert('중개사 가입 신청이 완료되었습니다. 로그인하면 승인 상태를 확인할 수 있습니다.')
+    navigate('/login')
+  }
 
   return (
     <FormProvider {...methods}>
       <form onSubmit={handleSubmit(onSubmit)} noValidate className="flex flex-col gap-6">
         <p className="rounded-xl bg-blue-50 px-4 py-3 text-sm leading-relaxed text-blue-900">
-          가입 후 <strong>2~3일 안에 공인중개사 관련 서류</strong>를 올려 주세요. 관리자 승인이 끝나면 서비스를 이용할 수 있어요.
+          가입 후 <strong>3일 안에 공인중개사 관련 서류</strong>를 올려 주세요. 관리자 승인이 끝나면 서비스를 이용할 수 있어요.
         </p>
 
         <TextField name="officeName" label="중개사무소 이름" autoComplete="organization" />
@@ -65,6 +77,8 @@ function AgentSignupForm() {
         <TextField name="password" label="비밀번호" type="password" autoComplete="new-password" />
         <TextField name="passwordConfirm" label="비밀번호 확인" type="password" autoComplete="new-password" />
         <AgreementFields />
+
+        {errors.root && <p role="alert" className="text-sm text-red-600">{errors.root.message}</p>}
 
         <button
           type="submit"

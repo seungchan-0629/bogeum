@@ -74,6 +74,14 @@ public class Agent {
 	// 가입 후 2~3일. 기한이 임박하면 알림을 보낸다 (USER_021, NOTIFY_024)
 	private LocalDateTime documentDueAt;
 
+	/** 실습 승인이다. 관리자 심사 기록으로 오인하지 않도록 reviewedBy는 비운다. */
+	public void approveForDemo() {
+		this.approvalStatus = ApprovalStatus.APPROVED;
+		this.rejectReason = null;
+		this.reviewedBy = null;
+		this.reviewedAt = LocalDateTime.now();
+	}
+
 	// 신규 가입 신청을 목록 최상단에 보여주는 기준 (AGENT_001)
 	@CreationTimestamp
 	@Column(nullable = false, updatable = false)

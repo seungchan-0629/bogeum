@@ -1,5 +1,9 @@
 package com.bogeum.config;
 
+import com.bogeum.domain.agent.AgentService;
+import com.bogeum.domain.user.model.UserDto.LoginUser;
+import org.springframework.security.authorization.AuthorizationDecision;
+
 import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -34,7 +38,7 @@ import com.bogeum.utils.JwtUtil;
 public class CustomSecurityConfig {
 	private static final Set<String> PUBLIC_PATHS = Set.of(
 		"/api/v1/auth/login", "/api/v1/auth/refresh", "/api/v1/auth/logout",
-		"/api/v1/auth/csrf", "/api/v1/auth/signup/user", "/api/health");
+		"/api/v1/auth/signup/agent", "/api/v1/auth/csrf", "/api/v1/auth/signup/user", "/api/health");
 
 	/** 사용자 조회와 비밀번호 검증을 Spring Security 인증 관리자에 연결한다. */
 	@Bean
@@ -47,6 +51,7 @@ public class CustomSecurityConfig {
 	@Bean
 	public SecurityFilterChain securityFilterChain(HttpSecurity http, UserService userService, JwtUtil jwtUtil,
 			CustomAuthenticationEntryPoint authenticationEntryPoint, CustomAccessDeniedHandler accessDeniedHandler,
+			AgentService agentService,
 			@Value("${auth.cookie-secure:true}") boolean cookieSecure) throws Exception {
 		var csrfRepository = new CookieCsrfTokenRepository();
 		csrfRepository.setCookieName("BOGEUM_CSRF");
@@ -67,6 +72,14 @@ public class CustomSecurityConfig {
 				.requestMatchers(publicRequests).permitAll()
 				.requestMatchers("/error").permitAll()
 				.requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+				.requestMatchers("/api/v1/agents/me", "/api/v1/agents/me/demo-approval", "/api/v1/agents/me/documents", "/api/v1/agents/me/documents/**").hasRole("AGENT")
+				.requestMatchers("/api/v1/agents/**").access((authentication, context) -> {
+					var current = authentication.get();
+					boolean allowed = current.getPrincipal() instanceof LoginUser principal
+						&& current.getAuthorities().stream().anyMatch(authority -> authority.getAuthority().equals("ROLE_AGENT"))
+						&& agentService.isApproved(principal.getUserId());
+					return new AuthorizationDecision(allowed);
+				})
 				.anyRequest().authenticated())
 			.exceptionHandling(errors -> errors
 				.authenticationEntryPoint(authenticationEntryPoint)

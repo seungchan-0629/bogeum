@@ -45,6 +45,8 @@ class UserControllerTest {
 	// 테스트 안에서만 서비스를 대체한다. 실제 실행 시에는 UserService가 DB를 조회한다.
 	@MockitoBean
 	private UserService userService;
+	@MockitoBean
+	private com.bogeum.domain.agent.AgentService agentService;
 	@Autowired
 	UserControllerTest(MockMvc mockMvc) {
 		this.mockMvc = mockMvc;

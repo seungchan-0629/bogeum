@@ -104,6 +104,16 @@ public class User {
 		this.lastLoginProvider = LoginProvider.LOCAL;
 	}
 
+	/** 검증된 전화번호와 서버에서 만든 비밀번호 해시만 반영한다. null은 변경하지 않는다. */
+	public void updateProfile(String phone, String passwordHash) {
+		if (phone != null) {
+			this.phone = phone;
+		}
+		if (passwordHash != null) {
+			this.passwordHash = passwordHash;
+		}
+	}
+
 	/** 로그인 한 번당 하나의 갱신 기록. 원문 토큰 대신 SHA-256 해시만 저장한다. */
 	@Entity(name = "RefreshToken")
 	@Table(name = "refresh_token")

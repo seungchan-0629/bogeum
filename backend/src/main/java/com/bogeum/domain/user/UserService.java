@@ -51,6 +51,20 @@ public class UserService implements UserDetailsService {
 			@NotBlank String password, @NotBlank @Size(max = 50) String name,
 			@NotBlank @Size(max = 20) String phone,
 			boolean hasPrivacyConsent, boolean hasThirdPartyConsent) {
+		return createAccount(email, password, name, phone, hasPrivacyConsent, hasThirdPartyConsent, Role.USER);
+	}
+
+	/** AgentService의 가입 트랜잭션에 참여하며 계정 역할은 서버에서 지정한다. */
+	@Transactional
+	public User signupAgent(@NotBlank @Email @Size(max = 255) String email,
+			@NotBlank String password, @NotBlank @Size(max = 50) String name,
+			@NotBlank @Size(max = 20) String phone,
+			boolean hasPrivacyConsent, boolean hasThirdPartyConsent) {
+		return createAccount(email, password, name, phone, hasPrivacyConsent, hasThirdPartyConsent, Role.AGENT);
+	}
+
+	private User createAccount(String email, String password, String name, String phone,
+			boolean hasPrivacyConsent, boolean hasThirdPartyConsent, Role role) {
 		if (!hasPrivacyConsent || !hasThirdPartyConsent
 				|| password.getBytes(StandardCharsets.UTF_8).length > 72) {
 			throw UserException.invalidSignup();
@@ -64,7 +78,7 @@ public class UserService implements UserDetailsService {
 			.passwordHash(passwordEncoder.encode(password))
 			.name(name)
 			.phone(phone)
-			.role(Role.USER)
+			.role(role)
 			.build();
 		user.agreeToRequiredTerms();
 
@@ -129,6 +143,36 @@ public class UserService implements UserDetailsService {
 	@Transactional(readOnly = true)
 	public User findUser(Long userId) {
 		return userRepository.findById(userId).orElseThrow(UserException::required);
+	}
+
+	/** 현재 비밀번호를 확인한 뒤 새 해시를 저장한다. 빈 새 비밀번호는 기존 값을 유지한다. */
+	@Transactional
+	public User updateProfile(Long userId, String phone, String currentPassword,
+			String newPassword, String passwordConfirm) {
+		User user = findUser(userId);
+		String normalizedPhone = phone == null ? null : phone.trim();
+		if (normalizedPhone != null && (normalizedPhone.isBlank() || normalizedPhone.length() > 20)) {
+			throw UserException.invalidProfile();
+		}
+		String passwordHash = null;
+		if (newPassword != null && !newPassword.isEmpty()) {
+			if (newPassword.isBlank() || newPassword.getBytes(StandardCharsets.UTF_8).length > 72
+					|| !newPassword.equals(passwordConfirm)) {
+				throw UserException.invalidProfile();
+			}
+			if (currentPassword == null || currentPassword.isBlank()
+					|| currentPassword.getBytes(StandardCharsets.UTF_8).length > 72
+					|| user.getPasswordHash() == null
+					|| !passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
+				throw UserException.currentPasswordMismatch();
+			}
+			passwordHash = passwordEncoder.encode(newPassword);
+		} else if (passwordConfirm != null && !passwordConfirm.isEmpty()) {
+			throw UserException.invalidProfile();
+		}
+		// 모든 검증을 마친 후 함께 변경하여 실패한 요청이 전화번호만 저장하지 않게 한다.
+		user.updateProfile(normalizedPhone, passwordHash);
+		return user;
 	}
 
 	/** U: 갱신 때마다 원문을 교체한다. 최초 로그인 시 정한 최종 만료시각은 연장하지 않는다. */
