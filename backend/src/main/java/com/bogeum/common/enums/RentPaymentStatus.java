@@ -5,6 +5,8 @@ package com.bogeum.common.enums;
  */
 public enum RentPaymentStatus {
 	SCHEDULED, // 예정
+	PROCESSING, // 출금 요청 중
+	UNKNOWN, // 출금 결과 확인 필요
 	PAID, // 성공
 	FAILED, // 실패 (재시도 중)
 	OVERDUE // 연체

@@ -85,4 +85,19 @@ public class RentPayment {
 	@UpdateTimestamp
 	@Column(nullable = false)
 	private LocalDateTime updatedAt;
+
+	public void startCollection() {
+		this.rentPaymentStatus = RentPaymentStatus.PROCESSING;
+	}
+
+	public void markPaid() {
+		this.rentPaymentStatus = RentPaymentStatus.PAID;
+		this.paidAt = LocalDateTime.now();
+		this.nextRetryAt = null;
+	}
+
+	public void markUnknown() {
+		this.rentPaymentStatus = RentPaymentStatus.UNKNOWN;
+		this.nextRetryAt = null;
+	}
 }

@@ -13,4 +13,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
 	/** 비밀번호는 조회 조건에 넣지 않고 서비스에서 해시와 비교한다. */
 	Optional<User> findByEmail(String email);
+
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("select u from User u where u.userId = :userId")
+	Optional<User> findLockedById(@Param("userId") Long userId);
 }

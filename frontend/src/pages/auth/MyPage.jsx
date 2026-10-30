@@ -166,7 +166,7 @@ function MyPage() {
             <section aria-labelledby="payment-title" className="card flex items-center justify-between gap-3">
               <div>
                 <h2 id="payment-title" className="text-lg font-bold">월세 결제 수단</h2>
-                <p className="text-sm text-gray-600">카드 등록됨</p>
+                <p className="text-sm text-gray-600">오픈뱅킹 출금 계좌 확인·변경</p>
               </div>
               <Link to="/mypage/payment-method" className="btn-secondary btn-sm">변경</Link>
             </section>
@@ -175,7 +175,7 @@ function MyPage() {
             <section aria-labelledby="settlement-title" className="card flex items-center justify-between gap-3">
               <div>
                 <h2 id="settlement-title" className="text-lg font-bold">정산 계좌</h2>
-                <p className="text-sm text-gray-600">국민은행 계좌 등록됨</p>
+                <p className="text-sm text-gray-600">월세를 받을 정산 계좌 확인·변경</p>
               </div>
               <Link to="/mypage/settlement-account" className="btn-secondary btn-sm">변경</Link>
             </section>

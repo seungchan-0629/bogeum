@@ -70,6 +70,9 @@ public class Settlement {
 
 	private String failureReason;
 
+	@Column(length = 20, unique = true)
+	private String bankTranId;
+
 	private LocalDateTime paidAt;
 
 	@CreationTimestamp
@@ -79,4 +82,21 @@ public class Settlement {
 	@UpdateTimestamp
 	@Column(nullable = false)
 	private LocalDateTime updatedAt;
+
+	public void startTransfer(SettlementAccount account, String bankTranId) {
+		this.settlementAccount = account;
+		this.bankTranId = bankTranId;
+		this.settlementStatus = SettlementStatus.PROCESSING;
+		this.failureReason = null;
+	}
+
+	public void complete() {
+		this.settlementStatus = SettlementStatus.COMPLETED;
+		this.paidAt = LocalDateTime.now();
+	}
+
+	public void markUnknown(String code) {
+		this.settlementStatus = SettlementStatus.UNKNOWN;
+		this.failureReason = "오픈뱅킹 원거래 결과 확인 필요: " + code;
+	}
 }

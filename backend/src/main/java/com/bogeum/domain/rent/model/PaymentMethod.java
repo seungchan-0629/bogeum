@@ -50,12 +50,9 @@ public class PaymentMethod {
 	@Column(nullable = false, length = 10)
 	private PaymentMethodType methodType;
 
-	// 카드일 때 PG사가 발급한 빌링키. 카드번호는 직접 저장하지 않는다 (USER_013)
-	private String billingKey;
-
-	// 이하 계좌일 때만 채운다. 계좌번호 평문은 저장하지 않는다 (USER_014)
-	@Column(length = 100)
-	private String cmsRegistrationId;
+	// 오픈뱅킹에서 등록·출금 동의를 확인한 계좌의 식별자다.
+	@Column(length = 24)
+	private String fintechUseNum;
 
 	@Column(length = 10)
 	private String bankCode;
@@ -76,4 +73,8 @@ public class PaymentMethod {
 	@CreationTimestamp
 	@Column(nullable = false, updatable = false)
 	private LocalDateTime createdAt;
+
+	public void replace() {
+		this.paymentMethodStatus = PaymentMethodStatus.REPLACED;
+	}
 }

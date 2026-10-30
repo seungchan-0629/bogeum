@@ -4,7 +4,7 @@
 // API:
 // - 수납 현황: GET /api/v1/landlords/me/rents?propertyId=&year=&month= (BE-053)
 // - 지급 내역: GET /api/v1/landlords/me/settlements?propertyId=&cursor=&size= (BE-059)
-// 임차인의 카드·계좌 정보는 표시하지 않는다 (NOTIFY_013)
+// 임차인의 계좌 정보는 표시하지 않는다 (NOTIFY_013)
 import { useState } from 'react'
 import { Link } from 'react-router'
 import clsx from 'clsx'

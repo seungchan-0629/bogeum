@@ -61,4 +61,11 @@ public class SettlementAccount {
 	@UpdateTimestamp
 	@Column(nullable = false)
 	private LocalDateTime updatedAt;
+
+	public void changeAccount(String bankCode, String encrypted, String masked, String holderName) {
+		this.bankCode = bankCode;
+		this.accountNumberEncrypted = encrypted;
+		this.accountNumberMasked = masked;
+		this.holderName = holderName;
+	}
 }

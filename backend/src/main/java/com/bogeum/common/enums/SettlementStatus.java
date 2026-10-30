@@ -5,6 +5,8 @@ package com.bogeum.common.enums;
  */
 public enum SettlementStatus {
 	PENDING, // 보류·대기
+	PROCESSING, // 지급 요청 중
+	UNKNOWN, // 지급 결과 확인 필요. 재지급 금지
 	COMPLETED, // 지급 완료
 	FAILED // 지급 실패
 }

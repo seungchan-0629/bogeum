@@ -11,3 +11,18 @@ server:
 
 auth:
   cookie-secure: true
+
+openbanking:
+  scheduling-enabled: ${OPENBANKING_SCHEDULING_ENABLED:false}
+  schedule-delay-ms: ${OPENBANKING_SCHEDULE_DELAY_MS:60000}
+  enabled: ${OPENBANKING_ENABLED:false}
+  base-url: ${OPENBANKING_BASE_URL:https://testapi.openbanking.or.kr}
+  client-id: ${OPENBANKING_CLIENT_ID:}
+  client-secret: ${OPENBANKING_CLIENT_SECRET:}
+  redirect-uri: ${OPENBANKING_REDIRECT_URI:http://localhost:5173/mypage/payment-method}
+  fintech-org-code: ${OPENBANKING_FINTECH_ORG_CODE:}
+  contract-account-num: ${OPENBANKING_CONTRACT_ACCOUNT_NUM:}
+  # 금융결제원에 등록한 입금이체 암호문구의 SHA-512 해시(128자리 hex)
+  deposit-pass-phrase: ${OPENBANKING_DEPOSIT_PASS_PHRASE:}
+  encryption-key: ${OPENBANKING_ENCRYPTION_KEY:}
+  timeout: ${OPENBANKING_TIMEOUT:10s}

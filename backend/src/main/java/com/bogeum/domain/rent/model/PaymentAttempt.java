@@ -64,9 +64,9 @@ public class PaymentAttempt {
 	@Column(nullable = false, length = 20)
 	private PaymentAttemptStatus attemptStatus = PaymentAttemptStatus.REQUESTED;
 
-	// PG 또는 CMS 업체가 돌려준 거래 번호
-	@Column(length = 64)
-	private String pgTransactionId;
+	// 외부 요청 전에 저장한다. 응답이 유실되어도 같은 거래를 추적할 수 있다.
+	@Column(length = 20, unique = true)
+	private String bankTranId;
 
 	@Column(length = 50)
 	private String failureCode;
@@ -79,4 +79,15 @@ public class PaymentAttempt {
 
 	// 성공 또는 실패가 확정된 시각
 	private LocalDateTime completedAt;
+
+	public void succeed() {
+		this.attemptStatus = PaymentAttemptStatus.SUCCEEDED;
+		this.completedAt = LocalDateTime.now();
+	}
+
+	public void markUnknown(String code) {
+		this.attemptStatus = PaymentAttemptStatus.UNKNOWN;
+		this.failureCode = code;
+		this.failureMessage = "오픈뱅킹 원거래 결과를 확인해야 합니다. 재출금하지 마세요.";
+	}
 }
