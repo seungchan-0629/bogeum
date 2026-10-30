@@ -48,7 +48,8 @@ public class JwtFilter extends OncePerRequestFilter {
 		}
 		try {
 			var claims = jwtUtil.validateAccessToken(header.substring(7));
-			var user = userService.findUserForSession(Long.valueOf(claims.getSubject()), claims.get("sid", String.class));
+			Long userId = Long.valueOf(claims.getSubject());
+			var user = userService.findUser(userId);
 			LoginUser principal = new LoginUser(user);
 			principal.eraseCredentials();
 			var authentication = UsernamePasswordAuthenticationToken.authenticated(

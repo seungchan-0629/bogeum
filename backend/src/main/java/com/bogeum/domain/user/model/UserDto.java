@@ -7,7 +7,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.bogeum.common.enums.LoginProvider;
 import com.bogeum.common.enums.Role;
 import com.bogeum.common.enums.UserStatus;
-import com.bogeum.domain.user.UserService.AuthResult;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
@@ -18,8 +17,10 @@ import java.util.List;
 import java.time.Instant;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 /**
@@ -194,18 +195,58 @@ public class UserDto {
 	}
 
 	/** 갱신·로그아웃 요청. 토큰의 유효성은 서비스에서 JwtUtil로 검증한다. */
-	public record RefreshRequest(String refreshToken) { }
+	@Getter
+	@NoArgsConstructor
+	@AllArgsConstructor
+	@EqualsAndHashCode
+	@ToString
+	public static class RefreshRequest {
+		private String refreshToken;
+	}
 
 	/** 프론트에서 쿠키로 저장할 토큰 응답. 비밀번호 해시는 포함하지 않는다. */
-	public record TokenResponse(LoginRes user, String accessToken, String refreshToken, Instant refreshExpiresAt) {
+	@Getter
+	@Builder
+	@AllArgsConstructor
+	@EqualsAndHashCode
+	@ToString
+	public static class TokenResponse {
+		private LoginRes user;
+		private String accessToken;
+		private String refreshToken;
+		private Instant refreshExpiresAt;
+
 		public static TokenResponse from(AuthResult result) {
 			return from(result, null);
 		}
 		public static TokenResponse from(AuthResult result, Agent agent) {
-			return new TokenResponse(LoginRes.from(result.user(), agent), result.accessToken(),
-				result.refreshToken(), result.refreshExpiresAt());
+			return TokenResponse.builder()
+				.user(LoginRes.from(result.getUser(), agent))
+				.accessToken(result.getAccessToken())
+				.refreshToken(result.getRefreshToken())
+				.refreshExpiresAt(result.getRefreshExpiresAt())
+				.build();
 		}
 	}
 
-	public record CsrfResponse(String headerName, String token) { }
+	/** CSRF 요청에 사용할 헤더 이름과 토큰 응답. */
+	@Getter
+	@Builder
+	@AllArgsConstructor
+	@EqualsAndHashCode
+	@ToString
+	public static class CsrfResponse {
+		private String headerName;
+		private String token;
+	}
+
+	/** 로그인 및 토큰 갱신 처리 결과. */
+	@Getter
+	@AllArgsConstructor
+	public static class AuthResult {
+		private final User user;
+		private final String accessToken;
+		private final String refreshToken;
+		private final Instant refreshExpiresAt;
+	}
 }

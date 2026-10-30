@@ -40,7 +40,7 @@ class DemoAgentApprovalTests {
 		var agent = agent();
 		var other = agent();
 		var session = users.login(agent.getUser().getEmail(), "demo-password");
-		String authorization = "Bearer " + session.accessToken();
+		String authorization = "Bearer " + session.getAccessToken();
 		mvc.perform(get("/api/v1/agents/me").header("Authorization", authorization))
 			.andExpect(status().isOk()).andExpect(jsonPath("$.demoApprovalAvailable").value(true));
 		mvc.perform(get("/api/v1/agents/auth-check").header("Authorization", authorization)).andExpect(status().isForbidden());
@@ -64,12 +64,12 @@ class DemoAgentApprovalTests {
 	void requiresCsrfLoginAndAgentRole() throws Exception {
 		var agent = agent();
 		var session = users.login(agent.getUser().getEmail(), "demo-password");
-		mvc.perform(post(PATH).header("Authorization", "Bearer " + session.accessToken()))
+		mvc.perform(post(PATH).header("Authorization", "Bearer " + session.getAccessToken()))
 			.andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("CSRF_INVALID"));
 		mvc.perform(csrfPost()).andExpect(status().isUnauthorized());
 		var user = users.signup(UUID.randomUUID() + "@example.com", "password", "일반회원", "01000000000", true, true);
 		var userSession = users.login(user.getEmail(), "password");
-		mvc.perform(csrfPost().header("Authorization", "Bearer " + userSession.accessToken())).andExpect(status().isForbidden());
+		mvc.perform(csrfPost().header("Authorization", "Bearer " + userSession.getAccessToken())).andExpect(status().isForbidden());
 		assertThat(repository.findById(agent.getAgentProfileId()).orElseThrow().getApprovalStatus()).isEqualTo(ApprovalStatus.PENDING);
 	}
 

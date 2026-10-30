@@ -12,6 +12,7 @@ import com.bogeum.domain.user.model.UserDto.LoginRes;
 import com.bogeum.domain.user.model.UserDto.LoginUser;
 import com.bogeum.domain.user.model.UserDto.TokenResponse;
 import com.bogeum.domain.user.model.UserDto.RefreshRequest;
+import com.bogeum.domain.user.model.UserDto.AuthResult;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -23,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -63,22 +65,22 @@ public class UserController {
 	/** U: JSON으로 받은 Refresh Token과 CSRF 헤더로 갱신한다. */
 	@PostMapping("/refresh")
 	public TokenResponse refresh(@RequestBody(required = false) RefreshRequest request) {
-		return tokenResponse(userService.refresh(request == null ? null : request.refreshToken()));
+		return tokenResponse(userService.refresh(request == null ? null : request.getRefreshToken()));
 	}
 
-	/** D: 서버 로그인 기록을 폐기한다. 브라우저 쿠키 삭제는 프론트에서 처리한다. */
+	/** 로그아웃 성공을 응답한다. 브라우저의 토큰 삭제는 프론트에서 처리한다. */
 	@PostMapping("/logout")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
-	public void logout(@RequestBody(required = false) RefreshRequest request) {
-		userService.logout(request == null ? null : request.refreshToken());
+	public void logout()
+	{
 	}
 	private Agent agentFor(User user) {
 		return user.getRole() == Role.AGENT
 			? agentService.findByUserId(user.getUserId()) : null;
 	}
 
-	private TokenResponse tokenResponse(UserService.AuthResult result) {
-		return TokenResponse.from(result, agentFor(result.user()));
+	private TokenResponse tokenResponse(AuthResult result) {
+		return TokenResponse.from(result, agentFor(result.getUser()));
 	}
 
 }

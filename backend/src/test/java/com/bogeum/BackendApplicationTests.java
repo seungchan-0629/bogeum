@@ -73,7 +73,6 @@ class BackendApplicationTests {
 
 	@BeforeEach
 	void clearTestDatabase() {
-		jdbcTemplate.update("DELETE FROM refresh_token");
 		jdbcTemplate.update("DELETE FROM user_consent");
 		jdbcTemplate.update("DELETE FROM user");
 	}

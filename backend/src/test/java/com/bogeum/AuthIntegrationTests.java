@@ -25,10 +25,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import com.bogeum.common.enums.Role;
 import com.bogeum.common.enums.UserStatus;
-import com.bogeum.domain.user.UserService.AuthResult;
-import com.bogeum.domain.user.UserRepository.RefreshTokenRepository;
+import com.bogeum.domain.user.model.UserDto.AuthResult;
 import com.bogeum.domain.user.UserService;
-import com.bogeum.domain.user.UserException;
 import com.bogeum.utils.JwtUtil;
 import com.bogeum.domain.user.model.User;
 import com.bogeum.domain.user.UserRepository;
@@ -60,18 +58,16 @@ class AuthIntegrationTests {
 	private final PasswordEncoder encoder;
 	private final UserService auth;
 	private final JwtUtil jwt;
-	private final RefreshTokenRepository refreshTokens;
 	private final JsonMapper mapper;
 
 	@Autowired
 	AuthIntegrationTests(MockMvc mvc, UserRepository users, PasswordEncoder encoder,
-			UserService auth, JwtUtil jwt, RefreshTokenRepository refreshTokens, JsonMapper mapper) {
+			UserService auth, JwtUtil jwt, JsonMapper mapper) {
 		this.mvc = mvc;
 		this.users = users;
 		this.encoder = encoder;
 		this.auth = auth;
 		this.jwt = jwt;
-		this.refreshTokens = refreshTokens;
 		this.mapper = mapper;
 	}
 
@@ -197,10 +193,10 @@ class AuthIntegrationTests {
 	void ownInformationAndRoleCheck() throws Exception {
 		Account account = account(Role.USER, UserStatus.ACTIVE, true);
 		AuthResult result = login(account);
-		mvc.perform(get("/api/v1/auth/me").param("userId", "999999").header("Authorization", "Bearer " + result.accessToken()))
+		mvc.perform(get("/api/v1/auth/me").param("userId", "999999").header("Authorization", "Bearer " + result.getAccessToken()))
 			.andExpect(status().isOk()).andExpect(jsonPath("$.userId").value(account.user().getUserId()))
 			.andExpect(jsonPath("$.passwordHash").doesNotExist());
-		mvc.perform(get("/api/v1/admin/auth-check").header("Authorization", "Bearer " + result.accessToken()))
+		mvc.perform(get("/api/v1/admin/auth-check").header("Authorization", "Bearer " + result.getAccessToken()))
 			.andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
 	}
 
@@ -208,35 +204,36 @@ class AuthIntegrationTests {
 	@DisplayName("ADMIN으로 인증한 요청은 관리자 API를 조회한다")
 	void adminAccess() throws Exception {
 		AuthResult result = login(account(Role.ADMIN, UserStatus.ACTIVE, true));
-		mvc.perform(get("/api/v1/admin/auth-check").header("Authorization", "Bearer " + result.accessToken()))
+		mvc.perform(get("/api/v1/admin/auth-check").header("Authorization", "Bearer " + result.getAccessToken()))
 			.andExpect(status().isOk());
 	}
 
 	@Test
-	@DisplayName("서명이 유효해도 로그인 기록이 없거나 다른 회원의 기록이면 인증을 거절한다")
-	void rejectsMissingOrMismatchedSession() throws Exception {
+	@DisplayName("회원이 삭제되면 기존 Access와 Refresh Token을 모두 거절한다")
+	void rejectsTokensForMissingUser() throws Exception {
 		Account account = account(Role.USER, UserStatus.ACTIVE, true);
-		Account other = account(Role.USER, UserStatus.ACTIVE, true);
 		AuthResult result = login(account);
-		String sessionKey = jwt.validateAccessToken(result.accessToken()).get("sid", String.class);
-		for (String token : new String[]{
-			jwt.createAccess(account.user().getUserId(), UUID.randomUUID().toString()),
-			jwt.createAccess(other.user().getUserId(), sessionKey)}) {
-			mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + token))
-				.andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("AUTH_REQUIRED"));
-		}
+		users.deleteById(account.user().getUserId());
+		mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + result.getAccessToken()))
+			.andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("AUTH_REQUIRED"));
+		mvc.perform(csrfPost("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON)
+			.content(refreshBody(result.getRefreshToken())))
+			.andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("REFRESH_TOKEN_INVALID"));
 	}
 
 	@Test
-	@DisplayName("로그인 이후 탈퇴한 회원의 기존 Access Token은 인증을 거절한다")
-	void rejectsAccessAfterWithdrawal() throws Exception {
+	@DisplayName("로그인 이후 탈퇴한 회원의 기존 Access와 Refresh Token을 거절한다")
+	void rejectsTokensAfterWithdrawal() throws Exception {
 		Account account = account(Role.USER, UserStatus.ACTIVE, true);
 		AuthResult result = login(account);
 		User user = users.findById(account.user().getUserId()).orElseThrow();
 		org.springframework.test.util.ReflectionTestUtils.setField(user, "userStatus", UserStatus.WITHDRAWN);
 		users.saveAndFlush(user);
-		mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + result.accessToken()))
+		mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + result.getAccessToken()))
 			.andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("AUTH_REQUIRED"));
+		mvc.perform(csrfPost("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON)
+			.content(refreshBody(result.getRefreshToken())))
+			.andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("REFRESH_TOKEN_INVALID"));
 	}
 
 	@Test
@@ -262,71 +259,92 @@ class AuthIntegrationTests {
 	@DisplayName("변조 토큰과 Refresh Token으로 API 접근을 거절한다")
 	void tamperedAndWrongType() throws Exception {
 		AuthResult result = login(account(Role.USER, UserStatus.ACTIVE, true));
-		String access = result.accessToken();
+		String access = result.getAccessToken();
 		int signature = access.lastIndexOf('.') + 1;
 		String tampered = access.substring(0, signature) + (access.charAt(signature) == 'A' ? 'B' : 'A') + access.substring(signature + 1);
-		for (String token : new String[]{tampered, result.refreshToken(), "bad-token"}) {
+		for (String token : new String[]{tampered, result.getRefreshToken(), "bad-token"}) {
 			mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + token))
 				.andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("ACCESS_TOKEN_INVALID"));
 		}
 	}
 
 	@Test
-	@DisplayName("갱신은 토큰을 회전하고 이전 Refresh Token 재사용을 거절한다")
-	void rotateRefresh() throws Exception {
+	@DisplayName("동일 Refresh Token을 재사용해 새 Access를 발급하고 Refresh 만료는 유지한다")
+	void reusesRefreshWithoutExtendingExpiration() throws Exception {
 		AuthResult original = login(account(Role.USER, UserStatus.ACTIVE, true));
-		MvcResult refreshed = mvc.perform(csrfPost("/api/v1/auth/refresh")
-			.contentType(MediaType.APPLICATION_JSON).content(refreshBody(original.refreshToken())))
-			.andExpect(status().isOk()).andExpect(jsonPath("$.accessToken").isString()).andReturn();
-		assertThat(responseRefresh(refreshed)).isNotEqualTo(original.refreshToken());
-		assertThat(jwt.validateRefreshToken(responseRefresh(refreshed)).getExpiration())
-			.isEqualTo(jwt.validateRefreshToken(original.refreshToken()).getExpiration());
-		mvc.perform(csrfPost("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON).content(refreshBody(original.refreshToken())))
-			.andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("REFRESH_TOKEN_INVALID"));
-		var claims = jwt.validateRefreshToken(original.refreshToken());
-		var row = refreshTokens.findWithUser(claims.get("sid", String.class)).orElseThrow();
-		assertThat(row.getTokenHash()).hasSize(64).isEqualTo(jwt.hashToken(responseRefresh(refreshed)));
+		var originalClaims = jwt.validateRefreshToken(original.getRefreshToken());
+		String previousAccess = original.getAccessToken();
+		for (int attempt = 0; attempt < 2; attempt++) {
+			MvcResult refreshed = mvc.perform(csrfPost("/api/v1/auth/refresh")
+				.contentType(MediaType.APPLICATION_JSON).content(refreshBody(original.getRefreshToken())))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.user.userId").value(original.getUser().getUserId()))
+				.andReturn();
+			var body = mapper.readTree(refreshed.getResponse().getContentAsByteArray());
+			String access = body.get("accessToken").asText();
+			assertThat(access).isNotEqualTo(previousAccess);
+			assertThat(responseRefresh(refreshed)).isEqualTo(original.getRefreshToken());
+			assertThat(Instant.parse(body.get("refreshExpiresAt").asText()))
+				.isEqualTo(originalClaims.getExpiration().toInstant());
+			var accessClaims = jwt.validateAccessToken(access);
+			assertThat(accessClaims.getSubject()).isEqualTo(originalClaims.getSubject());
+			assertThat(accessClaims.get("sid", String.class)).isEqualTo(originalClaims.get("sid", String.class));
+			mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + access))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.userId").value(original.getUser().getUserId()));
+			previousAccess = access;
+		}
 	}
 
 	@Test
-	@DisplayName("Refresh JSON 누락·만료·Access 용도 토큰은 갱신에 사용할 수 없다")
+	@DisplayName("Refresh JSON 누락·변조·만료·Access 용도 토큰은 갱신에 사용할 수 없다")
 	void invalidRefresh() throws Exception {
 		AuthResult result = login(account(Role.USER, UserStatus.ACTIVE, true));
-		mvc.perform(csrfPost("/api/v1/auth/refresh")).andExpect(status().isUnauthorized());
-		for (String token : new String[]{expiredToken(result, "refresh"), result.accessToken()}) {
+		mvc.perform(csrfPost("/api/v1/auth/refresh")).andExpect(status().isUnauthorized())
+			.andExpect(jsonPath("$.code").value("REFRESH_TOKEN_INVALID"));
+		mvc.perform(csrfPost("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON).content("{}"))
+			.andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("REFRESH_TOKEN_INVALID"));
+		String refresh = result.getRefreshToken();
+		int signature = refresh.lastIndexOf('.') + 1;
+		String tampered = refresh.substring(0, signature) + (refresh.charAt(signature) == 'A' ? 'B' : 'A')
+			+ refresh.substring(signature + 1);
+		for (String token : new String[]{expiredToken(result, "refresh"), result.getAccessToken(), tampered, "bad-token", ""}) {
 			mvc.perform(csrfPost("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON).content(refreshBody(token)))
 				.andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("REFRESH_TOKEN_INVALID"));
 		}
 	}
 
 	@Test
-	@DisplayName("로그아웃 후에는 갱신과 기존 Access Token 요청이 모두 거절된다")
-	void logoutRevokesSession() throws Exception {
+	@DisplayName("무상태 로그아웃은 성공하지만 이미 발급된 Access와 Refresh를 서버에서 폐기하지 않는다")
+	void logoutDoesNotRevokeStatelessTokens() throws Exception {
 		AuthResult result = login(account(Role.USER, UserStatus.ACTIVE, true));
-		mvc.perform(csrfPost("/api/v1/auth/logout").contentType(MediaType.APPLICATION_JSON).content(refreshBody(result.refreshToken())))
+		mvc.perform(csrfPost("/api/v1/auth/logout").contentType(MediaType.APPLICATION_JSON).content(refreshBody(result.getRefreshToken())))
 			.andExpect(status().isNoContent());
-		mvc.perform(csrfPost("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON).content(refreshBody(result.refreshToken())))
-			.andExpect(status().isUnauthorized());
-		mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + result.accessToken()))
-			.andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("AUTH_REQUIRED"));
+		mvc.perform(csrfPost("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON).content(refreshBody(result.getRefreshToken())))
+			.andExpect(status().isOk()).andExpect(jsonPath("$.refreshToken").value(result.getRefreshToken()));
+		mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + result.getAccessToken()))
+			.andExpect(status().isOk()).andExpect(jsonPath("$.userId").value(result.getUser().getUserId()));
 	}
 
 	@Test
-	@DisplayName("동일 Refresh Token을 동시에 보내도 정확히 한 요청만 갱신된다")
+	@DisplayName("동일 Refresh Token을 동시에 사용하면 각 요청에 다른 Access를 발급한다")
 	void concurrentRefresh() throws Exception {
 		AuthResult original = login(account(Role.USER, UserStatus.ACTIVE, true));
 		var executor = Executors.newFixedThreadPool(2);
 		var start = new CountDownLatch(1);
 		try {
-			java.util.concurrent.Callable<Boolean> task = () -> {
+			java.util.concurrent.Callable<AuthResult> task = () -> {
 				start.await();
-				try { auth.refresh(original.refreshToken()); return true; }
-				catch (UserException expected) { return false; }
+				return auth.refresh(original.getRefreshToken());
 			};
 			var first = executor.submit(task);
 			var second = executor.submit(task);
 			start.countDown();
-			assertThat(first.get(10, TimeUnit.SECONDS) ^ second.get(10, TimeUnit.SECONDS)).isTrue();
+			AuthResult firstResult = first.get(10, TimeUnit.SECONDS);
+			AuthResult secondResult = second.get(10, TimeUnit.SECONDS);
+			assertThat(firstResult.getRefreshToken()).isEqualTo(original.getRefreshToken());
+			assertThat(secondResult.getRefreshToken()).isEqualTo(original.getRefreshToken());
+			assertThat(firstResult.getAccessToken()).isNotEqualTo(secondResult.getAccessToken());
+			assertThat(firstResult.getRefreshExpiresAt()).isEqualTo(secondResult.getRefreshExpiresAt())
+				.isEqualTo(jwt.validateRefreshToken(original.getRefreshToken()).getExpiration().toInstant());
 		} finally { executor.shutdownNow(); }
 	}
 
@@ -372,12 +390,13 @@ class AuthIntegrationTests {
 			.content(refreshBody(responseRefresh(login))))
 			.andExpect(status().isOk()).andExpect(jsonPath("$.user.approvalStatus").value("PENDING")).andReturn();
 		mvc.perform(csrfPost("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON).content(refreshBody(responseRefresh(login))))
-			.andExpect(status().isUnauthorized());
+			.andExpect(status().isOk()).andExpect(jsonPath("$.refreshToken").value(responseRefresh(login)))
+			.andExpect(jsonPath("$.user.approvalStatus").value("PENDING"));
 		mvc.perform(csrfPost("/api/v1/auth/logout").contentType(MediaType.APPLICATION_JSON).content(refreshBody(responseRefresh(refreshed))))
 			.andExpect(status().isNoContent());
-		mvc.perform(get("/api/v1/agents/me").header("Authorization", "Bearer " + access)).andExpect(status().isUnauthorized());
+		mvc.perform(get("/api/v1/agents/me").header("Authorization", "Bearer " + access)).andExpect(status().isOk());
 		mvc.perform(csrfPost("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON).content(refreshBody(responseRefresh(refreshed))))
-			.andExpect(status().isUnauthorized());
+			.andExpect(status().isOk()).andExpect(jsonPath("$.user.approvalStatus").value("PENDING"));
 	}
 
 	@Test
@@ -390,16 +409,16 @@ class AuthIntegrationTests {
 			org.springframework.test.util.ReflectionTestUtils.setField(agent, "approvalStatus", approval);
 			org.springframework.test.util.ReflectionTestUtils.setField(agent, "rejectReason", approval.name().equals("REJECTED") ? "서류 보완 필요" : null);
 			agents.saveAndFlush(agent);
-			mvc.perform(get("/api/v1/agents/auth-check").header("Authorization", "Bearer " + session.accessToken()))
+			mvc.perform(get("/api/v1/agents/auth-check").header("Authorization", "Bearer " + session.getAccessToken()))
 				.andExpect(status().is(approval.name().equals("APPROVED") ? 200 : 403));
-			mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + session.accessToken()))
+			mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + session.getAccessToken()))
 				.andExpect(status().isOk()).andExpect(jsonPath("$.approvalStatus").value(approval.name()));
-			MvcResult refreshed = mvc.perform(csrfPost("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON)
-				.content(refreshBody(session.refreshToken())))
-				.andExpect(status().isOk()).andExpect(jsonPath("$.user.approvalStatus").value(approval.name())).andReturn();
-			session = new AuthResult(account.user(), session.accessToken(), responseRefresh(refreshed), session.refreshExpiresAt());
+			mvc.perform(csrfPost("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON)
+				.content(refreshBody(session.getRefreshToken())))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.user.approvalStatus").value(approval.name()))
+				.andExpect(jsonPath("$.refreshToken").value(session.getRefreshToken()));
 		}
-		mvc.perform(get("/api/v1/agents/me").header("Authorization", "Bearer " + session.accessToken()))
+		mvc.perform(get("/api/v1/agents/me").header("Authorization", "Bearer " + session.getAccessToken()))
 			.andExpect(status().isOk()).andExpect(jsonPath("$.rejectReason").value("서류 보완 필요"));
 		mvc.perform(csrfPost("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON).content(credentials(account)))
 			.andExpect(status().isOk()).andExpect(jsonPath("$.user.approvalStatus").value("REJECTED"));
@@ -411,7 +430,7 @@ class AuthIntegrationTests {
 		AuthResult user = login(account(Role.USER, UserStatus.ACTIVE, true));
 		for (String path : new String[]{"/api/v1/agents/me", "/api/v1/agents/auth-check", "/api/v1/agents/me/documents"}) {
 			mvc.perform(get(path)).andExpect(status().isUnauthorized());
-			mvc.perform(get(path).header("Authorization", "Bearer " + user.accessToken())).andExpect(status().isForbidden());
+			mvc.perform(get(path).header("Authorization", "Bearer " + user.getAccessToken())).andExpect(status().isForbidden());
 		}
 		mvc.perform(post("/api/v1/auth/signup/agent").contentType(MediaType.APPLICATION_JSON)
 			.content(mapper.writeValueAsString(agentSignupBody("csrf@example.com", "password"))))
@@ -465,9 +484,9 @@ class AuthIntegrationTests {
 	void demoApprovalUnavailableOutsideDemo() throws Exception {
 		var account = agentAccount();
 		var session = login(account);
-		mvc.perform(get("/api/v1/agents/me").header("Authorization", "Bearer " + session.accessToken()))
+		mvc.perform(get("/api/v1/agents/me").header("Authorization", "Bearer " + session.getAccessToken()))
 			.andExpect(status().isOk()).andExpect(jsonPath("$.demoApprovalAvailable").value(false));
-		mvc.perform(csrfPost("/api/v1/agents/me/demo-approval").header("Authorization", "Bearer " + session.accessToken()))
+		mvc.perform(csrfPost("/api/v1/agents/me/demo-approval").header("Authorization", "Bearer " + session.getAccessToken()))
 			.andExpect(status().isNotFound());
 	}
 
@@ -477,7 +496,7 @@ class AuthIntegrationTests {
 		Account account = account(Role.USER, UserStatus.ACTIVE, true);
 		AuthResult session = login(account);
 		mvc.perform(get("/api/v1/users/me").param("userId", "999999")
-				.header("Authorization", "Bearer " + session.accessToken()))
+				.header("Authorization", "Bearer " + session.getAccessToken()))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.userId").value(account.user().getUserId()))
 			.andExpect(jsonPath("$.email").value(account.user().getEmail()))
@@ -494,7 +513,7 @@ class AuthIntegrationTests {
 		Account account = account(Role.USER, UserStatus.ACTIVE, true);
 		Account other = account(Role.USER, UserStatus.ACTIVE, true);
 		AuthResult session = login(account);
-		mvc.perform(csrfPatch("/api/v1/users/me").header("Authorization", "Bearer " + session.accessToken())
+		mvc.perform(csrfPatch("/api/v1/users/me").header("Authorization", "Bearer " + session.getAccessToken())
 				.contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(Map.of(
 					"phone", " 010-9876-5432 ", "newPassword", "", "passwordConfirm", "",
 					"userId", other.user().getUserId(), "role", "ADMIN", "email", "changed@example.com"))))
@@ -506,7 +525,7 @@ class AuthIntegrationTests {
 		assertThat(saved.getRole()).isEqualTo(Role.USER);
 		assertThat(saved.getAddress()).isEqualTo(account.user().getAddress());
 		assertThat(users.findById(other.user().getUserId()).orElseThrow().getPhone()).isEqualTo("01000000000");
-		mvc.perform(get("/api/v1/users/me").header("Authorization", "Bearer " + session.accessToken()))
+		mvc.perform(get("/api/v1/users/me").header("Authorization", "Bearer " + session.getAccessToken()))
 			.andExpect(status().isOk()).andExpect(jsonPath("$.phone").value("010-9876-5432"));
 	}
 
@@ -517,7 +536,7 @@ class AuthIntegrationTests {
 		AuthResult session = login(account);
 		String password = " new-" + UUID.randomUUID() + " ";
 		MvcResult result = mvc.perform(csrfPatch("/api/v1/users/me")
-				.header("Authorization", "Bearer " + session.accessToken()).contentType(MediaType.APPLICATION_JSON)
+				.header("Authorization", "Bearer " + session.getAccessToken()).contentType(MediaType.APPLICATION_JSON)
 				.content(mapper.writeValueAsString(Map.of("currentPassword", account.password(),
 					"newPassword", password, "passwordConfirm", password))))
 			.andExpect(status().isOk()).andExpect(jsonPath("$.phone").value(account.user().getPhone())).andReturn();
@@ -538,7 +557,7 @@ class AuthIntegrationTests {
 		Account account = account(Role.USER, UserStatus.ACTIVE, true);
 		AuthResult session = login(account);
 		for (String current : new String[]{"", "wrong", "가".repeat(25)}) {
-			mvc.perform(csrfPatch("/api/v1/users/me").header("Authorization", "Bearer " + session.accessToken())
+			mvc.perform(csrfPatch("/api/v1/users/me").header("Authorization", "Bearer " + session.getAccessToken())
 					.contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(Map.of(
 						"phone", "01099999999", "currentPassword", current, "newPassword", "new-password",
 						"passwordConfirm", "new-password"))))
@@ -562,7 +581,7 @@ class AuthIntegrationTests {
 				Map.of("phone", " "), Map.of("phone", "1".repeat(21)))) {
 			var body = new java.util.HashMap<>(invalid);
 			body.put("currentPassword", account.password());
-			mvc.perform(csrfPatch("/api/v1/users/me").header("Authorization", "Bearer " + session.accessToken())
+			mvc.perform(csrfPatch("/api/v1/users/me").header("Authorization", "Bearer " + session.getAccessToken())
 					.contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(body)))
 				.andExpect(status().isBadRequest());
 		}
@@ -578,7 +597,7 @@ class AuthIntegrationTests {
 		mvc.perform(csrfPatch("/api/v1/users/me").contentType(MediaType.APPLICATION_JSON).content("{}"))
 			.andExpect(status().isUnauthorized());
 		AuthResult session = login(account(Role.USER, UserStatus.ACTIVE, true));
-		mvc.perform(patch("/api/v1/users/me").header("Authorization", "Bearer " + session.accessToken())
+		mvc.perform(patch("/api/v1/users/me").header("Authorization", "Bearer " + session.getAccessToken())
 				.contentType(MediaType.APPLICATION_JSON).content("{\"phone\":\"01099999999\"}"))
 			.andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("CSRF_INVALID"));
 	}
@@ -629,7 +648,7 @@ class AuthIntegrationTests {
 		return mapper.writeValueAsString(Map.of("email", account.user().getEmail(), "password", account.password()));
 	}
 	private String expiredToken(AuthResult result, String type) {
-		var claims = jwt.validateAccessToken(result.accessToken());
+		var claims = jwt.validateAccessToken(result.getAccessToken());
 		return Jwts.builder().issuer("bogeum").subject(claims.getSubject())
 			.claim("sid", claims.get("sid", String.class)).claim("tokenType", type)
 			.issuedAt(Date.from(Instant.now().minusSeconds(60))).expiration(Date.from(Instant.now().minusSeconds(1)))

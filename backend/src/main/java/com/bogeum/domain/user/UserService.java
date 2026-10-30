@@ -2,8 +2,6 @@ package com.bogeum.domain.user;
 
 import com.bogeum.common.enums.Role;
 import com.bogeum.common.enums.UserStatus;
-import com.bogeum.domain.user.UserRepository.RefreshTokenRepository;
-import com.bogeum.utils.JwtUtil.RefreshToken;
 import io.jsonwebtoken.Claims;
 import java.time.Instant;
 import java.util.UUID;
@@ -27,6 +25,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
+import com.bogeum.domain.user.model.UserDto.AuthResult;
 
 @Service
 @Validated
@@ -36,7 +35,6 @@ public class UserService implements UserDetailsService {
 	// 인증 관리자가 이 서비스를 사용자 조회에 사용하므로 로그인 시점에 가져온다.
 	private final ObjectProvider<AuthenticationManager> authenticationManagerProvider;
 	private final UserRepository userRepository;
-	private final RefreshTokenRepository refreshTokenRepository;
 	private final JwtUtil jwtUtil;
 
 	/**
@@ -112,7 +110,6 @@ public class UserService implements UserDetailsService {
 		Instant expiresAt = jwtUtil.calculateRefreshExpiresAt(now);
 		String sessionKey = UUID.randomUUID().toString();
 		String refresh = jwtUtil.createRefresh(user.getUserId(), sessionKey, expiresAt);
-		refreshTokenRepository.save(new RefreshToken(user, sessionKey, jwtUtil.hashToken(refresh), expiresAt, now));
 		return new AuthResult(user, jwtUtil.createAccess(user.getUserId(), sessionKey), refresh, expiresAt);
 	}
 
@@ -129,20 +126,15 @@ public class UserService implements UserDetailsService {
 		return new LoginUser(user);
 	}
 
-	/** R: 로그인 기록과 회원 상태를 확인해 로그아웃·탈퇴를 즉시 반영한다. */
-	@Transactional(readOnly = true)
-	public User findUserForSession(Long userId, String sessionKey) {
-		RefreshToken token = refreshTokenRepository.findWithUser(sessionKey)
-			.orElseThrow(UserException::required);
-		if (!isUsable(token, userId)) {
-			throw UserException.required();
-		}
-		return token.getUser();
-	}
 
+	/** 탈퇴한 회원이 기존 토큰을 계속 사용하지 못하도록 활성 회원만 조회한다. */
 	@Transactional(readOnly = true)
 	public User findUser(Long userId) {
-		return userRepository.findById(userId).orElseThrow(UserException::required);
+		User user = userRepository.findById(userId).orElseThrow(UserException::required);
+		if (user.getUserStatus() != UserStatus.ACTIVE) {
+			throw UserException.required();
+		}
+		return user;
 	}
 
 	/** 현재 비밀번호를 확인한 뒤 새 해시를 저장한다. 빈 새 비밀번호는 기존 값을 유지한다. */
@@ -175,49 +167,25 @@ public class UserService implements UserDetailsService {
 		return user;
 	}
 
-	/** U: 갱신 때마다 원문을 교체한다. 최초 로그인 시 정한 최종 만료시각은 연장하지 않는다. */
-	@Transactional
+	/** Refresh 토큰과 만료시각은 유지하고 새 Access 토큰을 발급한다. */
+	@Transactional(readOnly = true)
 	public AuthResult refresh(String rawToken) {
 		Claims claims = jwtUtil.validateRefreshToken(rawToken);
-		RefreshToken token = refreshTokenRepository.findForUpdate(claims.get("sid", String.class))
-			.orElseThrow(UserException::invalidRefresh);
-		if (!isUsable(token, Long.valueOf(claims.getSubject())) || !jwtUtil.matchesTokenHash(rawToken, token.getTokenHash())) {
+
+		Long userId = Long.valueOf(claims.getSubject());
+		User user = userRepository.findById(userId)
+				.orElseThrow(UserException::invalidRefresh);
+
+		if(user.getUserStatus() != UserStatus.ACTIVE)
+		{
 			throw UserException.invalidRefresh();
 		}
-		User user = token.getUser();
-		String refresh = jwtUtil.createRefresh(user.getUserId(), token.getSessionKey(), token.getExpiresAt());
-		token.rotate(jwtUtil.hashToken(refresh), Instant.now());
-		return new AuthResult(user, jwtUtil.createAccess(user.getUserId(), token.getSessionKey()),
-			refresh, token.getExpiresAt());
-	}
 
-	/** D: 해당 로그인 기록을 폐기한다. 잘못된/만료된 쿠키도 브라우저에서는 삭제할 수 있다. */
-	@Transactional
-	public void logout(String rawToken) {
-		if (rawToken == null || rawToken.isBlank()) {
-			return;
-		}
-		Claims claims;
-		try {
-			claims = jwtUtil.validateRefreshToken(rawToken);
-		} catch (UserException exception) {
-			// 로그아웃은 이미 무효인 자격증명도 성공으로 처리하는 멱등 동작이다.
-			return;
-		}
-		refreshTokenRepository.findForUpdate(claims.get("sid", String.class)).ifPresent(token -> {
-			if (jwtUtil.matchesTokenHash(rawToken, token.getTokenHash())) {
-				token.revoke(Instant.now());
-			}
-		});
-	}
+		String sessionKey = claims.get("sid", String.class);
+		String accessToken = jwtUtil.createAccess(userId, sessionKey);
+		Instant refreshExpiresAt = claims.getExpiration().toInstant();
 
-	private boolean isUsable(RefreshToken token, Long userId) {
-		return token.isUsable(Instant.now())
-			&& token.getUser().getUserStatus() == UserStatus.ACTIVE
-			&& token.getUser().getUserId().equals(userId);
+		return new AuthResult(user,accessToken,rawToken,refreshExpiresAt);
 	}
-
-	/** 서비스 내부 결과. Controller가 프론트에 전달할 토큰 응답 DTO로 변환한다. */
-	public record AuthResult(User user, String accessToken, String refreshToken, Instant refreshExpiresAt) { }
 
 }

@@ -9,7 +9,6 @@ import java.util.Optional;
 import com.bogeum.common.enums.Role;
 import com.bogeum.config.CustomSecurityConfig;
 import com.bogeum.utils.JwtUtil;
-import com.bogeum.domain.user.UserRepository.RefreshTokenRepository;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -33,9 +32,6 @@ class UserServiceTest {
 	@Mock
 	private UserRepository userRepository;
 
-	@Mock
-	private RefreshTokenRepository refreshTokenRepository;
-
 	// 테스트 속도를 위한 비용 값이며 운영 설정의 기본 비용에는 영향을 주지 않는다.
 	private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder(4);
 	private UserService userService;
@@ -44,7 +40,7 @@ class UserServiceTest {
 	void setUp() {
 		var config = new CustomSecurityConfig();
 		var beanFactory = new DefaultListableBeanFactory();
-		userService = new UserService(passwordEncoder, beanFactory.getBeanProvider(AuthenticationManager.class), userRepository, refreshTokenRepository,
+		userService = new UserService(passwordEncoder, beanFactory.getBeanProvider(AuthenticationManager.class), userRepository,
 			new JwtUtil());
 		beanFactory.registerSingleton("authenticationManager", config.authenticationManager(userService, passwordEncoder));
 	}
@@ -54,7 +50,7 @@ class UserServiceTest {
 	void loginWithMatchingPassword() {
 		User user = storedUser(passwordEncoder.encode(" password "), UserStatus.ACTIVE);
 		when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-		assertSame(user, userService.login("user@example.com", " password ").user());
+		assertSame(user, userService.login("user@example.com", " password ").getUser());
 		assertEquals(LoginProvider.LOCAL, user.getLastLoginProvider());
 	}
 
