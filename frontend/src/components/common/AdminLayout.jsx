@@ -9,6 +9,7 @@ import Logo from './Logo.jsx'
 import ChatbotLauncher from '../chatbot/ChatbotLauncher.jsx'
 import ForbiddenPage from '../../pages/error/ForbiddenPage.jsx'
 import { useAuthStore } from '../../stores/authStore.js'
+import { logout } from '../../utils/jwtUtil.js'
 import { ROLES } from '../../constants/auth.js'
 
 const ADMIN_MENU = [
@@ -23,15 +24,18 @@ const ADMIN_MENU = [
 
 function AdminLayout() {
   const user = useAuthStore((state) => state.user)
-  const logout = useAuthStore((state) => state.logout)
   const navigate = useNavigate()
 
   if (!user) return <Navigate to="/admin/login" replace />
   if (user.role !== ROLES.ADMIN) return <ForbiddenPage allowedRoles={[ROLES.ADMIN]} />
 
-  // TODO: POST /api/v1/auth/logout (BE-002) 호출 후 logout() 실행
-  const handleLogout = () => {
-    logout()
+  const handleLogout = async () => {
+    try {
+      await logout()
+    } catch {
+      window.alert('서버 로그아웃을 완료하지 못했습니다. 다시 로그인한 후 로그아웃해 주세요.')
+      return
+    }
     navigate('/admin/login')
   }
 

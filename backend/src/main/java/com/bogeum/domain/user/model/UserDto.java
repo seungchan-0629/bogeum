@@ -1,23 +1,65 @@
 package com.bogeum.domain.user.model;
 
+import com.bogeum.common.enums.ApprovalStatus;
+import com.bogeum.domain.agent.model.Agent;
+import com.fasterxml.jackson.annotation.JsonInclude;
+
 import com.bogeum.common.enums.LoginProvider;
 import com.bogeum.common.enums.Role;
-
+import com.bogeum.common.enums.UserStatus;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import java.util.List;
+import java.time.Instant;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 /**
  * 사용자 기능의 요청·응답 DTO.
  */
 public class UserDto {
+
+	/** 전화번호와 선택적인 비밀번호 변경 요청. 회원 번호와 역할은 받지 않는다. */
+	@Getter
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class ProfileReq {
+		@Size(max = 20, message = "전화번호는 20자 이하로 입력해 주세요.")
+		private String phone;
+		@Size(max = 72, message = "현재 비밀번호 길이를 확인해 주세요.")
+		private String currentPassword;
+		@Size(max = 72, message = "새 비밀번호는 UTF-8 기준 72바이트 이하로 입력해 주세요.")
+		private String newPassword;
+		@Size(max = 72, message = "비밀번호 확인 길이를 확인해 주세요.")
+		private String passwordConfirm;
+	}
+
+	/** 회원 정보에 필요한 값만 반환하며 비밀번호와 해시는 제외한다. */
+	@Getter
+	@Builder
+	public static class ProfileRes {
+		private Long userId;
+		private String name;
+		private Role role;
+		private String email;
+		private String phone;
+
+		/** DB에 저장된 본인의 정보를 화면 응답으로 변환한다. */
+		public static ProfileRes from(User user) {
+			return ProfileRes.builder().userId(user.getUserId()).name(user.getName())
+				.role(user.getRole()).email(user.getEmail()).phone(user.getPhone()).build();
+		}
+	}
+
 
 	/** 임대인·임차인의 일반 회원가입 요청. 본인 인증 결과는 받지 않는다. */
 	@Getter
@@ -103,6 +145,10 @@ public class UserDto {
 		private Long userId;
 		private String name;
 		private Role role;
+		@JsonInclude(JsonInclude.Include.NON_NULL)
+		private Long agentId;
+		@JsonInclude(JsonInclude.Include.NON_NULL)
+		private ApprovalStatus approvalStatus;
 		private LoginProvider lastLoginProvider;
 		//계약목록(임시)
 		private String[] contractRoles;
@@ -111,13 +157,96 @@ public class UserDto {
 		 * 사용자 엔티티를 로그인 응답으로 변환한다.
 		 */
 		public static LoginRes from(User user) {
+			return from(user, null);
+		}
+
+		public static LoginRes from(User user, Agent agent) {
 			return LoginRes.builder()
 				.userId(user.getUserId())
 				.name(user.getName())
 				.role(user.getRole())
+				.agentId(agent == null ? null : agent.getAgentProfileId())
+				.approvalStatus(agent == null ? null : agent.getApprovalStatus())
 				.contractRoles(new String[]{})
 				.lastLoginProvider(user.getLastLoginProvider())
 				.build();
 		}
+	}
+
+	/**
+	 * DB의 User를 Security가 이해하는 사용자 정보로 바꾸는 어댑터.
+	 * extends 뒤의 User는 우리 엔티티가 아닌 Spring Security 클래스다.
+	 * 이 객체는 서버 내부용이다. JSON 응답이나 JWT에 비밀번호 해시를 넣지 않는다.
+	 */
+	@Getter
+	public static class LoginUser extends org.springframework.security.core.userdetails.User {
+		private final Long userId;
+		private final String name;
+
+		public LoginUser(com.bogeum.domain.user.model.User user) {
+			// 부모 순서: 로그인 아이디, 저장된 해시, 활성, 계정미만료, 암호미만료, 잠금해제, 권한
+			super(user.getEmail(), user.getPasswordHash(),
+				user.getUserStatus() == UserStatus.ACTIVE, true, true, true,
+				List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name())));
+			// 부모에 없는 우리 서비스 정보만 추가한다. pw 필드를 중복으로 만들지 않는다.
+			this.userId = user.getUserId();
+			this.name = user.getName();
+		}
+	}
+
+	/** 갱신·로그아웃 요청. 토큰의 유효성은 서비스에서 JwtUtil로 검증한다. */
+	@Getter
+	@NoArgsConstructor
+	@AllArgsConstructor
+	@EqualsAndHashCode
+	@ToString
+	public static class RefreshRequest {
+		private String refreshToken;
+	}
+
+	/** 프론트에서 쿠키로 저장할 토큰 응답. 비밀번호 해시는 포함하지 않는다. */
+	@Getter
+	@Builder
+	@AllArgsConstructor
+	@EqualsAndHashCode
+	@ToString
+	public static class TokenResponse {
+		private LoginRes user;
+		private String accessToken;
+		private String refreshToken;
+		private Instant refreshExpiresAt;
+
+		public static TokenResponse from(AuthResult result) {
+			return from(result, null);
+		}
+		public static TokenResponse from(AuthResult result, Agent agent) {
+			return TokenResponse.builder()
+				.user(LoginRes.from(result.getUser(), agent))
+				.accessToken(result.getAccessToken())
+				.refreshToken(result.getRefreshToken())
+				.refreshExpiresAt(result.getRefreshExpiresAt())
+				.build();
+		}
+	}
+
+	/** CSRF 요청에 사용할 헤더 이름과 토큰 응답. */
+	@Getter
+	@Builder
+	@AllArgsConstructor
+	@EqualsAndHashCode
+	@ToString
+	public static class CsrfResponse {
+		private String headerName;
+		private String token;
+	}
+
+	/** 로그인 및 토큰 갱신 처리 결과. */
+	@Getter
+	@AllArgsConstructor
+	public static class AuthResult {
+		private final User user;
+		private final String accessToken;
+		private final String refreshToken;
+		private final Instant refreshExpiresAt;
 	}
 }

@@ -1,10 +1,12 @@
 package com.bogeum.domain.user;
 
-import java.util.Optional;
-
-import org.springframework.data.jpa.repository.JpaRepository;
-
 import com.bogeum.domain.user.model.User;
+import jakarta.persistence.LockModeType;
+import java.util.Optional;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 /** 사용자 저장 및 로그인 아이디 조회를 담당한다. */
 public interface UserRepository extends JpaRepository<User, Long> {

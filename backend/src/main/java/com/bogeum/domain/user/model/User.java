@@ -1,21 +1,11 @@
 package com.bogeum.domain.user.model;
 
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.annotations.UpdateTimestamp;
-import org.hibernate.type.SqlTypes;
-
-import com.bogeum.common.enums.LoginProvider;
 import com.bogeum.common.enums.ConsentType;
+import com.bogeum.common.enums.LoginProvider;
 import com.bogeum.common.enums.Role;
 import com.bogeum.common.enums.UserStatus;
-
-import jakarta.persistence.Column;
 import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -24,10 +14,17 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.type.SqlTypes;
 
 /**
  * 사용자 (관리자, 임대인, 임차인, 중개사)
@@ -100,5 +97,15 @@ public class User {
 	/** 일반 로그인 검증에 성공한 경우에만 최근 로그인 수단을 변경한다. */
 	public void recordLocalLogin() {
 		this.lastLoginProvider = LoginProvider.LOCAL;
+	}
+
+	/** 검증된 전화번호와 서버에서 만든 비밀번호 해시만 반영한다. null은 변경하지 않는다. */
+	public void updateProfile(String phone, String passwordHash) {
+		if (phone != null) {
+			this.phone = phone;
+		}
+		if (passwordHash != null) {
+			this.passwordHash = passwordHash;
+		}
 	}
 }

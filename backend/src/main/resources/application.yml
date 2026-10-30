@@ -3,8 +3,11 @@ spring:
     name: backend
   profiles:
     default: dev
-config:
-  import: "file:./.env[.properties]"
+  config:
+    import: "optional:file:./.env[.properties]"
 
 server:
   port: 8080
+
+auth:
+  cookie-secure: true
