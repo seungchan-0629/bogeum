@@ -7,6 +7,7 @@ import { z } from 'zod'
 import clsx from 'clsx'
 import { LAST_LOGIN_TYPE_KEY, LOGIN_TYPES, LOGIN_TYPE_LABELS } from '../../constants/auth.js'
 import { login } from '../../utils/jwtUtil.js'
+import DevLoginPanel from './DevLoginPanel.jsx'
 
 const loginSchema = z.object({
   email: z.string().trim().min(1, '이메일을 입력해 주세요.').pipe(z.email({ error: '이메일 형식으로 입력해 주세요.' })),
@@ -153,6 +154,8 @@ function LoginForm() {
         <Link to="/signup/agent" className="hover:text-gray-900">중개사 회원가입</Link>
       </div>
 
+      {/* 개발 모드(npm run dev)에서만 보이는 역할별 테스트 로그인 */}
+      {import.meta.env.DEV && <DevLoginPanel />}
     </div>
   )
 }
