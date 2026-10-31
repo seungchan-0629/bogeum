@@ -1,4 +1,4 @@
-package com.bogeum.domain.openbanking.service;
+package com.bogeum.domain.openbanking;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -16,14 +16,11 @@ import org.springframework.transaction.annotation.Transactional;
 import com.bogeum.common.enums.PaymentMethodStatus;
 import com.bogeum.common.enums.PaymentMethodType;
 import com.bogeum.common.exception.ErrorCode;
-import com.bogeum.domain.openbanking.OpenBankingException;
 import com.bogeum.domain.openbanking.model.OpenBankingConnection;
-import com.bogeum.domain.openbanking.repository.OpenBankingConnectionRepository;
-import com.bogeum.domain.openbanking.support.OpenBankingClient;
-import com.bogeum.domain.openbanking.support.OpenBankingClient.Account;
-import com.bogeum.domain.openbanking.support.OpenBankingClient.Token;
+import com.bogeum.domain.openbanking.OpenBankingClient.Account;
+import com.bogeum.domain.openbanking.OpenBankingClient.Token;
 import com.bogeum.domain.rent.model.PaymentMethod;
-import com.bogeum.domain.rent.repository.PaymentMethodRepository;
+import com.bogeum.domain.rent.RentRepository.PaymentMethodRepository;
 import com.bogeum.domain.user.UserRepository;
 import com.bogeum.utils.SecretCipher;
 
@@ -34,7 +31,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class OpenBankingService {
 	private final OpenBankingClient client;
-	private final OpenBankingConnectionRepository connections;
+	private final OpenBankingRepository connections;
 	private final PaymentMethodRepository paymentMethods;
 	private final UserRepository users;
 	private final SecretCipher cipher;

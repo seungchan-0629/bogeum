@@ -24,7 +24,7 @@ public class SettlementController {
 	@PostMapping
 	public AccountResponse register(@AuthenticationPrincipal LoginUser user, @Valid @RequestBody AccountRequest request) {
 		return AccountResponse.from(settlementService.registerAccount(user.getUserId(), request.getBankCode(),
-			request.getAccountNumber(), request.getHolderName()));
+			request.getAccountNumber(), request.getHolderName(), request.getBirthDate()));
 	}
 
 	@GetMapping

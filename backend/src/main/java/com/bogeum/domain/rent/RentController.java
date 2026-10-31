@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.http.ResponseEntity;
 import java.util.List;
-import com.bogeum.domain.openbanking.service.OpenBankingService;
+import com.bogeum.domain.openbanking.OpenBankingService;
 import com.bogeum.domain.rent.model.RentDto.PaymentAccountRequest;
 import com.bogeum.domain.rent.model.RentDto.PaymentAccountResponse;
 import com.bogeum.domain.rent.model.RentDto.PaymentResponse;

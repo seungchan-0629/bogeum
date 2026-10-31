@@ -92,11 +92,18 @@ public class Settlement {
 
 	public void complete() {
 		this.settlementStatus = SettlementStatus.COMPLETED;
-		this.paidAt = LocalDateTime.now();
+		this.paidAt = LocalDateTime.now(java.time.ZoneId.of("Asia/Seoul"));
+		this.failureReason = null;
 	}
 
 	public void markUnknown(String code) {
 		this.settlementStatus = SettlementStatus.UNKNOWN;
 		this.failureReason = "오픈뱅킹 원거래 결과 확인 필요: " + code;
+	}
+
+	/** 증빙으로 원거래의 실패를 확정한 경우에만 새 지급 시도를 허용한다. */
+	public void failConfirmed() {
+		this.settlementStatus = SettlementStatus.FAILED;
+		this.failureReason = "증빙에 따라 원거래 지급 실패 확정";
 	}
 }

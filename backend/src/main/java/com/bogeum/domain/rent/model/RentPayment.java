@@ -2,6 +2,7 @@ package com.bogeum.domain.rent.model;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -21,6 +22,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToOne;
+import com.bogeum.domain.settlement.model.Settlement;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
@@ -48,6 +51,9 @@ public class RentPayment {
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "contract_id", nullable = false)
 	private Contract contract;
+
+	@OneToOne(mappedBy = "rentPayment", fetch = FetchType.LAZY)
+	private Settlement settlement;
 
 	// 같은 회차는 한 번만 만들어져 같은 달 월세가 중복 결제되지 않는다 (RENT_004)
 	@Column(nullable = false)
@@ -92,12 +98,20 @@ public class RentPayment {
 
 	public void markPaid() {
 		this.rentPaymentStatus = RentPaymentStatus.PAID;
-		this.paidAt = LocalDateTime.now();
+		this.paidAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
 		this.nextRetryAt = null;
 	}
 
 	public void markUnknown() {
 		this.rentPaymentStatus = RentPaymentStatus.UNKNOWN;
+		this.nextRetryAt = null;
+	}
+
+	public void confirmFailure() {
+		this.rentPaymentStatus = RentPaymentStatus.FAILED;
+		this.retryCount++;
+		if (this.firstFailedAt == null) this.firstFailedAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
+		// 확정 실패도 사용자/관리자의 명시적 재요청으로만 재시도한다.
 		this.nextRetryAt = null;
 	}
 }

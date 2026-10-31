@@ -23,6 +23,7 @@ function SettlementAccountPage() {
   const [bankCode, setBankCode] = useState('')
   const [accountNumber, setAccountNumber] = useState('')
   const [holderName, setHolderName] = useState('')
+  const [birthDate, setBirthDate] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
@@ -33,20 +34,21 @@ function SettlementAccountPage() {
     if (isDisabled) return
     setError('')
     setMessage('')
-    if (!/^[0-9]{3}$/.test(bankCode) || !/^[0-9]{4,16}$/.test(accountNumber) || !holderName.trim() || holderName.trim().length > 50) {
-      setError('은행 코드는 숫자 3자리, 계좌번호는 숫자 4~16자리, 예금주는 50자 이하로 입력해 주세요.')
+    if (!/^[0-9]{3}$/.test(bankCode) || !/^[0-9]{4,16}$/.test(accountNumber) || !holderName.trim() || holderName.trim().length > 50 || !/^[0-9]{6}$/.test(birthDate)) {
+      setError('은행 코드 3자리, 계좌번호 4~16자리, 예금주 50자 이하, 생년월일 6자리를 확인해 주세요.')
       return
     }
     setIsSaving(true)
     try {
       await queryClient.cancelQueries({ queryKey })
-      const { data } = await api.post(ACCOUNT_PATH, { bankCode, accountNumber, holderName: holderName.trim() })
+      const { data } = await api.post(ACCOUNT_PATH, { bankCode, accountNumber, holderName: holderName.trim(), birthDate })
       if (useAuthStore.getState().user?.userId !== userId) return
       queryClient.setQueryData(queryKey, data)
       setBankCode('')
       setAccountNumber('')
       setHolderName('')
-      setMessage('정산 계좌가 저장됐어요.')
+      setBirthDate('')
+      setMessage(data.verifiedAt ? '본인 명의 확인을 마치고 정산 계좌를 저장했어요.' : '정산 계좌가 저장됐어요. 계좌 확인 상태를 확인해 주세요.')
     } catch (failure) {
       setError(failure.response?.data?.message || '정산 계좌를 저장하지 못했습니다. 다시 시도해 주세요.')
     } finally {
@@ -63,7 +65,7 @@ function SettlementAccountPage() {
           {account && !loadError && (
             <span className="flex items-center gap-2">
               <strong>{account.bankCode} · {account.accountNumberMasked} · {account.holderName}</strong>
-              <StatusBadge tone="blue">등록됨</StatusBadge>
+              <StatusBadge tone={account.verifiedAt ? 'green' : 'amber'}>{account.verifiedAt ? '검증 완료' : '재검증 필요'}</StatusBadge>
             </span>
           )}
         </div>
@@ -73,7 +75,7 @@ function SettlementAccountPage() {
             <button type="button" className="btn-secondary btn-sm" disabled={isFetching} onClick={() => refetch()}>다시 불러오기</button>
           </div>
         ) : !account && <p>등록된 정산 계좌가 없어요.</p>}
-        <p className="rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-800">본인 명의 계좌를 등록해 주세요. 월세를 지급할 때 은행에서 예금주를 확인해요.</p>
+        <p className="rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-800">본인 명의 계좌를 등록해 주세요. 은행에서 예금주를 확인한 계좌로 월세를 지급해요. 재검증이 필요한 계좌는 다시 등록해 주세요.</p>
         <form onSubmit={handleSave} className="flex flex-col gap-4">
           <Field label="은행 코드" htmlFor="settlement-bank-code" hint="은행 코드를 숫자 3자리로 입력해 주세요.">
             <TextInput id="settlement-bank-code" inputMode="numeric" pattern="[0-9]{3}" maxLength={3} required value={bankCode} onChange={(event) => setBankCode(event.target.value)} disabled={isDisabled} />
@@ -83,6 +85,9 @@ function SettlementAccountPage() {
           </Field>
           <Field label="예금주" htmlFor="settlement-holder-name">
             <TextInput id="settlement-holder-name" maxLength={50} required value={holderName} onChange={(event) => setHolderName(event.target.value)} disabled={isDisabled} />
+          </Field>
+          <Field label="생년월일" htmlFor="settlement-birth-date" hint="본인 명의 확인에 사용할 생년월일을 YYMMDD 6자리로 입력해 주세요. 저장하지 않아요.">
+            <TextInput id="settlement-birth-date" inputMode="numeric" autoComplete="off" pattern="[0-9]{6}" maxLength={6} required value={birthDate} onChange={(event) => setBirthDate(event.target.value)} disabled={isDisabled} />
           </Field>
           {error && <p role="alert" className="text-red-600">{error}</p>}
           {message && <p role="status">{message}</p>}

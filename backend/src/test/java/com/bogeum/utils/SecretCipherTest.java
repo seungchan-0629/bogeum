@@ -14,7 +14,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import com.bogeum.common.exception.ErrorCode;
-import com.bogeum.config.OpenBankingProperties;
+import com.bogeum.config.OpenBankingConfig.Properties;
 import com.bogeum.domain.openbanking.OpenBankingException;
 
 class SecretCipherTest {
@@ -89,7 +89,7 @@ class SecretCipherTest {
 	}
 
 	private static SecretCipher cipher(byte[] key) {
-		return new SecretCipher(new OpenBankingProperties(false, null, null, null, null, null,
+		return new SecretCipher(new Properties(false, null, null, null, null, null,
 			null, null, Base64.getEncoder().encodeToString(key), null));
 	}
 }

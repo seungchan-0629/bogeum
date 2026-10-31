@@ -1,4 +1,4 @@
-package com.bogeum.domain.openbanking.controller;
+package com.bogeum.domain.openbanking;
 
 import java.util.List;
 
@@ -13,7 +13,6 @@ import org.springframework.web.bind.annotation.RestController;
 import com.bogeum.domain.openbanking.model.OpenBankingDto.AccountResponse;
 import com.bogeum.domain.openbanking.model.OpenBankingDto.AuthorizationResponse;
 import com.bogeum.domain.openbanking.model.OpenBankingDto.CallbackRequest;
-import com.bogeum.domain.openbanking.service.OpenBankingService;
 import com.bogeum.domain.user.model.UserDto.LoginUser;
 
 import jakarta.validation.Valid;

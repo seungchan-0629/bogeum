@@ -6,6 +6,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import com.bogeum.common.enums.RentPaymentStatus;
 import com.bogeum.common.enums.SettlementStatus;
 import com.bogeum.domain.settlement.SettlementRepository;
@@ -27,16 +28,28 @@ public class RentScheduler {
 	/** 기존 계약 흐름에서 생성한 납부 회차만 처리한다. UNKNOWN·PROCESSING은 재전송하지 않는다. */
 	@Scheduled(fixedDelayString = "${openbanking.schedule-delay-ms:60000}")
 	public void collectDuePayments() {
-		for (var due : rents.findDuePayments(RentPaymentStatus.SCHEDULED, LocalDateTime.now(), PageRequest.of(0, 100))) {
-			try {
-				rentService.pay(due.getRentPaymentId(), due.getTenantId());
-			} catch (RuntimeException exception) {
-				log.warn("월세 수납 확인 필요: rentPaymentId={}, error={}",
-					due.getRentPaymentId(), exception.getClass().getSimpleName());
+		// 실패한 앞 회차가 SCHEDULED로 남아도 이후 회차를 계속 처리한다.
+		Long afterId = 0L;
+		var now = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
+		while (true) {
+			var batch = rents.findDuePaymentsAfter(RentPaymentStatus.SCHEDULED, now, afterId, PageRequest.of(0, 100));
+			for (var due : batch) {
+				try {
+					rentService.pay(due.getRentPaymentId(), due.getTenantId());
+				} catch (RuntimeException exception) {
+					log.warn("월세 수납 확인 필요: rentPaymentId={}, error={}",
+						due.getRentPaymentId(), exception.getClass().getSimpleName());
+				}
 			}
+			if (batch.size() < 100) break;
+			afterId = batch.get(batch.size() - 1).getRentPaymentId();
 		}
-		for (Long rentPaymentId : settlements.findRentPaymentIdsByStatus(SettlementStatus.PENDING, PageRequest.of(0, 100))) {
-			settlementService.trySettle(rentPaymentId);
+		afterId = 0L;
+		while (true) {
+			var batch = settlements.findRentPaymentIdsByStatusAfter(SettlementStatus.PENDING, afterId, PageRequest.of(0, 100));
+			for (Long rentPaymentId : batch) settlementService.trySettle(rentPaymentId);
+			if (batch.size() < 100) break;
+			afterId = batch.get(batch.size() - 1);
 		}
 	}
 }

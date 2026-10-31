@@ -1,7 +1,13 @@
-package com.bogeum.domain.openbanking.support;
+package com.bogeum.domain.openbanking;
 
 import java.math.BigDecimal;
 import java.security.SecureRandom;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.nio.charset.StandardCharsets;
+import java.util.HexFormat;
+import java.time.LocalDate;
+import java.time.DateTimeException;
 import java.time.ZonedDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -18,8 +24,8 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.util.UriComponentsBuilder;
 
-import com.bogeum.config.OpenBankingProperties;
-import com.bogeum.domain.openbanking.OpenBankingException;
+import com.bogeum.config.OpenBankingConfig.Properties;
+import com.bogeum.common.exception.ErrorCode;
 
 import tools.jackson.databind.JsonNode;
 
@@ -32,9 +38,9 @@ public class OpenBankingClient {
 	private static final SecureRandom RANDOM = new SecureRandom();
 
 	private final RestClient restClient;
-	private final OpenBankingProperties properties;
+	private final Properties properties;
 
-	public OpenBankingClient(RestClient restClient, OpenBankingProperties properties) {
+	public OpenBankingClient(RestClient restClient, Properties properties) {
 		this.restClient = restClient;
 		this.properties = properties;
 	}
@@ -71,6 +77,49 @@ public class OpenBankingClient {
 		var form = credentials("client_credentials");
 		form.add("scope", "oob");
 		return token(form, Set.of("oob"));
+	}
+
+	/** 계좌실명조회만 수행한다. 생년월일 인증정보는 저장하거나 로그로 남기지 않는다. */
+	public void verifyAccount(String bankCode, String accountNumber, String holderName, String birthDate) {
+		if (bankCode == null || !bankCode.matches("[0-9]{3}") || accountNumber == null
+				|| !accountNumber.matches("[0-9]{4,16}") || holderName == null || holderName.isBlank()
+				|| birthDate == null || !birthDate.matches("[0-9]{6}")) {
+			throw OpenBankingException.of(ErrorCode.INVALID_SETTLEMENT_ACCOUNT);
+		}
+		try {
+			LocalDate.of(2000 + Integer.parseInt(birthDate.substring(0, 2)),
+				Integer.parseInt(birthDate.substring(2, 4)), Integer.parseInt(birthDate.substring(4, 6)));
+		} catch (DateTimeException exception) {
+			throw OpenBankingException.of(ErrorCode.INVALID_SETTLEMENT_ACCOUNT);
+		}
+		String token = issueInstitutionToken().accessToken();
+		String bankTranId = newBankTranId();
+		var body = new LinkedHashMap<String, Object>();
+		body.put("bank_tran_id", bankTranId);
+		body.put("bank_code_std", bankCode);
+		body.put("account_num", accountNumber);
+		body.put("account_holder_info_type", " ");
+		body.put("account_holder_info", birthDate);
+		body.put("tran_dtime", ZonedDateTime.now(KOREA).format(TRAN_TIME));
+		var response = postJson("/v2.0/inquiry/real_name", token, body);
+		if (!bankTranId.equals(text(response, "bank_tran_id"))
+				|| !"000".equals(text(response, "bank_rsp_code"))
+				|| !bankCode.equals(text(response, "bank_code_std"))
+				|| !accountNumber.equals(text(response, "account_num"))
+				|| !holderName.equals(text(response, "account_holder_name"))) {
+			throw OpenBankingException.of(ErrorCode.INVALID_SETTLEMENT_ACCOUNT);
+		}
+	}
+
+	/** 원문 계좌번호를 노출하지 않고 이체 당시 회사 약정계좌를 구분한다. */
+	public String institutionAccountReference() {
+		requireTransferConfigured();
+		try {
+			return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+				.digest(properties.contractAccountNum().getBytes(StandardCharsets.UTF_8)));
+		} catch (NoSuchAlgorithmException exception) {
+			throw new IllegalStateException(exception);
+		}
 	}
 
 	public List<Account> accounts(String accessToken, String userSeqNo) {

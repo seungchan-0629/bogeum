@@ -22,8 +22,7 @@ import org.springframework.mock.http.client.MockClientHttpRequest;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
-import com.bogeum.config.OpenBankingProperties;
-import com.bogeum.domain.openbanking.support.OpenBankingClient;
+import com.bogeum.config.OpenBankingConfig.Properties;
 
 import tools.jackson.databind.json.JsonMapper;
 
@@ -39,7 +38,7 @@ class OpenBankingClientTest {
 	void setUp() {
 		var builder = RestClient.builder().baseUrl("https://testapi.openbanking.or.kr");
 		server = MockRestServiceServer.bindTo(builder).build();
-		var properties = new OpenBankingProperties(true, "https://testapi.openbanking.or.kr",
+		var properties = new Properties(true, "https://testapi.openbanking.or.kr",
 			"client-id", "client-secret", "http://localhost:5173/mypage/payment-method", "M123456789",
 			"12345678901234", "a".repeat(128), "", Duration.ofSeconds(10));
 		client = new OpenBankingClient(builder.build(), properties);
@@ -158,6 +157,55 @@ class OpenBankingClientTest {
 		assertTrue(accounts.get(0).withdrawalAgreed());
 		assertFalse(accounts.get(1).withdrawalAgreed());
 		server.verify();
+	}
+
+	@Test
+	void verifiesLandlordAccountWithInstitutionTokenWithoutMovingMoney() {
+		expectInstitutionToken();
+		server.expect(requestTo("https://testapi.openbanking.or.kr/v2.0/inquiry/real_name"))
+			.andExpect(method(HttpMethod.POST)).andExpect(header("Authorization", "Bearer institution-token"))
+			.andExpect(request -> {
+				var body = new JsonMapper().readTree(((MockClientHttpRequest) request).getBodyAsString());
+				assertEquals("097", body.path("bank_code_std").asText());
+				assertEquals("1234567890", body.path("account_num").asText());
+				assertEquals(" ", body.path("account_holder_info_type").asText());
+				assertEquals("900101", body.path("account_holder_info").asText());
+				assertFalse(body.has("tran_amt"));
+			})
+			.andRespond(request -> {
+				var body = new JsonMapper().readTree(((MockClientHttpRequest) request).getBodyAsString());
+				return withSuccess("""
+					{"rsp_code":"A0000","bank_rsp_code":"000","bank_tran_id":"%s",
+					 "bank_code_std":"097","account_num":"1234567890","account_holder_name":"임대인"}
+					""".formatted(body.path("bank_tran_id").asText()), MediaType.APPLICATION_JSON).createResponse(request);
+			});
+		client.verifyAccount("097", "1234567890", "임대인", "900101");
+		assertEquals(64, client.institutionAccountReference().length());
+		assertFalse(client.institutionAccountReference().contains("12345678901234"));
+		server.verify();
+	}
+
+	@Test
+	void rejectsWrongHolderAndInvalidBirthDate() {
+		assertThrows(OpenBankingException.class, () -> client.verifyAccount("097", "1234567890", "임대인", "900230"));
+		expectInstitutionToken();
+		server.expect(requestTo("https://testapi.openbanking.or.kr/v2.0/inquiry/real_name"))
+			.andRespond(request -> {
+				var body = new JsonMapper().readTree(((MockClientHttpRequest) request).getBodyAsString());
+				return withSuccess("""
+					{"rsp_code":"A0000","bank_rsp_code":"000","bank_tran_id":"%s",
+					 "bank_code_std":"097","account_num":"1234567890","account_holder_name":"다른사람"}
+					""".formatted(body.path("bank_tran_id").asText()), MediaType.APPLICATION_JSON).createResponse(request);
+			});
+		assertThrows(OpenBankingException.class, () -> client.verifyAccount("097", "1234567890", "임대인", "900101"));
+		server.verify();
+	}
+
+	private void expectInstitutionToken() {
+		server.expect(requestTo("https://testapi.openbanking.or.kr/oauth/2.0/token"))
+			.andRespond(withSuccess("""
+				{"token_type":"Bearer","access_token":"institution-token","scope":"oob","expires_in":3600}
+				""", MediaType.APPLICATION_JSON));
 	}
 
 	private OpenBankingClient.TransferResult withdraw() {

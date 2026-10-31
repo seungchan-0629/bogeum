@@ -1,6 +1,6 @@
 package com.bogeum.domain.openbanking.model;
 
-import com.bogeum.domain.openbanking.support.OpenBankingClient.Account;
+import com.bogeum.domain.openbanking.OpenBankingClient.Account;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;

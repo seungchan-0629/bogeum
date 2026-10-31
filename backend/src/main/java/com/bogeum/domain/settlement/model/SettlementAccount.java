@@ -54,6 +54,9 @@ public class SettlementAccount {
 	@Column(nullable = false, length = 50)
 	private String holderName;
 
+	// 기존 미검증 계좌는 null로 남겨 수납·지급에 사용하지 않는다.
+	private LocalDateTime verifiedAt;
+
 	@CreationTimestamp
 	@Column(nullable = false, updatable = false)
 	private LocalDateTime createdAt;
@@ -67,5 +70,10 @@ public class SettlementAccount {
 		this.accountNumberEncrypted = encrypted;
 		this.accountNumberMasked = masked;
 		this.holderName = holderName;
+		this.verifiedAt = null;
+	}
+
+	public void markVerified(LocalDateTime verifiedAt) {
+		this.verifiedAt = verifiedAt;
 	}
 }

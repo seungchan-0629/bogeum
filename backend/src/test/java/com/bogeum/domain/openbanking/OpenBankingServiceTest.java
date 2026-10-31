@@ -1,4 +1,4 @@
-package com.bogeum.domain.openbanking.service;
+package com.bogeum.domain.openbanking;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -38,15 +38,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.bogeum.common.enums.PaymentMethodStatus;
 import com.bogeum.common.enums.PaymentMethodType;
 import com.bogeum.common.exception.ErrorCode;
-import com.bogeum.config.OpenBankingProperties;
-import com.bogeum.domain.openbanking.OpenBankingException;
+import com.bogeum.config.OpenBankingConfig.Properties;
 import com.bogeum.domain.openbanking.model.OpenBankingConnection;
-import com.bogeum.domain.openbanking.repository.OpenBankingConnectionRepository;
-import com.bogeum.domain.openbanking.support.OpenBankingClient;
-import com.bogeum.domain.openbanking.support.OpenBankingClient.Account;
-import com.bogeum.domain.openbanking.support.OpenBankingClient.Token;
+import com.bogeum.domain.openbanking.OpenBankingClient.Account;
+import com.bogeum.domain.openbanking.OpenBankingClient.Token;
 import com.bogeum.domain.rent.model.PaymentMethod;
-import com.bogeum.domain.rent.repository.PaymentMethodRepository;
+import com.bogeum.domain.rent.RentRepository.PaymentMethodRepository;
 import com.bogeum.domain.user.UserRepository;
 import com.bogeum.domain.user.model.User;
 import com.bogeum.utils.SecretCipher;
@@ -63,7 +60,7 @@ class OpenBankingServiceTest {
 	@Mock
 	private OpenBankingClient client;
 	@Mock
-	private OpenBankingConnectionRepository connections;
+	private OpenBankingRepository connections;
 	@Mock
 	private PaymentMethodRepository paymentMethods;
 	@Mock
@@ -75,7 +72,7 @@ class OpenBankingServiceTest {
 
 	@BeforeEach
 	void setUp() {
-		var properties = new OpenBankingProperties(false, null, null, null, null, null, null, null,
+		var properties = new Properties(false, null, null, null, null, null, null, null,
 			Base64.getEncoder().encodeToString(new byte[32]), null);
 		cipher = new SecretCipher(properties);
 		service = new OpenBankingService(client, connections, paymentMethods, users, cipher);
