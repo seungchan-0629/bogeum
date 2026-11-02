@@ -1,4 +1,4 @@
-package com.bogeum.domain.openbanking;
+package com.bogeum.domain.openbanking.repository;
 
 import java.util.Optional;
 
@@ -9,7 +9,7 @@ import com.bogeum.domain.openbanking.model.OpenBankingConnection;
 
 import jakarta.persistence.LockModeType;
 
-public interface OpenBankingRepository extends JpaRepository<OpenBankingConnection, Long> {
+public interface OpenBankingConnectionRepository extends JpaRepository<OpenBankingConnection, Long> {
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	Optional<OpenBankingConnection> findByUserUserId(Long userId);
 }

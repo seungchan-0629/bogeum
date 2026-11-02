@@ -11,7 +11,7 @@ import javax.crypto.spec.SecretKeySpec;
 
 import org.springframework.stereotype.Component;
 
-import com.bogeum.config.OpenBankingConfig.Properties;
+import com.bogeum.config.OpenBankingProperties;
 import com.bogeum.domain.openbanking.OpenBankingException;
 
 import lombok.RequiredArgsConstructor;
@@ -21,7 +21,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class SecretCipher {
 	private static final SecureRandom RANDOM = new SecureRandom();
-	private final Properties properties;
+	private final OpenBankingProperties properties;
 
 	public String encrypt(String value) {
 		try {
