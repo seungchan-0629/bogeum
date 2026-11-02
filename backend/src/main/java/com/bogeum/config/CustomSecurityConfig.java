@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -72,6 +73,8 @@ public class CustomSecurityConfig {
 				.requestMatchers(publicRequests).permitAll()
 				.requestMatchers("/error").permitAll()
 				.requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+				// 중개 신청은 일반 사용자가 하고, 중개사가 받아서 관리한다 (PROPERTY_002, PROPERTY_008)
+				.requestMatchers(HttpMethod.POST, "/property/brokerage-requests").hasRole("USER")
 				.requestMatchers("/api/v1/agents/me", "/api/v1/agents/me/demo-approval", "/api/v1/agents/me/documents", "/api/v1/agents/me/documents/**").hasRole("AGENT")
 				.requestMatchers("/api/v1/agents/**").access((authentication, context) -> {
 					var current = authentication.get();
