@@ -13,4 +13,6 @@ public class PropertyException extends RuntimeException {
 	public static PropertyException invalidLeasePrice() { return new PropertyException(ErrorCode.INVALID_LEASE_PRICE); }
 	public static PropertyException agentNotAvailable() { return new PropertyException(ErrorCode.BROKERAGE_AGENT_NOT_AVAILABLE); }
 	public static PropertyException noAgentAvailable() { return new PropertyException(ErrorCode.NO_BROKERAGE_AGENT); }
+	public static PropertyException brokerageRequestNotFound() { return new PropertyException(ErrorCode.BROKERAGE_REQUEST_NOT_FOUND); }
+	public static PropertyException alreadyAccepted() { return new PropertyException(ErrorCode.BROKERAGE_ALREADY_ACCEPTED); }
 }
