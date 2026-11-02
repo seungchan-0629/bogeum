@@ -96,6 +96,19 @@ class PropertyControllerTest {
 			.andExpect(jsonPath("$.brokerageStatus").value("REQUESTED"));
 	}
 
+	@Test
+	@DisplayName("중개 신청 수락은 로그인 중개사 기준으로 처리하고 수락 결과를 반환한다")
+	void acceptsBrokerageRequest() throws Exception {
+		when(propertyService.acceptBrokerageRequest(1L, 10L)).thenReturn(PropertyDto.AcceptResponse.builder()
+			.brokerageRequestId(10L).propertyId(20L).brokerageStatus(BrokerageStatus.ACCEPTED).build());
+
+		mockMvc.perform(post(URL + "/10/accept"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.brokerageRequestId").value(10))
+			.andExpect(jsonPath("$.propertyId").value(20))
+			.andExpect(jsonPath("$.brokerageStatus").value("ACCEPTED"));
+	}
+
 	@ParameterizedTest
 	@ValueSource(strings = {
 		"{}",
