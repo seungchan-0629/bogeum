@@ -85,6 +85,8 @@ function BrokerageRequestFormPage() {
     defaultValues: isEdit ? SAMPLE_EDIT_VALUES : NEW_VALUES,
   })
   const leaseType = useWatch({ control, name: 'leaseType' })
+  // 매매는 아직 신청할 수 없어 아래 입력 칸을 모두 막는다
+  const isSale = leaseType === 'SALE'
 
   // 성공하면 내 매물 목록으로 돌아간다. 신청이 생기면 중개사에게 알림(NOTIFY_022)은 서버가 보낸다
   const onSubmit = async (values) => {
@@ -135,60 +137,66 @@ function BrokerageRequestFormPage() {
               </ChoiceButton>
             ))}
           </div>
-          <ErrorText error={errors.leaseType} />
+          {isSale ? <p className="text-sm text-red-600">매매 중개 신청은 아직 준비 중이에요.</p> : <ErrorText error={errors.leaseType} />}
         </fieldset>
 
-        {/* 매매는 매매가 하나, 전세는 보증금, 월세는 보증금 + 월세 */}
-        {leaseType === 'SALE' ? (
-          <Field label="매매가 (만원)" htmlFor="brokerage-sale-price">
-            <TextInput id="brokerage-sale-price" inputMode="numeric" />
-          </Field>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="보증금 (만원)" htmlFor="brokerage-deposit">
-              <TextInput id="brokerage-deposit" inputMode="numeric" {...register('deposit')} />
-              <ErrorText error={errors.deposit} />
+        {/* disabled fieldset은 안의 입력 칸과 버튼을 한 번에 막는다 */}
+        <fieldset
+          disabled={isSale}
+          className={clsx('flex min-w-0 flex-col gap-5', isSale && 'cursor-not-allowed text-gray-400 [&_button]:bg-gray-100 [&_button]:text-gray-400 [&_input]:bg-gray-100 [&_input]:text-gray-400 [&_label]:text-gray-400 [&_legend]:text-gray-400')}
+        >
+          {/* 매매는 매매가 하나, 전세는 보증금, 월세는 보증금 + 월세 */}
+          {isSale ? (
+            <Field label="매매가 (만원)" htmlFor="brokerage-sale-price">
+              <TextInput id="brokerage-sale-price" inputMode="numeric" />
             </Field>
-            {leaseType === 'MONTHLY' && (
-              <Field label="월세 (만원)" htmlFor="brokerage-rent">
-                <TextInput id="brokerage-rent" inputMode="numeric" {...register('monthlyRent')} />
-                <ErrorText error={errors.monthlyRent} />
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="보증금 (만원)" htmlFor="brokerage-deposit">
+                <TextInput id="brokerage-deposit" inputMode="numeric" {...register('deposit')} />
+                <ErrorText error={errors.deposit} />
               </Field>
-            )}
-          </div>
-        )}
-
-        <Field label="주소" htmlFor="brokerage-address">
-          <div className="flex gap-2">
-            <TextInput id="brokerage-address" readOnly placeholder="주소 검색을 눌러 주세요" onClick={handleAddressSearch} {...register('roadAddress')} />
-            <button type="button" onClick={handleAddressSearch} className="btn-secondary h-12 shrink-0">주소 검색</button>
-          </div>
-          <ErrorText error={errors.roadAddress} />
-        </Field>
-        <Field label="상세 주소" htmlFor="brokerage-address-detail">
-          <TextInput id="brokerage-address-detail" placeholder="동·호수 (선택)" {...register('detailAddress')} />
-          <ErrorText error={errors.detailAddress} />
-        </Field>
-
-        {!isEdit && (
-          <fieldset className="flex flex-col gap-2">
-            <legend className="mb-2 text-sm font-medium text-gray-700">희망 중개사</legend>
-            <div className="flex flex-wrap gap-2">
-              <ChoiceButton isSelected={!wantsAgent} onClick={() => setWantsAgent(false)}>지정 안 함 (랜덤 배정)</ChoiceButton>
-              <ChoiceButton isSelected={wantsAgent} onClick={() => setWantsAgent(true)}>직접 지정</ChoiceButton>
+              {leaseType === 'MONTHLY' && (
+                <Field label="월세 (만원)" htmlFor="brokerage-rent">
+                  <TextInput id="brokerage-rent" inputMode="numeric" {...register('monthlyRent')} />
+                  <ErrorText error={errors.monthlyRent} />
+                </Field>
+              )}
             </div>
-            {/* TODO: 중개사 검색 API가 명세에 없어 백엔드와 협의 필요 */}
-            {wantsAgent && (
-              <>
-                <label htmlFor="brokerage-agent" className="sr-only">중개사 검색</label>
-                <TextInput id="brokerage-agent" placeholder="중개사무소 이름으로 검색" />
-                <p className="text-sm text-gray-500">중개사 검색은 준비 중이에요. 지금은 같은 지역 중개사가 배정돼요.</p>
-              </>
-            )}
-          </fieldset>
-        )}
+          )}
 
-        <button type="submit" disabled={isSubmitting} className="btn-primary h-12 disabled:opacity-60">{isEdit ? '수정 저장' : '중개 신청하기'}</button>
+          <Field label="주소" htmlFor="brokerage-address">
+            <div className="flex gap-2">
+              <TextInput id="brokerage-address" readOnly placeholder="주소 검색을 눌러 주세요" onClick={handleAddressSearch} {...register('roadAddress')} />
+              <button type="button" onClick={handleAddressSearch} className="btn-secondary h-12 shrink-0">주소 검색</button>
+            </div>
+            <ErrorText error={errors.roadAddress} />
+          </Field>
+          <Field label="상세 주소" htmlFor="brokerage-address-detail">
+            <TextInput id="brokerage-address-detail" placeholder="동·호수 (선택)" {...register('detailAddress')} />
+            <ErrorText error={errors.detailAddress} />
+          </Field>
+
+          {!isEdit && (
+            <fieldset className="flex flex-col gap-2">
+              <legend className="mb-2 text-sm font-medium text-gray-700">희망 중개사</legend>
+              <div className="flex flex-wrap gap-2">
+                <ChoiceButton isSelected={!wantsAgent} onClick={() => setWantsAgent(false)}>지정 안 함 (랜덤 배정)</ChoiceButton>
+                <ChoiceButton isSelected={wantsAgent} onClick={() => setWantsAgent(true)}>직접 지정</ChoiceButton>
+              </div>
+              {/* TODO: 중개사 검색 API가 명세에 없어 백엔드와 협의 필요 */}
+              {wantsAgent && (
+                <>
+                  <label htmlFor="brokerage-agent" className="sr-only">중개사 검색</label>
+                  <TextInput id="brokerage-agent" placeholder="중개사무소 이름으로 검색" />
+                  <p className="text-sm text-gray-500">중개사 검색은 준비 중이에요. 지금은 같은 지역 중개사가 배정돼요.</p>
+                </>
+              )}
+            </fieldset>
+          )}
+        </fieldset>
+
+        <button type="submit" disabled={isSubmitting || isSale} className="btn-primary h-12 disabled:opacity-60">{isEdit ? '수정 저장' : '중개 신청하기'}</button>
       </form>
     </div>
   )
