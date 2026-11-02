@@ -28,9 +28,10 @@ public class OpenBanking
 
 
     //userId
-    @OneToOne(fetch = FetchType.LAZY, optional = false)
+    //@OneToOne(fetch = FetchType.LAZY, optional = false)
     //@JoinColumn(name = "user_id", nullable = false, unique = true)
-    private User user;
+    //private User user;
+    private Long userId;
 
     //금융결제원 사용자 일련번호
     //@Column(name = "user_seq_no", length = 50)
