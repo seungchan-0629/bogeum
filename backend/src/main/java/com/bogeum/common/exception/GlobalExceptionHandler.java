@@ -1,6 +1,7 @@
 package com.bogeum.common.exception;
 
 import com.bogeum.domain.agent.AgentException;
+import com.bogeum.domain.property.PropertyException;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -16,6 +17,11 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(AgentException.class)
 	public ResponseEntity<ErrorResponse> handleAgentException(AgentException exception) {
+		return toResponse(exception.getErrorCode());
+	}
+
+	@ExceptionHandler(PropertyException.class)
+	public ResponseEntity<ErrorResponse> handlePropertyException(PropertyException exception) {
 		return toResponse(exception.getErrorCode());
 	}
 
