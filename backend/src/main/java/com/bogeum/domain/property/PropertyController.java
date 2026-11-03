@@ -4,6 +4,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import com.bogeum.common.enums.BrokerageStatus;
 import com.bogeum.domain.property.model.PropertyDto;
 import com.bogeum.domain.user.model.UserDto.LoginUser;
 import jakarta.validation.Valid;
@@ -22,6 +23,14 @@ public class PropertyController {
 	public PropertyDto.BrokerageResponse createBrokerageRequest(@AuthenticationPrincipal LoginUser loginUser,
 			@Valid @RequestBody PropertyDto.BrokerageRequest request) {
 		return propertyService.createBrokerageRequest(loginUser.getUserId(), request);
+	}
+
+	// 승인된 중개사가 본인에게 온 중개 신청을 '새 신청'(REQUESTED)·'수락한 신청'(ACCEPTED)으로 나눠 본다 (PROPERTY_012)
+	@GetMapping("/brokerage-requests/received")
+	public PropertyDto.BrokerageListResponse readBrokerageRequests(@AuthenticationPrincipal LoginUser loginUser,
+			@RequestParam("status") BrokerageStatus status,
+			@RequestParam(value = "page", defaultValue = "1") int page) {
+		return propertyService.readBrokerageRequests(loginUser.getUserId(), status, page);
 	}
 
 	// 승인된 중개사가 본인에게 온 중개 신청을 수락한다 (PROPERTY_008)
