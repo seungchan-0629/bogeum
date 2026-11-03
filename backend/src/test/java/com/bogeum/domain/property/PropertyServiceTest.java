@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -23,6 +24,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import com.bogeum.common.enums.ApprovalStatus;
 import com.bogeum.common.enums.BrokerageStatus;
@@ -200,6 +204,54 @@ class PropertyServiceTest {
 		var exception = assertThrows(PropertyException.class, () -> propertyService.acceptBrokerageRequest(101L, 10L));
 
 		assertEquals(ErrorCode.BROKERAGE_ALREADY_ACCEPTED, exception.getErrorCode());
+	}
+
+	@Test
+	@DisplayName("새 신청은 신청 최신순으로, 한 페이지에 5개씩 본인에게 온 신청만 조회한다")
+	void readsRequestedBrokerageRequests() {
+		var pageable = givenBrokerageRequests(BrokerageStatus.REQUESTED, 12);
+
+		var response = propertyService.readBrokerageRequests(101L, BrokerageStatus.REQUESTED, 1);
+
+		assertEquals(0, pageable.getValue().getPageNumber());
+		assertEquals(5, pageable.getValue().getPageSize());
+		assertEquals(Sort.by(Sort.Direction.DESC, "createdAt"), pageable.getValue().getSort());
+		assertEquals(1, response.getPage());
+		assertEquals(3, response.getTotalPages());
+		assertEquals(12, response.getTotalElements());
+		assertEquals(20L, response.getRequests().get(0).getPropertyId());
+		assertEquals(BrokerageStatus.REQUESTED, response.getRequests().get(0).getBrokerageStatus());
+	}
+
+	@Test
+	@DisplayName("수락한 신청은 수락 최신순으로 조회한다")
+	void readsAcceptedBrokerageRequestsByAcceptedAt() {
+		var pageable = givenBrokerageRequests(BrokerageStatus.ACCEPTED, 1);
+
+		propertyService.readBrokerageRequests(101L, BrokerageStatus.ACCEPTED, 1);
+
+		assertEquals(Sort.by(Sort.Direction.DESC, "acceptedAt"), pageable.getValue().getSort());
+	}
+
+	@Test
+	@DisplayName("1보다 작은 페이지를 요청하면 첫 페이지를 준다")
+	void readsFirstPageWhenPageIsTooSmall() {
+		var pageable = givenBrokerageRequests(BrokerageStatus.REQUESTED, 1);
+
+		var response = propertyService.readBrokerageRequests(101L, BrokerageStatus.REQUESTED, 0);
+
+		assertEquals(0, pageable.getValue().getPageNumber());
+		assertEquals(1, response.getPage());
+	}
+
+	// 실제 조회 결과처럼 요청받은 페이지와 전체 개수로 Page를 만들어 돌려준다
+	private ArgumentCaptor<Pageable> givenBrokerageRequests(BrokerageStatus brokerageStatus, long totalElements) {
+		var pageable = ArgumentCaptor.forClass(Pageable.class);
+		when(brokerageRequestRepository.findAllByAgent_UserIdAndBrokerageStatus(eq(101L), eq(brokerageStatus),
+				pageable.capture()))
+			.thenAnswer(invocation -> new PageImpl<>(List.of(brokerageRequest(brokerageStatus)),
+				invocation.getArgument(2), totalElements));
+		return pageable;
 	}
 
 	private BrokerageRequest brokerageRequest(BrokerageStatus brokerageStatus) {
