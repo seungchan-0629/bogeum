@@ -4,10 +4,14 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.bogeum.common.enums.ApprovalStatus;
+import com.bogeum.common.enums.BrokerageStatus;
 import com.bogeum.common.enums.LeaseType;
 import com.bogeum.domain.agent.AgentRepository;
 import com.bogeum.domain.agent.model.Agent;
@@ -22,6 +26,9 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class PropertyService {
+
+	// 중개 신청 목록 한 페이지의 개수 (PROPERTY_012)
+	private static final int PAGE_SIZE = 5;
 
 	private final UserService userService;
 	private final AgentRepository agentRepository;
@@ -56,6 +63,20 @@ public class PropertyService {
 			.isDesignated(isDesignated)
 			.build());
 		return PropertyDto.BrokerageResponse.from(brokerageRequest, agent);
+	}
+
+	/**
+	 * 중개사 본인에게 온 중개 신청을 상태별로 페이지 단위로 조회한다 (PROPERTY_012).
+	 * 새 신청은 신청한 순서, 수락한 신청은 수락한 순서로 최신이 위에 온다.
+	 *
+	 * @param page 1부터 센다. 1보다 작으면 첫 페이지를 준다
+	 */
+	@Transactional(readOnly = true)
+	public PropertyDto.BrokerageListResponse readBrokerageRequests(Long agentUserId, BrokerageStatus status, int page) {
+		String sortProperty = status == BrokerageStatus.ACCEPTED ? "acceptedAt" : "createdAt";
+		Pageable pageable = PageRequest.of(Math.max(page, 1) - 1, PAGE_SIZE, Sort.by(Sort.Direction.DESC, sortProperty));
+		return PropertyDto.BrokerageListResponse.from(
+			brokerageRequestRepository.findAllByAgent_UserIdAndBrokerageStatus(agentUserId, status, pageable));
 	}
 
 	/**
