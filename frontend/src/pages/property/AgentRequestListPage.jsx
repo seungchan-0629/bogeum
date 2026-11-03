@@ -3,7 +3,7 @@
 // 요구사항: PROPERTY_008 (중개 신청 수락), NOTIFY_022 (신청 알림)
 // API:
 // - 목록: GET /api/v1/agents/me/brokerage-requests?status=&cursor=&size= (BE-023)
-// - 수락: POST /api/v1/brokerage-requests/{requestId}/accept (BE-024)
+// - 수락: POST /property/brokerage-requests/{brokerageRequestId}/accept (BE-024)
 import { useState } from 'react'
 import { Link } from 'react-router'
 import PageHeader from '../../components/common/PageHeader.jsx'
@@ -11,6 +11,7 @@ import StatusBadge from '../../components/common/StatusBadge.jsx'
 import PhotoPlaceholder from '../../components/common/PhotoPlaceholder.jsx'
 import { Tabs } from '../../components/common/Tabs.jsx'
 import { formatLeasePrice } from '../../utils/format.js'
+import { acceptBrokerageRequest } from '../../api/property/index.js'
 
 // TODO: GET /api/v1/agents/me/brokerage-requests (BE-023) 응답으로 교체
 // - isDesignated: 임대인이 나를 지정했는지 (아니면 랜덤 배정). 필드 이름은 백엔드와 협의 필요
@@ -27,8 +28,13 @@ function AgentRequestListPage() {
   const waitingCount = requests.filter((request) => request.status === 'WAITING').length
   const visibleRequests = requests.filter((request) => request.status === tab)
 
-  // TODO: POST /api/v1/brokerage-requests/{requestId}/accept (BE-024) 성공 후 상태 반영
-  const handleAccept = (requestId) => {
+  const handleAccept = async (requestId) => {
+    try {
+      await acceptBrokerageRequest(requestId)
+    } catch (error) {
+      window.alert(error.response?.data?.message || '서버에 연결할 수 없습니다.')
+      return
+    }
     setRequests((prev) => prev.map((request) => (request.requestId === requestId ? { ...request, status: 'ACCEPTED' } : request)))
   }
 
