@@ -8,3 +8,9 @@ export async function createBrokerageRequest(request) {
   const { data } = await api.post('/property/brokerage-requests', request, PROPERTY_CONFIG)
   return data
 }
+
+// PROPERTY_008 중개 신청 수락. 승인된 중개사가 본인에게 온 신청만 수락할 수 있다
+export async function acceptBrokerageRequest(brokerageRequestId) {
+  const { data } = await api.post(`/property/brokerage-requests/${brokerageRequestId}/accept`, null, PROPERTY_CONFIG)
+  return data
+}
