@@ -2,6 +2,7 @@ package com.bogeum.domain.property;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -162,6 +163,50 @@ class PropertyServiceTest {
 			LeaseType.JEONSE, BigDecimal.valueOf(300_000_000), null, MAPO_ADDRESS, null, null));
 
 		assertEquals(0, savedBrokerageRequest().getProperty().getMonthlyRent().signum());
+	}
+
+	@Test
+	@DisplayName("중개사가 본인에게 온 신청을 수락하면 수락 상태가 되고 매물을 맡는다")
+	void acceptsBrokerageRequest() {
+		BrokerageRequest request = brokerageRequest(BrokerageStatus.REQUESTED);
+		when(brokerageRequestRepository.findByBrokerageRequestIdAndAgent_UserId(10L, 101L)).thenReturn(Optional.of(request));
+
+		var response = propertyService.acceptBrokerageRequest(101L, 10L);
+
+		assertEquals(BrokerageStatus.ACCEPTED, request.getBrokerageStatus());
+		assertNotNull(request.getAcceptedAt());
+		assertEquals(request.getAgent(), request.getProperty().getAgent());
+		assertEquals(PropertyStatus.REQUESTED, request.getProperty().getPropertyStatus());
+		assertEquals(20L, response.getPropertyId());
+		assertEquals(BrokerageStatus.ACCEPTED, response.getBrokerageStatus());
+	}
+
+	@Test
+	@DisplayName("없거나 다른 중개사에게 온 신청은 수락할 수 없다")
+	void rejectsAcceptingOthersRequest() {
+		when(brokerageRequestRepository.findByBrokerageRequestIdAndAgent_UserId(10L, 999L)).thenReturn(Optional.empty());
+
+		var exception = assertThrows(PropertyException.class, () -> propertyService.acceptBrokerageRequest(999L, 10L));
+
+		assertEquals(ErrorCode.BROKERAGE_REQUEST_NOT_FOUND, exception.getErrorCode());
+	}
+
+	@Test
+	@DisplayName("이미 수락한 신청은 다시 수락할 수 없다")
+	void rejectsAcceptingTwice() {
+		BrokerageRequest request = brokerageRequest(BrokerageStatus.ACCEPTED);
+		when(brokerageRequestRepository.findByBrokerageRequestIdAndAgent_UserId(10L, 101L)).thenReturn(Optional.of(request));
+
+		var exception = assertThrows(PropertyException.class, () -> propertyService.acceptBrokerageRequest(101L, 10L));
+
+		assertEquals(ErrorCode.BROKERAGE_ALREADY_ACCEPTED, exception.getErrorCode());
+	}
+
+	private BrokerageRequest brokerageRequest(BrokerageStatus brokerageStatus) {
+		return BrokerageRequest.builder().brokerageRequestId(10L)
+			.property(Property.builder().propertyId(20L).landlord(landlord).build())
+			.landlord(landlord).agent(User.builder().userId(101L).build())
+			.brokerageStatus(brokerageStatus).build();
 	}
 
 	private void givenLandlord() {

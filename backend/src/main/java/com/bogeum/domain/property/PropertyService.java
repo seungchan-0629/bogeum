@@ -58,6 +58,20 @@ public class PropertyService {
 		return PropertyDto.BrokerageResponse.from(brokerageRequest, agent);
 	}
 
+	/**
+	 * 중개사가 본인에게 온 중개 신청을 수락하고 매물을 맡는다 (PROPERTY_008).
+	 *
+	 * @throws PropertyException 본인에게 온 신청이 아니거나 이미 수락한 경우
+	 */
+	@Transactional
+	public PropertyDto.AcceptResponse acceptBrokerageRequest(Long agentUserId, Long brokerageRequestId) {
+		BrokerageRequest brokerageRequest = brokerageRequestRepository
+			.findByBrokerageRequestIdAndAgent_UserId(brokerageRequestId, agentUserId)
+			.orElseThrow(PropertyException::brokerageRequestNotFound);
+		brokerageRequest.accept();
+		return PropertyDto.AcceptResponse.from(brokerageRequest);
+	}
+
 	/** 전세는 월세 없이 전세금만, 월세는 월세 금액이 있어야 한다. 저장할 월세 금액을 반환한다. */
 	private BigDecimal validateLeasePrice(LeaseType leaseType, BigDecimal deposit, BigDecimal monthlyRent) {
 		BigDecimal rent = monthlyRent == null ? BigDecimal.ZERO : monthlyRent;

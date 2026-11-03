@@ -76,4 +76,24 @@ public class PropertyDto {
 				.build();
 		}
 	}
+
+	/** 수락된 중개 신청. 채팅방(CHAT_002)이 생기면 chatRoomId를 더한다 (PROPERTY_008) */
+	@Getter
+	@Builder
+	public static class AcceptResponse {
+
+		private Long brokerageRequestId;
+		private Long propertyId;
+		private BrokerageStatus brokerageStatus;
+		private LocalDateTime acceptedAt;
+
+		public static AcceptResponse from(com.bogeum.domain.property.model.BrokerageRequest request) {
+			return AcceptResponse.builder()
+				.brokerageRequestId(request.getBrokerageRequestId())
+				.propertyId(request.getProperty().getPropertyId())
+				.brokerageStatus(request.getBrokerageStatus())
+				.acceptedAt(request.getAcceptedAt())
+				.build();
+		}
+	}
 }

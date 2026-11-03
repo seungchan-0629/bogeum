@@ -23,4 +23,11 @@ public class PropertyController {
 			@Valid @RequestBody PropertyDto.BrokerageRequest request) {
 		return propertyService.createBrokerageRequest(loginUser.getUserId(), request);
 	}
+
+	// 승인된 중개사가 본인에게 온 중개 신청을 수락한다 (PROPERTY_008)
+	@PostMapping("/brokerage-requests/{brokerageRequestId}/accept")
+	public PropertyDto.AcceptResponse acceptBrokerageRequest(@AuthenticationPrincipal LoginUser loginUser,
+			@PathVariable("brokerageRequestId") Long brokerageRequestId) {
+		return propertyService.acceptBrokerageRequest(loginUser.getUserId(), brokerageRequestId);
+	}
 }
