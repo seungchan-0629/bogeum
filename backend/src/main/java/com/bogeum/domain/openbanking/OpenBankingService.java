@@ -103,8 +103,11 @@ public class OpenBankingService
             throw new IllegalStateException("핀테크이용번호 누락");
         }
 
-        // 8. 엔티티 생성
+        // 8. 재등록은 기존 계좌 ID를 유지해 계좌 정보와 토큰을 갱신한다.
+		Long openBankingId = openBankingRepository.findByUserId(userId)
+			.map(OpenBanking::getOpenBankingId).orElse(null);
         OpenBanking openBanking = OpenBanking.builder()
+			.openBankingId(openBankingId)
                 .userId(userId)
                 .userSeqNo(userSeqNo)
                 .fintechNum(fintechUseNum)
