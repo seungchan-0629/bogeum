@@ -3,6 +3,7 @@
 // 요구사항: USER_009 (소셜 계정 연결), USER_010 (조회), USER_011 (수정), USER_012 (회원탈퇴 + 재확인)
 // API:
 // - 조회: GET /api/v1/users/me (BE-013)
+// - 등록 계좌 조회: GET /openbanking/accounts/me
 // - 수정: PUT/PATCH /api/v1/users/me (BE-014) — 비밀번호, 전화번호, 주소
 // - 탈퇴: DELETE /api/v1/users/me (BE-015)
 // - 소셜 연결: POST /api/v1/users/me/social/{provider} (BE-006) — 재인증을 거친다
@@ -42,7 +43,24 @@ function MyPage() {
   const queryKey = ['user-profile', userId]
   const { data: profile, isPending, isFetching, error, refetch } = useQuery({
     queryKey,
-    queryFn: async ({ signal }) => (await api.get('/v1/users/me', { signal })).data,
+    queryFn: async ({ signal }) => (await api.get('/api/v1/users/me', { signal })).data,
+    enabled: Boolean(userId),
+    gcTime: 0,
+    retry: false,
+    refetchOnWindowFocus: false,
+  })
+  const {
+    data: account,
+    isPending: isAccountPending,
+    isFetching: isAccountFetching,
+    error: accountError,
+    refetch: refetchAccount,
+  } = useQuery({
+    queryKey: ['user-account', userId],
+    queryFn: async ({ signal }) => {
+      const response = await api.get('/openbanking/accounts/me', { signal })
+      return response.status === 204 ? null : response.data
+    },
     enabled: Boolean(userId),
     gcTime: 0,
     retry: false,
@@ -89,7 +107,7 @@ function MyPage() {
     setIsSaving(true)
     try {
       await queryClient.cancelQueries({ queryKey })
-      const { data } = await api.patch('/v1/users/me', changes)
+      const { data } = await api.patch('/api/v1/users/me', changes)
       if (useAuthStore.getState().user?.userId !== userId) return
       queryClient.setQueryData(queryKey, data)
       setPhone(null)
@@ -161,11 +179,32 @@ function MyPage() {
           <section aria-labelledby="account-registration-title" className="card flex flex-col gap-3">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h2 id="account-registration-title" className="text-lg font-bold">계좌 등록</h2>
+                <h2 id="account-registration-title" className="text-lg font-bold">등록 계좌</h2>
                 <p className="text-sm text-gray-600">월세 납부와 정산에 사용할 계좌를 등록해요.</p>
               </div>
-              <button type="button" onClick={handleRegisterAccount} className="btn-secondary btn-sm">계좌 등록하기</button>
+              <button type="button" onClick={handleRegisterAccount} className="btn-secondary btn-sm">{account && !accountError ? '계좌 변경하기' : '계좌 등록하기'}</button>
             </div>
+            {isAccountPending ? (
+              <p role="status" className="text-sm text-gray-600">등록 계좌를 불러오고 있어요.</p>
+            ) : accountError ? (
+              <div role="alert" className="flex flex-col items-start gap-2">
+                <p className="text-sm text-red-600">{accountError.response?.data?.message || '등록 계좌를 불러오지 못했어요.'}</p>
+                <button type="button" className="btn-secondary btn-sm" disabled={isAccountFetching} onClick={() => refetchAccount()}>다시 불러오기</button>
+              </div>
+            ) : account ? (
+              <dl className="flex flex-col gap-2 rounded-xl bg-slate-50 px-4 py-3">
+                <div className="flex justify-between gap-4">
+                  <dt className="text-sm text-gray-600">은행</dt>
+                  <dd className="font-bold">{account.bankName || '은행 정보 없음'}</dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-sm text-gray-600">계좌번호</dt>
+                  <dd className="font-bold">{account.accountNumberMasked || '계좌번호 정보 없음'}</dd>
+                </div>
+              </dl>
+            ) : (
+              <p className="text-sm text-gray-600">등록된 계좌가 없어요.</p>
+            )}
             {accountMessage && <p role="status" className="text-sm text-gray-600">{accountMessage}</p>}
           </section>
 

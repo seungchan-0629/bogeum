@@ -12,13 +12,13 @@ function IdentityVerificationField() {
   const [isCodeSent, setIsCodeSent] = useState(false)
   const isVerified = Boolean(useWatch({ name: 'verificationToken' }))
 
-  // TODO: POST /api/v1/auth/identity-verification (BE-008) 호출
+  // TODO: POST /auth/identity-verification (BE-008) 호출
   // - 요청: { phone } / 응답: { verificationId } → 상태에 저장해 확인 요청에 사용
   const handleRequest = () => {
     setIsCodeSent(true)
   }
 
-  // TODO: POST /api/v1/auth/identity-verification/confirm (BE-009) 호출
+  // TODO: POST /auth/identity-verification/confirm (BE-009) 호출
   // - 요청: { verificationId, code } / 응답: { verified, verificationToken }
   // - verified가 true면 setValue('verificationToken', verificationToken, { shouldValidate: true })
   const handleConfirm = () =>

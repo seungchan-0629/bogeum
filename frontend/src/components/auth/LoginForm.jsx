@@ -66,7 +66,7 @@ function LoginForm() {
   }
 
   // TODO: 소셜 로그인 (BE-005) 연결
-  // - 각 제공자의 로그인 창으로 이동 → 돌아온 authorizationCode로 POST /api/v1/auth/social/{provider} 호출
+  // - 각 제공자의 로그인 창으로 이동 → 돌아온 authorizationCode로 POST /auth/social/{provider} 호출
   // - 응답의 isNewUser가 true면 동의 항목 화면으로 이동 (USER_004, USER_017)
   const handleSocialLogin = () => {}
 

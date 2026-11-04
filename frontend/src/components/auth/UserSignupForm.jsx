@@ -53,7 +53,7 @@ function UserSignupForm() {
   // 현재 API는 email을 로그인 아이디로 사용하며, 비밀번호 확인과 임시 인증 토큰은 받지 않는다.
   const onSubmit = async ({ name, email, phone, password, agreements }) => {
     try {
-      await publicApi.post('/v1/auth/signup/user', { name, email, phone, password, agreements })
+      await publicApi.post('/auth/signup/user', { name, email, phone, password, agreements })
     } catch (error) {
       window.alert(error.response?.data?.message || '서버에 연결할 수 없습니다.')
       return

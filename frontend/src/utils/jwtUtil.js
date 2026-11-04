@@ -13,8 +13,8 @@ const authFailureCodes = new Set(['AUTH_REQUIRED', 'ACCESS_TOKEN_INVALID', 'ACCE
  * store와 cookies 주입은 서버 없이 동시 만료와 쿠키 저장을 검증하기 위한 것이다.
  */
 export function createAuthClient(store, cookies = cookieUtil) {
-  const publicApi = axios.create({ baseURL: '/api', timeout: 10000, withCredentials: true })
-  const api = axios.create({ baseURL: '/api', timeout: 10000, withCredentials: true })
+  const publicApi = axios.create({ baseURL: '/', timeout: 10000, withCredentials: true })
+  const api = axios.create({ baseURL: '/', timeout: 10000, withCredentials: true })
   // 요청에는 메모리의 Access를 사용하고 새로고침 시 member 쿠키의 Refresh로 복원한다.
   let accessToken = null
   // 로그아웃 이전에 출발한 늦은 응답이 로그인 상태를 되살리지 못하게 한다.
@@ -50,7 +50,7 @@ export function createAuthClient(store, cookies = cookieUtil) {
   // 동시에 준비 중인 변경 요청끼리만 CSRF 발급 Promise를 공유한다.
   function ensureCsrf() {
     if (!csrfPromise) {
-      csrfPromise = publicApi.get('/v1/auth/csrf')
+      csrfPromise = publicApi.get('/auth/csrf')
         .then(({ data }) => data)
         .finally(() => { csrfPromise = null })
     }
@@ -81,7 +81,7 @@ export function createAuthClient(store, cookies = cookieUtil) {
   function refreshOnce() {
     if (!refreshPromise) {
       const version = authVersion
-      refreshPromise = publicApi.post('/v1/auth/refresh', { refreshToken: readSessionCookie()?.refreshToken })
+      refreshPromise = publicApi.post('/auth/refresh', { refreshToken: readSessionCookie()?.refreshToken })
         .then(({ data }) => {
           // 로그아웃 중 도착한 갱신 결과는 쿠키/화면에 저장하지 않는다.
           if (authVersion === version) setSession(data)
@@ -129,7 +129,7 @@ export function createAuthClient(store, cookies = cookieUtil) {
     if (refreshPromise) await refreshPromise.catch(() => {})
     clearSession()
     const version = authVersion
-    const { data } = await publicApi.post('/v1/auth/login', { email, password })
+    const { data } = await publicApi.post('/auth/login', { email, password })
     if (version !== authVersion) throw new axios.CanceledError('로그인 요청이 취소되었습니다.')
     setSession(data)
     return data.user
@@ -154,7 +154,7 @@ export function createAuthClient(store, cookies = cookieUtil) {
       const refreshed = await refreshPromise.catch(() => null)
       refreshToken = refreshed?.refreshToken ?? refreshToken
     }
-    await publicApi.post('/v1/auth/logout', { refreshToken })
+    await publicApi.post('/auth/logout', { refreshToken })
   }
 
   return { api, publicApi, login, logout, restoreSession }

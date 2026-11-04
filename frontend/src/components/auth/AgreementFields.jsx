@@ -1,7 +1,7 @@
 // USER_004, USER_017 (동의 항목을 각각 구분해 보여주고 전부 필수 동의)
 import { useFormContext, useWatch } from 'react-hook-form'
 
-// TODO: GET /api/v1/auth/terms?userType= (BE-007) 응답으로 교체
+// TODO: GET /auth/terms?userType= (BE-007) 응답으로 교체
 // - userType: 임대·임차인은 LANDLORD_TENANT, 중개사는 AGENT
 // - 응답 필드: termsId, type(PRIVACY_COLLECT, THIRD_PARTY_PROVIDE), title, content, required
 // - content에는 제공받는 자, 이용 목적, 제공 항목, 보유·이용 기간, 거부 권리와 불이익이 들어간다
