@@ -3,6 +3,7 @@ package com.bogeum.domain.openbanking;
 import com.bogeum.domain.openbanking.model.OpenBanking;
 import com.bogeum.domain.openbanking.model.OpenBankingDTO.*;
 import com.bogeum.domain.openbanking.model.OpenBankingTransfer;
+import com.bogeum.domain.user.model.UserDto.LoginUser;
 import jakarta.validation.Valid;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -11,6 +12,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -77,6 +80,15 @@ public class OpenBankingController {
 	@PostMapping("/tokens/institution")
 	public InstitutionTokenRes issueInstitutionToken(@Valid @RequestBody InstitutionTokenReq request) {
 		return openBankingService.issueInstitutionToken(request);
+	}
+
+	/** 로그인한 사용자의 등록 계좌를 반환하고, 미등록이면 204를 반환한다. */
+	@GetMapping("/accounts/me")
+	public ResponseEntity<AccountResponse> getMyAccount(@AuthenticationPrincipal LoginUser loginUser) {
+		return openBankingService.findAccountByUserId(loginUser.getUserId())
+			.map(AccountResponse::from)
+			.map(ResponseEntity::ok)
+			.orElseGet(() -> ResponseEntity.noContent().build());
 	}
 
 	@GetMapping("/accounts/{openBankingId}")

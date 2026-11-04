@@ -19,6 +19,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 
 /*
@@ -111,6 +112,8 @@ public class OpenBankingService
                 .userId(userId)
                 .userSeqNo(userSeqNo)
                 .fintechNum(fintechUseNum)
+				.bankName(accounts.get(0).path("bank_name").asText(""))
+				.accountNumberMasked(accounts.get(0).path("account_num_masked").asText(""))
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)
                 .tokenExpiresAt(LocalDateTime.now().plusSeconds(expiresIn))
@@ -123,6 +126,12 @@ public class OpenBankingService
 
 
 
+
+	/** 마이페이지에 표시할 본인의 등록 계좌를 DB에서 조회한다. */
+	@Transactional(readOnly = true)
+	public Optional<OpenBanking> findAccountByUserId(Long userId) {
+		return openBankingRepository.findByUserId(userId);
+	}
 
     // 등록계좌조회: DB 계좌, 조회조건, 갱신에 필요한 앱 인증정보와 scope를 받는다.
     public RegisteredAccountRes getRegisteredAccounts(OpenBanking account, RegisteredAccountReq request,
@@ -141,6 +150,8 @@ public class OpenBankingService
         for (JsonNode item : responseList(response)) {
             accounts.add(RegisteredAccountItemRes.builder()
                     .fintechUseNum(item.path("fintech_use_num").asText(""))
+					.bankName(item.path("bank_name").asText(""))
+					.accountNumberMasked(item.path("account_num_masked").asText(""))
                     .transferAgreeYn(item.path("transfer_agree_yn").asText(""))
                     .accountState(item.path("account_state").asText("")).build());
         }
@@ -291,6 +302,7 @@ public class OpenBankingService
         openBankingRepository.saveAndFlush(OpenBanking.builder()
                 .openBankingId(account.getOpenBankingId()).userId(account.getUserId())
                 .userSeqNo(account.getUserSeqNo()).fintechNum(account.getFintechNum())
+				.bankName(account.getBankName()).accountNumberMasked(account.getAccountNumberMasked())
                 .accessToken(response.path("access_token").asText("")).refreshToken(refreshToken)
                 .tokenExpiresAt(requestedAt.plusSeconds(response.path("expires_in").asLong())).build());
         return UserTokenRes.builder()
