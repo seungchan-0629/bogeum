@@ -76,7 +76,7 @@ class AuthIntegrationTests {
 	void signupAndConsent() throws Exception {
 		String email = UUID.randomUUID() + "@example.com";
 		String password = UUID.randomUUID().toString();
-		mvc.perform(csrfPost("/api/v1/auth/signup/user").contentType(MediaType.APPLICATION_JSON)
+		mvc.perform(csrfPost("/auth/signup/user").contentType(MediaType.APPLICATION_JSON)
 			.content(mapper.writeValueAsString(Map.of("email", email, "password", password,
 				"name", "학습자", "phone", "01000000000", "agreements",
 				Map.of("privacyCollect", true, "thirdPartyProvide", true)))))
@@ -90,7 +90,7 @@ class AuthIntegrationTests {
 	@Test
 	@DisplayName("필수 동의 거절 시 가입하지 않는다")
 	void rejectsMissingAgreement() throws Exception {
-		mvc.perform(csrfPost("/api/v1/auth/signup/user").contentType(MediaType.APPLICATION_JSON)
+		mvc.perform(csrfPost("/auth/signup/user").contentType(MediaType.APPLICATION_JSON)
 			.content(mapper.writeValueAsString(Map.of("email", "no-consent@example.com", "password", UUID.randomUUID().toString(),
 				"name", "학습자", "phone", "01000000000", "agreements",
 				Map.of("privacyCollect", false, "thirdPartyProvide", true)))))
@@ -102,10 +102,10 @@ class AuthIntegrationTests {
 	@DisplayName("실제 CSRF 쿠키+마스킹 헤더로 로그인하고 토큰을 JSON으로 받는다")
 	void loginWithRealCsrfAndCookie() throws Exception {
 		Account account = account(Role.USER, UserStatus.ACTIVE, true);
-		MvcResult csrfResult = mvc.perform(get("/api/v1/auth/csrf")).andExpect(status().isOk()).andReturn();
+		MvcResult csrfResult = mvc.perform(get("/auth/csrf")).andExpect(status().isOk()).andReturn();
 		Cookie csrfCookie = csrfResult.getResponse().getCookie("BOGEUM_CSRF");
 		var csrfData = mapper.readTree(csrfResult.getResponse().getContentAsString());
-		MvcResult loginResult = mvc.perform(post("/api/v1/auth/login")
+		MvcResult loginResult = mvc.perform(post("/auth/login")
 			.cookie(csrfCookie).header(csrfData.get("headerName").asText(), csrfData.get("token").asText())
 			.contentType(MediaType.APPLICATION_JSON).content(credentials(account)))
 			.andExpect(status().isOk()).andExpect(jsonPath("$.accessToken").isString())
@@ -124,7 +124,7 @@ class AuthIntegrationTests {
 	@DisplayName("CSRF 없는 로그인과 갱신은 403 공통 오류로 거부한다")
 	void csrfIsRequired() throws Exception {
 		for (String path : new String[]{"/login", "/refresh", "/logout", "/signup/user"}) {
-			mvc.perform(post("/api/v1/auth" + path).contentType(MediaType.APPLICATION_JSON).content("{}"))
+			mvc.perform(post("/auth" + path).contentType(MediaType.APPLICATION_JSON).content("{}"))
 				.andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("CSRF_INVALID"));
 		}
 	}
@@ -133,9 +133,9 @@ class AuthIntegrationTests {
 	@DisplayName("누락된 로그인 필드는 400, 잘못된 비밀번호는 401이다")
 	void invalidLogin() throws Exception {
 		Account account = account(Role.USER, UserStatus.ACTIVE, true);
-		mvc.perform(csrfPost("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON).content("{}"))
+		mvc.perform(csrfPost("/auth/login").contentType(MediaType.APPLICATION_JSON).content("{}"))
 			.andExpect(status().isBadRequest());
-		mvc.perform(csrfPost("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
+		mvc.perform(csrfPost("/auth/login").contentType(MediaType.APPLICATION_JSON)
 			.content(mapper.writeValueAsString(Map.of("email", account.user().getEmail(), "password", "wrong"))))
 			.andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("LOGIN_FAILED"));
 	}
@@ -144,7 +144,7 @@ class AuthIntegrationTests {
 	@DisplayName("탈퇴 계정과 소셜 전용 계정은 일반 로그인이 불가능하다")
 	void disabledAndSocialAccounts() throws Exception {
 		for (Account account : new Account[]{account(Role.USER, UserStatus.WITHDRAWN, true), account(Role.USER, UserStatus.ACTIVE, false)}) {
-			mvc.perform(csrfPost("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON).content(credentials(account)))
+			mvc.perform(csrfPost("/auth/login").contentType(MediaType.APPLICATION_JSON).content(credentials(account)))
 				.andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("LOGIN_FAILED"));
 		}
 	}
@@ -152,7 +152,7 @@ class AuthIntegrationTests {
 	@Test
 	@DisplayName("미인증 내 정보 조회는 401이고 공개 상태 조회는 가능하다")
 	void anonymousAccess() throws Exception {
-		mvc.perform(get("/api/v1/auth/me")).andExpect(status().isUnauthorized())
+		mvc.perform(get("/auth/me")).andExpect(status().isUnauthorized())
 			.andExpect(jsonPath("$.code").value("AUTH_REQUIRED"));
 		mvc.perform(get("/api/health")).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("UP"));
 	}
@@ -164,26 +164,26 @@ class AuthIntegrationTests {
 		String expired = expiredToken(original, "access");
 		for (String authorization : new String[]{"invalid-header", "Bearer bad-token", "Bearer " + expired}) {
 			mvc.perform(get("/api/health").header("Authorization", authorization)).andExpect(status().isOk());
-			mvc.perform(get("/api/v1/auth/csrf").header("Authorization", authorization))
+			mvc.perform(get("/auth/csrf").header("Authorization", authorization))
 				.andExpect(status().isOk()).andExpect(jsonPath("$.token").isString());
 			String email = UUID.randomUUID() + "@example.com";
 			String password = UUID.randomUUID().toString();
-			mvc.perform(csrfPost("/api/v1/auth/signup/user").header("Authorization", authorization)
+			mvc.perform(csrfPost("/auth/signup/user").header("Authorization", authorization)
 				.contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(Map.of(
 					"email", email, "password", password, "name", "학습자", "phone", "01000000000",
 					"agreements", Map.of("privacyCollect", true, "thirdPartyProvide", true)))))
 				.andExpect(status().isCreated());
-			MvcResult loggedIn = mvc.perform(csrfPost("/api/v1/auth/login").header("Authorization", authorization)
+			MvcResult loggedIn = mvc.perform(csrfPost("/auth/login").header("Authorization", authorization)
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(mapper.writeValueAsString(Map.of("email", email, "password", password))))
 				.andExpect(status().isOk()).andExpect(jsonPath("$.accessToken").isString()).andReturn();
-			MvcResult refreshed = mvc.perform(csrfPost("/api/v1/auth/refresh").header("Authorization", authorization)
+			MvcResult refreshed = mvc.perform(csrfPost("/auth/refresh").header("Authorization", authorization)
 				.contentType(MediaType.APPLICATION_JSON).content(refreshBody(responseRefresh(loggedIn))))
 				.andExpect(status().isOk()).andExpect(jsonPath("$.accessToken").isString()).andReturn();
-			mvc.perform(csrfPost("/api/v1/auth/logout").header("Authorization", authorization)
+			mvc.perform(csrfPost("/auth/logout").header("Authorization", authorization)
 				.contentType(MediaType.APPLICATION_JSON).content(refreshBody(responseRefresh(refreshed))))
 				.andExpect(status().isNoContent());
-			mvc.perform(get("/api/v1/auth/me").header("Authorization", authorization))
+			mvc.perform(get("/auth/me").header("Authorization", authorization))
 				.andExpect(status().isUnauthorized());
 		}
 	}
@@ -193,7 +193,7 @@ class AuthIntegrationTests {
 	void ownInformationAndRoleCheck() throws Exception {
 		Account account = account(Role.USER, UserStatus.ACTIVE, true);
 		AuthResult result = login(account);
-		mvc.perform(get("/api/v1/auth/me").param("userId", "999999").header("Authorization", "Bearer " + result.getAccessToken()))
+		mvc.perform(get("/auth/me").param("userId", "999999").header("Authorization", "Bearer " + result.getAccessToken()))
 			.andExpect(status().isOk()).andExpect(jsonPath("$.userId").value(account.user().getUserId()))
 			.andExpect(jsonPath("$.passwordHash").doesNotExist());
 		mvc.perform(get("/api/v1/admin/auth-check").header("Authorization", "Bearer " + result.getAccessToken()))
@@ -214,9 +214,9 @@ class AuthIntegrationTests {
 		Account account = account(Role.USER, UserStatus.ACTIVE, true);
 		AuthResult result = login(account);
 		users.deleteById(account.user().getUserId());
-		mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + result.getAccessToken()))
+		mvc.perform(get("/auth/me").header("Authorization", "Bearer " + result.getAccessToken()))
 			.andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("AUTH_REQUIRED"));
-		mvc.perform(csrfPost("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON)
+		mvc.perform(csrfPost("/auth/refresh").contentType(MediaType.APPLICATION_JSON)
 			.content(refreshBody(result.getRefreshToken())))
 			.andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("REFRESH_TOKEN_INVALID"));
 	}
@@ -229,9 +229,9 @@ class AuthIntegrationTests {
 		User user = users.findById(account.user().getUserId()).orElseThrow();
 		org.springframework.test.util.ReflectionTestUtils.setField(user, "userStatus", UserStatus.WITHDRAWN);
 		users.saveAndFlush(user);
-		mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + result.getAccessToken()))
+		mvc.perform(get("/auth/me").header("Authorization", "Bearer " + result.getAccessToken()))
 			.andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("AUTH_REQUIRED"));
-		mvc.perform(csrfPost("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON)
+		mvc.perform(csrfPost("/auth/refresh").contentType(MediaType.APPLICATION_JSON)
 			.content(refreshBody(result.getRefreshToken())))
 			.andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("REFRESH_TOKEN_INVALID"));
 	}
@@ -242,7 +242,7 @@ class AuthIntegrationTests {
 		String token = Jwts.builder().issuer("bogeum").subject("invalid-user-id")
 			.claim("sid", UUID.randomUUID().toString()).claim("tokenType", "access")
 			.expiration(Date.from(Instant.now().plusSeconds(60))).signWith(KEY, Jwts.SIG.HS256).compact();
-		mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + token))
+		mvc.perform(get("/auth/me").header("Authorization", "Bearer " + token))
 			.andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("ACCESS_TOKEN_INVALID"));
 	}
 
@@ -251,7 +251,7 @@ class AuthIntegrationTests {
 	void expiredAccess() throws Exception {
 		AuthResult result = login(account(Role.USER, UserStatus.ACTIVE, true));
 		String expired = expiredToken(result, "access");
-		mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + expired))
+		mvc.perform(get("/auth/me").header("Authorization", "Bearer " + expired))
 			.andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("ACCESS_TOKEN_EXPIRED"));
 	}
 
@@ -263,7 +263,7 @@ class AuthIntegrationTests {
 		int signature = access.lastIndexOf('.') + 1;
 		String tampered = access.substring(0, signature) + (access.charAt(signature) == 'A' ? 'B' : 'A') + access.substring(signature + 1);
 		for (String token : new String[]{tampered, result.getRefreshToken(), "bad-token"}) {
-			mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + token))
+			mvc.perform(get("/auth/me").header("Authorization", "Bearer " + token))
 				.andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("ACCESS_TOKEN_INVALID"));
 		}
 	}
@@ -275,7 +275,7 @@ class AuthIntegrationTests {
 		var originalClaims = jwt.validateRefreshToken(original.getRefreshToken());
 		String previousAccess = original.getAccessToken();
 		for (int attempt = 0; attempt < 2; attempt++) {
-			MvcResult refreshed = mvc.perform(csrfPost("/api/v1/auth/refresh")
+			MvcResult refreshed = mvc.perform(csrfPost("/auth/refresh")
 				.contentType(MediaType.APPLICATION_JSON).content(refreshBody(original.getRefreshToken())))
 				.andExpect(status().isOk()).andExpect(jsonPath("$.user.userId").value(original.getUser().getUserId()))
 				.andReturn();
@@ -288,7 +288,7 @@ class AuthIntegrationTests {
 			var accessClaims = jwt.validateAccessToken(access);
 			assertThat(accessClaims.getSubject()).isEqualTo(originalClaims.getSubject());
 			assertThat(accessClaims.get("sid", String.class)).isEqualTo(originalClaims.get("sid", String.class));
-			mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + access))
+			mvc.perform(get("/auth/me").header("Authorization", "Bearer " + access))
 				.andExpect(status().isOk()).andExpect(jsonPath("$.userId").value(original.getUser().getUserId()));
 			previousAccess = access;
 		}
@@ -298,16 +298,16 @@ class AuthIntegrationTests {
 	@DisplayName("Refresh JSON 누락·변조·만료·Access 용도 토큰은 갱신에 사용할 수 없다")
 	void invalidRefresh() throws Exception {
 		AuthResult result = login(account(Role.USER, UserStatus.ACTIVE, true));
-		mvc.perform(csrfPost("/api/v1/auth/refresh")).andExpect(status().isUnauthorized())
+		mvc.perform(csrfPost("/auth/refresh")).andExpect(status().isUnauthorized())
 			.andExpect(jsonPath("$.code").value("REFRESH_TOKEN_INVALID"));
-		mvc.perform(csrfPost("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON).content("{}"))
+		mvc.perform(csrfPost("/auth/refresh").contentType(MediaType.APPLICATION_JSON).content("{}"))
 			.andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("REFRESH_TOKEN_INVALID"));
 		String refresh = result.getRefreshToken();
 		int signature = refresh.lastIndexOf('.') + 1;
 		String tampered = refresh.substring(0, signature) + (refresh.charAt(signature) == 'A' ? 'B' : 'A')
 			+ refresh.substring(signature + 1);
 		for (String token : new String[]{expiredToken(result, "refresh"), result.getAccessToken(), tampered, "bad-token", ""}) {
-			mvc.perform(csrfPost("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON).content(refreshBody(token)))
+			mvc.perform(csrfPost("/auth/refresh").contentType(MediaType.APPLICATION_JSON).content(refreshBody(token)))
 				.andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("REFRESH_TOKEN_INVALID"));
 		}
 	}
@@ -316,11 +316,11 @@ class AuthIntegrationTests {
 	@DisplayName("무상태 로그아웃은 성공하지만 이미 발급된 Access와 Refresh를 서버에서 폐기하지 않는다")
 	void logoutDoesNotRevokeStatelessTokens() throws Exception {
 		AuthResult result = login(account(Role.USER, UserStatus.ACTIVE, true));
-		mvc.perform(csrfPost("/api/v1/auth/logout").contentType(MediaType.APPLICATION_JSON).content(refreshBody(result.getRefreshToken())))
+		mvc.perform(csrfPost("/auth/logout").contentType(MediaType.APPLICATION_JSON).content(refreshBody(result.getRefreshToken())))
 			.andExpect(status().isNoContent());
-		mvc.perform(csrfPost("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON).content(refreshBody(result.getRefreshToken())))
+		mvc.perform(csrfPost("/auth/refresh").contentType(MediaType.APPLICATION_JSON).content(refreshBody(result.getRefreshToken())))
 			.andExpect(status().isOk()).andExpect(jsonPath("$.refreshToken").value(result.getRefreshToken()));
-		mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + result.getAccessToken()))
+		mvc.perform(get("/auth/me").header("Authorization", "Bearer " + result.getAccessToken()))
 			.andExpect(status().isOk()).andExpect(jsonPath("$.userId").value(result.getUser().getUserId()));
 	}
 
@@ -356,7 +356,7 @@ class AuthIntegrationTests {
 		var body = agentSignupBody(email, password);
 		body.put("role", "ADMIN");
 		body.put("approvalStatus", "APPROVED");
-		MvcResult signup = mvc.perform(csrfPost("/api/v1/auth/signup/agent")
+		MvcResult signup = mvc.perform(csrfPost("/auth/signup/agent")
 			.header("Authorization", "Bearer ignored-invalid-token")
 			.contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(body)))
 			.andExpect(status().isCreated()).andExpect(jsonPath("$.approvalStatus").value("PENDING"))
@@ -369,13 +369,13 @@ class AuthIntegrationTests {
 		var agent = agents.findByUser_UserId(user.getUserId()).orElseThrow();
 		assertThat(agent.getDocumentDueAt()).isAfter(java.time.LocalDateTime.now().plusDays(2));
 		long agentId = mapper.readTree(signup.getResponse().getContentAsByteArray()).get("agentId").asLong();
-		MvcResult login = mvc.perform(csrfPost("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
+		MvcResult login = mvc.perform(csrfPost("/auth/login").contentType(MediaType.APPLICATION_JSON)
 			.content(mapper.writeValueAsString(Map.of("email", email, "password", password))))
 			.andExpect(status().isOk()).andExpect(jsonPath("$.user.role").value("AGENT"))
 			.andExpect(jsonPath("$.user.agentId").value(agentId))
 			.andExpect(jsonPath("$.user.approvalStatus").value("PENDING")).andReturn();
 		String access = mapper.readTree(login.getResponse().getContentAsByteArray()).get("accessToken").asText();
-		mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + access))
+		mvc.perform(get("/auth/me").header("Authorization", "Bearer " + access))
 			.andExpect(status().isOk()).andExpect(jsonPath("$.approvalStatus").value("PENDING"));
 		mvc.perform(get("/api/v1/agents/me").param("userId", "999999").header("Authorization", "Bearer " + access))
 			.andExpect(status().isOk()).andExpect(jsonPath("$.userId").value(user.getUserId()))
@@ -386,16 +386,16 @@ class AuthIntegrationTests {
 			.andExpect(status().isForbidden());
 		mvc.perform(get("/api/v1/admin/auth-check").header("Authorization", "Bearer " + access))
 			.andExpect(status().isForbidden());
-		MvcResult refreshed = mvc.perform(csrfPost("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON)
+		MvcResult refreshed = mvc.perform(csrfPost("/auth/refresh").contentType(MediaType.APPLICATION_JSON)
 			.content(refreshBody(responseRefresh(login))))
 			.andExpect(status().isOk()).andExpect(jsonPath("$.user.approvalStatus").value("PENDING")).andReturn();
-		mvc.perform(csrfPost("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON).content(refreshBody(responseRefresh(login))))
+		mvc.perform(csrfPost("/auth/refresh").contentType(MediaType.APPLICATION_JSON).content(refreshBody(responseRefresh(login))))
 			.andExpect(status().isOk()).andExpect(jsonPath("$.refreshToken").value(responseRefresh(login)))
 			.andExpect(jsonPath("$.user.approvalStatus").value("PENDING"));
-		mvc.perform(csrfPost("/api/v1/auth/logout").contentType(MediaType.APPLICATION_JSON).content(refreshBody(responseRefresh(refreshed))))
+		mvc.perform(csrfPost("/auth/logout").contentType(MediaType.APPLICATION_JSON).content(refreshBody(responseRefresh(refreshed))))
 			.andExpect(status().isNoContent());
 		mvc.perform(get("/api/v1/agents/me").header("Authorization", "Bearer " + access)).andExpect(status().isOk());
-		mvc.perform(csrfPost("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON).content(refreshBody(responseRefresh(refreshed))))
+		mvc.perform(csrfPost("/auth/refresh").contentType(MediaType.APPLICATION_JSON).content(refreshBody(responseRefresh(refreshed))))
 			.andExpect(status().isOk()).andExpect(jsonPath("$.user.approvalStatus").value("PENDING"));
 	}
 
@@ -411,16 +411,16 @@ class AuthIntegrationTests {
 			agents.saveAndFlush(agent);
 			mvc.perform(get("/api/v1/agents/auth-check").header("Authorization", "Bearer " + session.getAccessToken()))
 				.andExpect(status().is(approval.name().equals("APPROVED") ? 200 : 403));
-			mvc.perform(get("/api/v1/auth/me").header("Authorization", "Bearer " + session.getAccessToken()))
+			mvc.perform(get("/auth/me").header("Authorization", "Bearer " + session.getAccessToken()))
 				.andExpect(status().isOk()).andExpect(jsonPath("$.approvalStatus").value(approval.name()));
-			mvc.perform(csrfPost("/api/v1/auth/refresh").contentType(MediaType.APPLICATION_JSON)
+			mvc.perform(csrfPost("/auth/refresh").contentType(MediaType.APPLICATION_JSON)
 				.content(refreshBody(session.getRefreshToken())))
 				.andExpect(status().isOk()).andExpect(jsonPath("$.user.approvalStatus").value(approval.name()))
 				.andExpect(jsonPath("$.refreshToken").value(session.getRefreshToken()));
 		}
 		mvc.perform(get("/api/v1/agents/me").header("Authorization", "Bearer " + session.getAccessToken()))
 			.andExpect(status().isOk()).andExpect(jsonPath("$.rejectReason").value("서류 보완 필요"));
-		mvc.perform(csrfPost("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON).content(credentials(account)))
+		mvc.perform(csrfPost("/auth/login").contentType(MediaType.APPLICATION_JSON).content(credentials(account)))
 			.andExpect(status().isOk()).andExpect(jsonPath("$.user.approvalStatus").value("REJECTED"));
 	}
 
@@ -432,7 +432,7 @@ class AuthIntegrationTests {
 			mvc.perform(get(path)).andExpect(status().isUnauthorized());
 			mvc.perform(get(path).header("Authorization", "Bearer " + user.getAccessToken())).andExpect(status().isForbidden());
 		}
-		mvc.perform(post("/api/v1/auth/signup/agent").contentType(MediaType.APPLICATION_JSON)
+		mvc.perform(post("/auth/signup/agent").contentType(MediaType.APPLICATION_JSON)
 			.content(mapper.writeValueAsString(agentSignupBody("csrf@example.com", "password"))))
 			.andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("CSRF_INVALID"));
 	}
@@ -441,12 +441,12 @@ class AuthIntegrationTests {
 	@DisplayName("중개사 가입 이메일은 일반 회원 및 중개사 계정과 중복될 수 없다")
 	void agentEmailUniqueness() throws Exception {
 		for (Account existing : new Account[]{account(Role.USER, UserStatus.ACTIVE, true), agentAccount()}) {
-			mvc.perform(csrfPost("/api/v1/auth/signup/agent").contentType(MediaType.APPLICATION_JSON)
+			mvc.perform(csrfPost("/auth/signup/agent").contentType(MediaType.APPLICATION_JSON)
 				.content(mapper.writeValueAsString(agentSignupBody(existing.user().getEmail(), "password"))))
 				.andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("EMAIL_ALREADY_EXISTS"));
 		}
 		Account agent = agentAccount();
-		mvc.perform(csrfPost("/api/v1/auth/signup/user").contentType(MediaType.APPLICATION_JSON)
+		mvc.perform(csrfPost("/auth/signup/user").contentType(MediaType.APPLICATION_JSON)
 			.content(mapper.writeValueAsString(Map.of("email", agent.user().getEmail(), "password", "password", "name", "회원", "phone", "01000000000", "agreements", Map.of("privacyCollect", true, "thirdPartyProvide", true)))))
 			.andExpect(status().isConflict());
 	}
@@ -460,7 +460,7 @@ class AuthIntegrationTests {
 		else if (field.equals("longOffice")) body.put("officeName", "a".repeat(101));
 		else if (field.equals("longPassword")) body.put("password", "가".repeat(25));
 		else body.put(field, "");
-		mvc.perform(csrfPost("/api/v1/auth/signup/agent").contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(body)))
+		mvc.perform(csrfPost("/auth/signup/agent").contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(body)))
 			.andExpect(status().isBadRequest());
 		assertThat(users.findByEmail(email)).isEmpty();
 	}
@@ -472,7 +472,7 @@ class AuthIntegrationTests {
 		long before = jdbc.queryForObject("select count(*) from user_consent", Long.class);
 		org.mockito.Mockito.doThrow(new org.springframework.dao.DataIntegrityViolationException("test profile failure"))
 			.when(agents).saveAndFlush(org.mockito.ArgumentMatchers.any(com.bogeum.domain.agent.model.Agent.class));
-		mvc.perform(csrfPost("/api/v1/auth/signup/agent").contentType(MediaType.APPLICATION_JSON)
+		mvc.perform(csrfPost("/auth/signup/agent").contentType(MediaType.APPLICATION_JSON)
 			.content(mapper.writeValueAsString(agentSignupBody(email, "password"))))
 			.andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("SIGNUP_CONFLICT"));
 		assertThat(users.findByEmail(email)).isEmpty();
@@ -544,9 +544,9 @@ class AuthIntegrationTests {
 		assertThat(saved.getPasswordHash()).startsWith("$2").isNotEqualTo(password).isNotEqualTo(account.user().getPasswordHash());
 		assertThat(encoder.matches(password, saved.getPasswordHash())).isTrue();
 		assertThat(result.getResponse().getContentAsString()).doesNotContain(password, account.password(), saved.getPasswordHash());
-		mvc.perform(csrfPost("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON).content(credentials(account)))
+		mvc.perform(csrfPost("/auth/login").contentType(MediaType.APPLICATION_JSON).content(credentials(account)))
 			.andExpect(status().isUnauthorized());
-		mvc.perform(csrfPost("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
+		mvc.perform(csrfPost("/auth/login").contentType(MediaType.APPLICATION_JSON)
 				.content(mapper.writeValueAsString(Map.of("email", saved.getEmail(), "password", password))))
 			.andExpect(status().isOk());
 	}
@@ -603,7 +603,7 @@ class AuthIntegrationTests {
 	}
 
 	private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder csrfPatch(String path) throws Exception {
-		MvcResult result = mvc.perform(get("/api/v1/auth/csrf")).andExpect(status().isOk()).andReturn();
+		MvcResult result = mvc.perform(get("/auth/csrf")).andExpect(status().isOk()).andReturn();
 		var data = mapper.readTree(result.getResponse().getContentAsString());
 		return patch(path).cookie(result.getResponse().getCookie("BOGEUM_CSRF"))
 			.header(data.get("headerName").asText(), data.get("token").asText());
@@ -618,13 +618,13 @@ class AuthIntegrationTests {
 	private Account agentAccount() throws Exception {
 		String email = UUID.randomUUID() + "@example.com";
 		String password = UUID.randomUUID().toString();
-		mvc.perform(csrfPost("/api/v1/auth/signup/agent").contentType(MediaType.APPLICATION_JSON)
+		mvc.perform(csrfPost("/auth/signup/agent").contentType(MediaType.APPLICATION_JSON)
 			.content(mapper.writeValueAsString(agentSignupBody(email, password)))).andExpect(status().isCreated());
 		return new Account(users.findByEmail(email).orElseThrow(), password);
 	}
 
 	private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder csrfPost(String path) throws Exception {
-		MvcResult result = mvc.perform(get("/api/v1/auth/csrf")).andExpect(status().isOk()).andReturn();
+		MvcResult result = mvc.perform(get("/auth/csrf")).andExpect(status().isOk()).andReturn();
 		var data = mapper.readTree(result.getResponse().getContentAsString());
 		return post(path).cookie(result.getResponse().getCookie("BOGEUM_CSRF"))
 			.header(data.get("headerName").asText(), data.get("token").asText());

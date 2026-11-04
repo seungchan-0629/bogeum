@@ -58,7 +58,7 @@ class UserControllerTest {
 		when(userService.signup("user@example.com", " password ", "가입자", "01012345678",
 			true, true)).thenReturn(User.builder().userId(1L).passwordHash("secret").build());
 
-		mockMvc.perform(post("/api/v1/auth/signup/user").contentType(MediaType.APPLICATION_JSON)
+		mockMvc.perform(post("/auth/signup/user").contentType(MediaType.APPLICATION_JSON)
 			.content(SIGNUP_REQUEST))
 			.andExpect(status().isCreated())
 			.andExpect(content().json("{\"userId\":1}", JsonCompareMode.STRICT));
@@ -85,7 +85,7 @@ class UserControllerTest {
 			fields.setAll((ObjectNode) mapper.readTree(overrides));
 			request = mapper.writeValueAsString(fields);
 		}
-		mockMvc.perform(post("/api/v1/auth/signup/user").contentType(MediaType.APPLICATION_JSON)
+		mockMvc.perform(post("/auth/signup/user").contentType(MediaType.APPLICATION_JSON)
 			.content(request))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
@@ -102,7 +102,7 @@ class UserControllerTest {
 		for (UserException exception : exceptions) {
 			doThrow(exception).when(userService).signup("user@example.com", " password ", "가입자", "01012345678",
 				true, true);
-			mockMvc.perform(post("/api/v1/auth/signup/user").contentType(MediaType.APPLICATION_JSON)
+			mockMvc.perform(post("/auth/signup/user").contentType(MediaType.APPLICATION_JSON)
 				.content(SIGNUP_REQUEST))
 				.andExpect(status().is(exception.getErrorCode().getHttpStatus().value()))
 				.andExpect(jsonPath("$.code").value(exception.getErrorCode().name()))
@@ -119,7 +119,7 @@ class UserControllerTest {
 			.lastLoginProvider(LoginProvider.LOCAL).build();
 		when(userService.login("user@example.com", " password ")).thenReturn(new AuthResult(user, "test-access", "test-refresh", Instant.parse("2030-01-01T00:00:00Z")));
 
-		mockMvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
+		mockMvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
 			.content("""
 				{"email":"user@example.com","password":" password "}
 				"""))
@@ -143,7 +143,7 @@ class UserControllerTest {
 	})
 	@DisplayName("잘못된 요청은 서비스 호출 없이 400과 공통 오류를 반환한다")
 	void rejectsInvalidRequest(String request) throws Exception {
-		mockMvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON).content(request))
+		mockMvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON).content(request))
 			.andExpect(status().isBadRequest())
 			.andExpect(content().json("""
 				{"code":"INVALID_REQUEST","message":"요청값을 확인해 주세요."}
@@ -155,7 +155,7 @@ class UserControllerTest {
 	@DisplayName("인증 실패를 계정 정보 노출 없이 401로 변환한다")
 	void loginFailureReturnsUnauthorized() throws Exception {
 		when(userService.login("user@example.com", "wrong-password")).thenThrow(UserException.loginFailed());
-		mockMvc.perform(post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
+		mockMvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
 			.content("""
 				{"email":"user@example.com","password":"wrong-password"}
 				"""))

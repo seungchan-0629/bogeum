@@ -39,6 +39,22 @@ public class OpenBankingDTO
         private String state;      // 요청 시 설정한 난수
     }
 
+	/** 마이페이지에 표시할 은행명과 마스킹된 계좌번호만 반환한다. */
+	@Getter
+	@Builder
+	public static class AccountResponse {
+		private String bankName;
+		private String accountNumberMasked;
+
+		/** 등록 계좌의 화면 표시용 정보만 응답으로 변환한다. */
+		public static AccountResponse from(OpenBanking account) {
+			return AccountResponse.builder()
+				.bankName(account.getBankName())
+				.accountNumberMasked(account.getAccountNumberMasked())
+				.build();
+		}
+	}
+
     // 출금
     @Getter
     @NoArgsConstructor

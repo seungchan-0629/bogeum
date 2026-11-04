@@ -19,6 +19,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 
 /*
@@ -125,6 +126,12 @@ public class OpenBankingService
 
 
 
+
+	/** 마이페이지에 표시할 본인의 등록 계좌를 DB에서 조회한다. */
+	@Transactional(readOnly = true)
+	public Optional<OpenBanking> findAccountByUserId(Long userId) {
+		return openBankingRepository.findByUserId(userId);
+	}
 
     // 등록계좌조회: DB 계좌, 조회조건, 갱신에 필요한 앱 인증정보와 scope를 받는다.
     public RegisteredAccountRes getRegisteredAccounts(OpenBanking account, RegisteredAccountReq request,
