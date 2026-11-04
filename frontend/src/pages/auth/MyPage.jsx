@@ -33,6 +33,7 @@ function MyPage() {
   const user = useAuthStore((state) => state.user)
   const navigate = useNavigate()
   const [isWithdrawOpen, setIsWithdrawOpen] = useState(false)
+  const [accountMessage, setAccountMessage] = useState('')
   const isTenant = user?.contractRoles?.includes(CONTRACT_ROLES.TENANT)
   const isLandlord = user?.contractRoles?.includes(CONTRACT_ROLES.LANDLORD)
 
@@ -103,6 +104,16 @@ function MyPage() {
     }
   }
 
+  const handleRegisterAccount = () => {
+    // TODO: 백엔드 인증 시작 API(구현 예정)에서 로그인 사용자와 연결된 state를 생성·저장하고 인증 URL을 받는다.
+    // TODO: 가짜 금결원의 계좌 인증 화면으로 리다이렉트한다.
+    // 예정 주소: http://localhost:8090/oauth/2.0/authorize (가짜 서버 구현 후 실제 경로 확정)
+    // 인증 URL에는 response_type=code, client_id, redirect_uri, scope, state, auth_type을 포함한다.
+    // redirect_uri는 프론트 콜백 주소로 정하고, 백엔드 토큰 교환 요청에도 같은 주소를 사용한다.
+    // window.location.assign(authorizationUrl)
+    setAccountMessage('계좌 등록 기능을 준비하고 있어요.')
+  }
+
   // TODO: 각 제공자 인증 창 → 받은 코드로 POST /api/v1/users/me/social/{provider} (BE-006)
   const handleConnect = () => {}
 
@@ -145,6 +156,17 @@ function MyPage() {
                 </div>
               ))}
             </dl>
+          </section>
+
+          <section aria-labelledby="account-registration-title" className="card flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 id="account-registration-title" className="text-lg font-bold">계좌 등록</h2>
+                <p className="text-sm text-gray-600">월세 납부와 정산에 사용할 계좌를 등록해요.</p>
+              </div>
+              <button type="button" onClick={handleRegisterAccount} className="btn-secondary btn-sm">계좌 등록하기</button>
+            </div>
+            {accountMessage && <p role="status" className="text-sm text-gray-600">{accountMessage}</p>}
           </section>
 
           <section aria-labelledby="social-title" className="card flex flex-col gap-3">
