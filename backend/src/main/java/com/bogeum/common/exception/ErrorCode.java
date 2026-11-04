@@ -7,6 +7,11 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum ErrorCode {
+	// AS 최초 접수의 계약 검증·사진 처리·저장소 연결 실패 (AS_001)
+	AS_CONTRACT_NOT_FOUND(HttpStatus.NOT_FOUND, "계약을 찾을 수 없습니다."),
+	AS_OUTSIDE_CONTRACT(HttpStatus.BAD_REQUEST, "계약 시작일부터 종료일까지 AS를 접수할 수 있습니다."),
+	AS_INVALID_IMAGE(HttpStatus.BAD_REQUEST, "사진의 형식, 크기와 개수를 확인해 주세요."),
+	AS_STORAGE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "사진을 저장할 수 없습니다. 잠시 후 다시 시도해 주세요."),
 	AGENT_NOT_FOUND(HttpStatus.NOT_FOUND, "중개사 정보를 찾을 수 없습니다."),
 	INVALID_REQUEST(HttpStatus.BAD_REQUEST, "요청값을 확인해 주세요."),
 	INVALID_LEASE_PRICE(HttpStatus.BAD_REQUEST, "임대 형식에 맞게 보증금과 월세를 입력해 주세요."),
