@@ -41,6 +41,14 @@ public class OpenBanking
     //@Column(name = "fintech_num", length = 50)
     private String fintechNum;
 
+	// 은행명
+	//@Column(name = "bank_name", length = 50)
+	private String bankName;
+
+	// 화면 표시용 마스킹된 계좌번호
+	//@Column(name = "account_number_masked", length = 30)
+	private String accountNumberMasked;
+
     // 액세스 토큰
     //@Column(name = "access_token", length = 2048)
     private String accessToken;

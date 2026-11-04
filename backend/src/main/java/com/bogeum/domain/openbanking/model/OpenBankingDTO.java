@@ -163,6 +163,9 @@ public class OpenBankingDTO
 
         private String fintechUseNum; // 핀테크이용번호
 
+		private String bankName; // 은행명
+		private String accountNumberMasked; // 화면 표시용 마스킹된 계좌번호
+
         private String transferAgreeYn; // 출금서비스 동의 여부: "Y"/"N"
         private String accountState;    // 계좌상태: 사용 "01", 해지 "09"
     }
