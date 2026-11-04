@@ -8,7 +8,7 @@ export function useAgentProfile() {
   const userId = useAuthStore((state) => state.user?.userId)
   const query = useQuery({
     queryKey: ['agent-profile', userId],
-    queryFn: async ({ signal }) => (await api.get('/v1/agents/me', { signal })).data,
+    queryFn: async ({ signal }) => (await api.get('/api/v1/agents/me', { signal })).data,
     enabled: Boolean(userId),
     gcTime: 0,
     retry: false,

@@ -51,7 +51,7 @@ function AgentSignupForm() {
 
   const onSubmit = async ({ officeName, representativeName, officeAddress, phone, email, password, agreements }) => {
     try {
-      await publicApi.post('/v1/auth/signup/agent', {
+      await publicApi.post('/auth/signup/agent', {
         officeName, representativeName, officeAddress, phone, email, password, agreements,
       })
     } catch (error) {
