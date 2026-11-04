@@ -111,6 +111,8 @@ public class OpenBankingService
                 .userId(userId)
                 .userSeqNo(userSeqNo)
                 .fintechNum(fintechUseNum)
+				.bankName(accounts.get(0).path("bank_name").asText(""))
+				.accountNumberMasked(accounts.get(0).path("account_num_masked").asText(""))
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)
                 .tokenExpiresAt(LocalDateTime.now().plusSeconds(expiresIn))
@@ -141,6 +143,8 @@ public class OpenBankingService
         for (JsonNode item : responseList(response)) {
             accounts.add(RegisteredAccountItemRes.builder()
                     .fintechUseNum(item.path("fintech_use_num").asText(""))
+					.bankName(item.path("bank_name").asText(""))
+					.accountNumberMasked(item.path("account_num_masked").asText(""))
                     .transferAgreeYn(item.path("transfer_agree_yn").asText(""))
                     .accountState(item.path("account_state").asText("")).build());
         }
@@ -291,6 +295,7 @@ public class OpenBankingService
         openBankingRepository.saveAndFlush(OpenBanking.builder()
                 .openBankingId(account.getOpenBankingId()).userId(account.getUserId())
                 .userSeqNo(account.getUserSeqNo()).fintechNum(account.getFintechNum())
+				.bankName(account.getBankName()).accountNumberMasked(account.getAccountNumberMasked())
                 .accessToken(response.path("access_token").asText("")).refreshToken(refreshToken)
                 .tokenExpiresAt(requestedAt.plusSeconds(response.path("expires_in").asLong())).build());
         return UserTokenRes.builder()
