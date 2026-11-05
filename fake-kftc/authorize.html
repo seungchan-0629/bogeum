@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>계좌 연결 | 가상 금결원</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f5f7fb; color: #17243b; font-family: system-ui, sans-serif; line-height: 1.6; }
+    main { width: min(100% - 32px, 480px); margin: 48px auto; }
+    header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; }
+    header strong { font-size: 18px; letter-spacing: -.5px; }
+    .badge { border-radius: 6px; background: #e6ebf3; padding: 3px 9px; color: #53627a; font-size: 12px; font-weight: 700; }
+    .card { padding: 32px; border: 1px solid #e0e6ef; border-radius: 20px; background: white; }
+    .eyebrow { margin: 0 0 8px; color: #2563eb; font-size: 13px; font-weight: 700; }
+    h1 { margin: 0 0 8px; font-size: 26px; letter-spacing: -1px; }
+    .description { margin: 0 0 26px; color: #64748b; font-size: 14px; }
+    .notice { margin: 0 0 24px; border-radius: 10px; padding: 12px 14px; background: #f0f5ff; color: #35527b; font-size: 13px; }
+    .field { display: grid; gap: 7px; margin-bottom: 19px; }
+    .field label { font-size: 14px; font-weight: 650; }
+    input:not([type=checkbox]), select { width: 100%; height: 48px; border: 1px solid #cdd6e3; border-radius: 10px; padding: 0 13px; background: white; color: #17243b; font: inherit; font-size: 15px; }
+    input::placeholder { color: #94a3b8; }
+    :focus-visible { outline: 3px solid #93b8ff; outline-offset: 3px; }
+    .hint { margin: 0; color: #64748b; font-size: 12px; }
+    .agreement { display: flex; align-items: flex-start; gap: 9px; margin: 24px 0; font-size: 13px; }
+    input[type=checkbox] { width: 17px; height: 17px; flex-shrink: 0; margin: 3px 0 0; accent-color: #2563eb; }
+    .actions { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; }
+    button { min-height: 46px; border: 1px solid #d3dce8; border-radius: 10px; background: white; color: #475569; font: inherit; font-size: 14px; font-weight: 650; cursor: pointer; }
+    .primary { border-color: #2563eb; background: #2563eb; color: white; }
+    .primary:hover { background: #1d4ed8; }
+    button:disabled { opacity: .5; cursor: default; }
+    .sample { display: block; min-height: 32px; margin: 16px auto 0; border: 0; color: #64748b; font-size: 12px; text-decoration: underline; }
+    footer { margin-top: 20px; color: #7c899c; text-align: center; font-size: 12px; }
+    footer a { color: inherit; }
+    @media (max-width: 480px) { main { margin: 24px auto; } .card { padding: 24px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header><strong>가상 금결원</strong><span class="badge">테스트 전용</span></header>
+    <section class="card" aria-labelledby="title">
+      <p class="eyebrow">보금 · 계좌 연결</p>
+      <h1 id="title">계좌 정보를 입력해 주세요</h1>
+      <p class="description">입력한 계좌를 보금에 연결합니다.</p>
+      <p class="notice" id="notice" role="status">개발용 가상 인증 화면입니다. 실제 은행 인증이나 이체는 진행하지 않으니 테스트 정보만 입력해 주세요.</p>
+      <form method="post" action="/oauth/2.0/authorize">
+        <div class="field">
+          <label for="bank-name">은행</label>
+          <select id="bank-name" name="bank_name" required>
+            <option value="">은행을 선택해 주세요</option>
+            <!-- BANK_OPTIONS -->
+          </select>
+        </div>
+        <div class="field">
+          <label for="account-number">계좌번호</label>
+          <input id="account-number" name="account_num" inputmode="numeric" autocomplete="off" placeholder="숫자만 입력해 주세요" pattern="[0-9]{10,16}" minlength="10" maxlength="16" aria-describedby="account-hint" required>
+          <p class="hint" id="account-hint">하이픈(-) 없이 숫자 10~16자리를 입력해 주세요.</p>
+        </div>
+        <div class="field">
+          <label for="holder-name">예금주</label>
+          <input id="holder-name" name="account_holder_name" autocomplete="off" placeholder="예금주 이름" maxlength="50" pattern=".*\S.*" required>
+        </div>
+        <label class="agreement"><input type="checkbox" name="agree" value="Y" required><span>[필수] 입력한 가상 계좌 정보를 보금에 제공하는 데 동의합니다.</span></label>
+        <input type="hidden" name="response_type">
+        <input type="hidden" name="client_id">
+        <input type="hidden" name="redirect_uri">
+        <input type="hidden" name="scope">
+        <input type="hidden" name="state">
+        <input type="hidden" name="auth_type">
+        <div class="actions">
+          <button type="submit" name="action" value="cancel" formnovalidate>취소</button>
+          <button type="submit" class="primary">동의하고 계좌 연결</button>
+        </div>
+        <button type="button" class="sample" id="sample">테스트 정보 채우기</button>
+      </form>
+    </section>
+    <footer>보금 개발용 가상 금결원 · <a href="http://localhost:5173/mypage">보금으로 돌아가기</a></footer>
+  </main>
+  <script>
+    const form = document.querySelector('form')
+    const params = new URLSearchParams(window.location.search)
+    for (const field of form.querySelectorAll('input[type=hidden]')) {
+      field.value = params.get(field.name) || ''
+    }
+    if (!params.has('state')) {
+      document.getElementById('notice').textContent = '화면 미리보기입니다. 계좌를 연결하려면 보금 마이페이지에서 계좌 등록하기를 눌러 주세요.'
+      form.querySelectorAll('button[type=submit]').forEach((button) => { button.disabled = true })
+    }
+    document.getElementById('sample').addEventListener('click', () => {
+      form.elements.bank_name.value = '국민은행'
+      form.elements.account_num.value = '123456789012'
+      form.elements.account_holder_name.value = '홍길동'
+    })
+  </script>
+</body>
+</html>

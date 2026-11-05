@@ -2,10 +2,10 @@
 // 누가: 사용자. 중개사는 /agent/mypage 를 쓴다
 // 요구사항: USER_009 (소셜 계정 연결), USER_010 (조회), USER_011 (수정), USER_012 (회원탈퇴 + 재확인)
 // API:
-// - 조회: GET /api/v1/users/me (BE-013)
+// - 조회: GET /users/me (BE-013)
 // - 등록 계좌 조회: GET /openbanking/accounts/me
-// - 수정: PUT/PATCH /api/v1/users/me (BE-014) — 비밀번호, 전화번호, 주소
-// - 탈퇴: DELETE /api/v1/users/me (BE-015)
+// - 수정: PUT/PATCH /users/me (BE-014) — 비밀번호, 전화번호, 주소
+// - 탈퇴: DELETE /users/me (BE-015)
 // - 소셜 연결: POST /api/v1/users/me/social/{provider} (BE-006) — 재인증을 거친다
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -35,6 +35,7 @@ function MyPage() {
   const navigate = useNavigate()
   const [isWithdrawOpen, setIsWithdrawOpen] = useState(false)
   const [accountMessage, setAccountMessage] = useState('')
+  const [isRegisteringAccount, setIsRegisteringAccount] = useState(false)
   const isTenant = user?.contractRoles?.includes(CONTRACT_ROLES.TENANT)
   const isLandlord = user?.contractRoles?.includes(CONTRACT_ROLES.LANDLORD)
 
@@ -43,7 +44,7 @@ function MyPage() {
   const queryKey = ['user-profile', userId]
   const { data: profile, isPending, isFetching, error, refetch } = useQuery({
     queryKey,
-    queryFn: async ({ signal }) => (await api.get('/api/v1/users/me', { signal })).data,
+    queryFn: async ({ signal }) => (await api.get('/users/me', { signal })).data,
     enabled: Boolean(userId),
     gcTime: 0,
     retry: false,
@@ -107,7 +108,7 @@ function MyPage() {
     setIsSaving(true)
     try {
       await queryClient.cancelQueries({ queryKey })
-      const { data } = await api.patch('/api/v1/users/me', changes)
+      const { data } = await api.patch('/users/me', changes)
       if (useAuthStore.getState().user?.userId !== userId) return
       queryClient.setQueryData(queryKey, data)
       setPhone(null)
@@ -122,20 +123,23 @@ function MyPage() {
     }
   }
 
-  const handleRegisterAccount = () => {
-    // TODO: 백엔드 인증 시작 API(구현 예정)에서 로그인 사용자와 연결된 state를 생성·저장하고 인증 URL을 받는다.
-    // TODO: 가짜 금결원의 계좌 인증 화면으로 리다이렉트한다.
-    // 예정 주소: http://localhost:8090/oauth/2.0/authorize (가짜 서버 구현 후 실제 경로 확정)
-    // 인증 URL에는 response_type=code, client_id, redirect_uri, scope, state, auth_type을 포함한다.
-    // redirect_uri는 프론트 콜백 주소로 정하고, 백엔드 토큰 교환 요청에도 같은 주소를 사용한다.
-    // window.location.assign(authorizationUrl)
-    setAccountMessage('계좌 등록 기능을 준비하고 있어요.')
+  const handleRegisterAccount = async () => {
+    if (isRegisteringAccount) return
+    setAccountMessage('')
+    setIsRegisteringAccount(true)
+    try {
+      const { data } = await api.post('/openbanking/authorize')
+      window.location.assign(data.authorizationUrl)
+    } catch (failure) {
+      setAccountMessage(failure.response?.data?.message || '계좌 등록 화면을 열지 못했습니다. 다시 시도해 주세요.')
+      setIsRegisteringAccount(false)
+    }
   }
 
   // TODO: 각 제공자 인증 창 → 받은 코드로 POST /api/v1/users/me/social/{provider} (BE-006)
   const handleConnect = () => {}
 
-  // TODO: DELETE /api/v1/users/me (BE-015, 확인용 비밀번호 포함 여부는 백엔드와 협의) 성공 후 로그아웃
+  // TODO: DELETE /users/me (BE-015, 확인용 비밀번호 포함 여부는 백엔드와 협의) 성공 후 로그아웃
   const handleWithdraw = async () => {
     try {
       await logout()
@@ -182,7 +186,9 @@ function MyPage() {
                 <h2 id="account-registration-title" className="text-lg font-bold">등록 계좌</h2>
                 <p className="text-sm text-gray-600">월세 납부와 정산에 사용할 계좌를 등록해요.</p>
               </div>
-              <button type="button" onClick={handleRegisterAccount} className="btn-secondary btn-sm">{account && !accountError ? '계좌 변경하기' : '계좌 등록하기'}</button>
+              <button type="button" onClick={handleRegisterAccount} disabled={isRegisteringAccount} className="btn-secondary btn-sm">
+                {isRegisteringAccount ? '이동 중…' : account && !accountError ? '계좌 변경하기' : '계좌 등록하기'}
+              </button>
             </div>
             {isAccountPending ? (
               <p role="status" className="text-sm text-gray-600">등록 계좌를 불러오고 있어요.</p>

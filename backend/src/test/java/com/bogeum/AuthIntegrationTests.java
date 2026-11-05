@@ -495,7 +495,7 @@ class AuthIntegrationTests {
 	void myProfileUsesAuthenticatedUser() throws Exception {
 		Account account = account(Role.USER, UserStatus.ACTIVE, true);
 		AuthResult session = login(account);
-		mvc.perform(get("/api/v1/users/me").param("userId", "999999")
+		mvc.perform(get("/users/me").param("userId", "999999")
 				.header("Authorization", "Bearer " + session.getAccessToken()))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.userId").value(account.user().getUserId()))
@@ -513,7 +513,7 @@ class AuthIntegrationTests {
 		Account account = account(Role.USER, UserStatus.ACTIVE, true);
 		Account other = account(Role.USER, UserStatus.ACTIVE, true);
 		AuthResult session = login(account);
-		mvc.perform(csrfPatch("/api/v1/users/me").header("Authorization", "Bearer " + session.getAccessToken())
+		mvc.perform(csrfPatch("/users/me").header("Authorization", "Bearer " + session.getAccessToken())
 				.contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(Map.of(
 					"phone", " 010-9876-5432 ", "newPassword", "", "passwordConfirm", "",
 					"userId", other.user().getUserId(), "role", "ADMIN", "email", "changed@example.com"))))
@@ -525,7 +525,7 @@ class AuthIntegrationTests {
 		assertThat(saved.getRole()).isEqualTo(Role.USER);
 		assertThat(saved.getAddress()).isEqualTo(account.user().getAddress());
 		assertThat(users.findById(other.user().getUserId()).orElseThrow().getPhone()).isEqualTo("01000000000");
-		mvc.perform(get("/api/v1/users/me").header("Authorization", "Bearer " + session.getAccessToken()))
+		mvc.perform(get("/users/me").header("Authorization", "Bearer " + session.getAccessToken()))
 			.andExpect(status().isOk()).andExpect(jsonPath("$.phone").value("010-9876-5432"));
 	}
 
@@ -535,7 +535,7 @@ class AuthIntegrationTests {
 		Account account = account(Role.USER, UserStatus.ACTIVE, true);
 		AuthResult session = login(account);
 		String password = " new-" + UUID.randomUUID() + " ";
-		MvcResult result = mvc.perform(csrfPatch("/api/v1/users/me")
+		MvcResult result = mvc.perform(csrfPatch("/users/me")
 				.header("Authorization", "Bearer " + session.getAccessToken()).contentType(MediaType.APPLICATION_JSON)
 				.content(mapper.writeValueAsString(Map.of("currentPassword", account.password(),
 					"newPassword", password, "passwordConfirm", password))))
@@ -557,7 +557,7 @@ class AuthIntegrationTests {
 		Account account = account(Role.USER, UserStatus.ACTIVE, true);
 		AuthResult session = login(account);
 		for (String current : new String[]{"", "wrong", "가".repeat(25)}) {
-			mvc.perform(csrfPatch("/api/v1/users/me").header("Authorization", "Bearer " + session.getAccessToken())
+			mvc.perform(csrfPatch("/users/me").header("Authorization", "Bearer " + session.getAccessToken())
 					.contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(Map.of(
 						"phone", "01099999999", "currentPassword", current, "newPassword", "new-password",
 						"passwordConfirm", "new-password"))))
@@ -581,7 +581,7 @@ class AuthIntegrationTests {
 				Map.of("phone", " "), Map.of("phone", "1".repeat(21)))) {
 			var body = new java.util.HashMap<>(invalid);
 			body.put("currentPassword", account.password());
-			mvc.perform(csrfPatch("/api/v1/users/me").header("Authorization", "Bearer " + session.getAccessToken())
+			mvc.perform(csrfPatch("/users/me").header("Authorization", "Bearer " + session.getAccessToken())
 					.contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(body)))
 				.andExpect(status().isBadRequest());
 		}
@@ -593,11 +593,11 @@ class AuthIntegrationTests {
 	@Test
 	@DisplayName("프로필 조회·수정에는 로그인이 필요하고 수정에는 CSRF도 필요하다")
 	void profileRequiresAuthenticationAndCsrf() throws Exception {
-		mvc.perform(get("/api/v1/users/me")).andExpect(status().isUnauthorized());
-		mvc.perform(csrfPatch("/api/v1/users/me").contentType(MediaType.APPLICATION_JSON).content("{}"))
+		mvc.perform(get("/users/me")).andExpect(status().isUnauthorized());
+		mvc.perform(csrfPatch("/users/me").contentType(MediaType.APPLICATION_JSON).content("{}"))
 			.andExpect(status().isUnauthorized());
 		AuthResult session = login(account(Role.USER, UserStatus.ACTIVE, true));
-		mvc.perform(patch("/api/v1/users/me").header("Authorization", "Bearer " + session.getAccessToken())
+		mvc.perform(patch("/users/me").header("Authorization", "Bearer " + session.getAccessToken())
 				.contentType(MediaType.APPLICATION_JSON).content("{\"phone\":\"01099999999\"}"))
 			.andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("CSRF_INVALID"));
 	}

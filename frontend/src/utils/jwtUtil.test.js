@@ -36,6 +36,7 @@ function reject(config, status, code) {
 
 function publicAdapter(client, handleRequest) {
   client.publicApi.defaults.adapter = async (config) => {
+    assert.match(client.publicApi.getUri(config), /^\/auth\//)
     if (config.url === '/auth/csrf') {
       return response(config, { headerName: 'X-XSRF-TOKEN', token: 'csrf-value' })
     }
@@ -46,7 +47,7 @@ function publicAdapter(client, handleRequest) {
 
 const user = { userId: 1, name: '보금', role: 'USER' }
 
-test('인증과 계좌 조회는 백엔드의 루트 경로로 요청하고 회원 정보는 /api 경로를 유지한다', async () => {
+test('인증·계좌·회원 정보는 기능별 루트 경로로 요청한다', async () => {
   const client = setup()
   const requests = []
   client.publicApi.defaults.adapter = async (config) => {
@@ -60,12 +61,12 @@ test('인증과 계좌 조회는 백엔드의 루트 경로로 요청하고 회�
   }
   await client.login('user@example.com', 'password')
   await client.api.get('/openbanking/accounts/me')
-  await client.api.get('/api/v1/users/me')
+  await client.api.get('/users/me')
   await client.api.get('/auth/me')
   await client.logout()
   assert.deepEqual(requests, [
     '/auth/csrf', '/auth/login', '/openbanking/accounts/me',
-    '/api/v1/users/me', '/auth/me', '/auth/csrf', '/auth/logout',
+    '/users/me', '/auth/me', '/auth/csrf', '/auth/logout',
   ])
 })
 
@@ -78,12 +79,13 @@ test('로그인 뒤 보호 요청에 토큰을 붙이고 로그아웃하면 제�
   assert.equal(JSON.parse(client.cookies.getCookie('member')).refreshToken, 'refresh-access-1')
   const headers = []
   client.api.defaults.adapter = async (config) => {
+    assert.equal(client.api.getUri(config), '/users/me')
     headers.push(config.headers.get('Authorization'))
     return response(config, {})
   }
-  await client.api.get('/auth/me')
+  await client.api.get('/users/me')
   await client.logout()
-  await client.api.get('/auth/me')
+  await client.api.get('/users/me')
   assert.deepEqual(headers, ['Bearer access-1', undefined])
   assert.equal(client.state.user, null)
   assert.equal(client.cookies.getCookie('member'), undefined)
@@ -129,7 +131,7 @@ test('갱신 후에도 만료 응답이면 더 재시도하지 않고 로그인 
     requestCount += 1
     reject(config, 401, 'ACCESS_TOKEN_EXPIRED')
   }
-  await assert.rejects(client.api.get('/auth/me'))
+  await assert.rejects(client.api.get('/users/me'))
   assert.equal(refreshCount, 1)
   assert.equal(requestCount, 2)
   assert.equal(client.state.user, null)
@@ -157,7 +159,7 @@ test('로그아웃 전에 시작된 갱신 응답은 로그인 상태를 되살�
   })
   await client.login('user@example.com', 'password')
   client.api.defaults.adapter = async (config) => reject(config, 401, 'ACCESS_TOKEN_EXPIRED')
-  const request = client.api.get('/auth/me')
+  const request = client.api.get('/users/me')
   const rejected = assert.rejects(request)
   await started
   const logout = client.logout()
@@ -188,7 +190,7 @@ test('갱신 서버 장애와 CSRF 오류는 변경 요청을 반복하거나 �
   })
   await client.login('user@example.com', 'password')
   client.api.defaults.adapter = async (config) => reject(config, 401, 'ACCESS_TOKEN_EXPIRED')
-  await assert.rejects(client.api.get('/auth/me'))
+  await assert.rejects(client.api.get('/users/me'))
   assert.deepEqual(client.state.user, user)
   let requestCount = 0
   client.api.defaults.adapter = async (config) => {

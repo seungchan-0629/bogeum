@@ -69,6 +69,10 @@ class OpenBankingAccountIntegrationTest {
 			.andExpect(content().json("""
 				{"bankName":"국민은행","accountNumberMasked":"123-****-5678"}
 				""", JsonCompareMode.STRICT));
+		mockMvc.perform(get("/users/me").header("Authorization", bearerToken(user)))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.name").value(user.getName()))
+			.andExpect(jsonPath("$.email").value(user.getEmail()));
 	}
 
 	@Test
@@ -80,6 +84,10 @@ class OpenBankingAccountIntegrationTest {
 		mockMvc.perform(get(ACCOUNT_PATH).header("Authorization", bearerToken(user)))
 			.andExpect(status().isNoContent())
 			.andExpect(content().string(""));
+		mockMvc.perform(get("/users/me").header("Authorization", bearerToken(user)))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.name").value(user.getName()))
+			.andExpect(jsonPath("$.email").value(user.getEmail()));
 	}
 
 	@Test

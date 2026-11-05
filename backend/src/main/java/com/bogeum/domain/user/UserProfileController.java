@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /** 로그인한 회원 본인의 정보만 조회하고 수정한다. */
 @RestController
-@RequestMapping("/api/v1/users/me")
+@RequestMapping("/users/me")
 @RequiredArgsConstructor
 public class UserProfileController {
 	private final UserService userService;
