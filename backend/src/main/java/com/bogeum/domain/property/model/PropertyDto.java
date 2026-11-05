@@ -2,9 +2,13 @@ package com.bogeum.domain.property.model;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
+
+import org.springframework.data.domain.Page;
 
 import com.bogeum.common.enums.BrokerageStatus;
 import com.bogeum.common.enums.LeaseType;
+import com.bogeum.common.enums.PropertyStatus;
 import com.bogeum.domain.agent.model.Agent;
 
 import jakarta.validation.constraints.NotBlank;
@@ -73,6 +77,66 @@ public class PropertyDto {
 				.isDesignated(request.getIsDesignated())
 				.brokerageStatus(request.getBrokerageStatus())
 				.createdAt(request.getCreatedAt())
+				.build();
+		}
+	}
+
+	/** 중개사에게 온 중개 신청 목록의 한 줄 (PROPERTY_012) */
+	@Getter
+	@Builder
+	public static class BrokerageItemResponse {
+
+		private Long brokerageRequestId;
+		private Long propertyId;
+		private LeaseType leaseType;
+		private BigDecimal deposit;
+		private BigDecimal monthlyRent;
+		private String roadAddress;
+		private String detailAddress;
+		private String landlordName;
+		private Boolean isDesignated;
+		private BrokerageStatus brokerageStatus;
+		// 내 계약 관리 화면이 진행 단계를 계산하는 기준이다
+		private PropertyStatus propertyStatus;
+		private LocalDateTime createdAt;
+		private LocalDateTime acceptedAt;
+
+		public static BrokerageItemResponse from(com.bogeum.domain.property.model.BrokerageRequest request) {
+			Property property = request.getProperty();
+			return BrokerageItemResponse.builder()
+				.brokerageRequestId(request.getBrokerageRequestId())
+				.propertyId(property.getPropertyId())
+				.leaseType(property.getLeaseType())
+				.deposit(property.getDeposit())
+				.monthlyRent(property.getMonthlyRent())
+				.roadAddress(property.getRoadAddress())
+				.detailAddress(property.getDetailAddress())
+				.landlordName(request.getLandlord().getName())
+				.isDesignated(request.getIsDesignated())
+				.brokerageStatus(request.getBrokerageStatus())
+				.propertyStatus(property.getPropertyStatus())
+				.createdAt(request.getCreatedAt())
+				.acceptedAt(request.getAcceptedAt())
+				.build();
+		}
+	}
+
+	/** 중개 신청 목록과 페이지 정보. page는 화면의 페이지 번호와 같이 1부터 센다 (PROPERTY_012) */
+	@Getter
+	@Builder
+	public static class BrokerageListResponse {
+
+		private List<BrokerageItemResponse> requests;
+		private int page;
+		private int totalPages;
+		private long totalElements;
+
+		public static BrokerageListResponse from(Page<com.bogeum.domain.property.model.BrokerageRequest> requests) {
+			return BrokerageListResponse.builder()
+				.requests(requests.map(BrokerageItemResponse::from).getContent())
+				.page(requests.getNumber() + 1)
+				.totalPages(requests.getTotalPages())
+				.totalElements(requests.getTotalElements())
 				.build();
 		}
 	}

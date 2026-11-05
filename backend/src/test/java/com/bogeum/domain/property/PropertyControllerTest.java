@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -107,6 +108,45 @@ class PropertyControllerTest {
 			.andExpect(jsonPath("$.brokerageRequestId").value(10))
 			.andExpect(jsonPath("$.propertyId").value(20))
 			.andExpect(jsonPath("$.brokerageStatus").value("ACCEPTED"));
+	}
+
+	@Test
+	@DisplayName("중개 신청 목록은 로그인 중개사·상태·페이지로 조회하고 목록과 페이지 정보를 반환한다")
+	void readsBrokerageRequests() throws Exception {
+		when(propertyService.readBrokerageRequests(1L, BrokerageStatus.ACCEPTED, 2)).thenReturn(
+			PropertyDto.BrokerageListResponse.builder()
+				.requests(List.of(PropertyDto.BrokerageItemResponse.builder().brokerageRequestId(10L)
+					.brokerageStatus(BrokerageStatus.ACCEPTED).build()))
+				.page(2).totalPages(3).totalElements(12).build());
+
+		mockMvc.perform(get(URL + "/received").param("status", "ACCEPTED").param("page", "2"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.requests[0].brokerageRequestId").value(10))
+			.andExpect(jsonPath("$.requests[0].brokerageStatus").value("ACCEPTED"))
+			.andExpect(jsonPath("$.page").value(2))
+			.andExpect(jsonPath("$.totalPages").value(3))
+			.andExpect(jsonPath("$.totalElements").value(12));
+	}
+
+	@Test
+	@DisplayName("중개 신청 목록은 page가 없으면 첫 페이지를 조회한다")
+	void readsFirstPageByDefault() throws Exception {
+		when(propertyService.readBrokerageRequests(1L, BrokerageStatus.REQUESTED, 1)).thenReturn(
+			PropertyDto.BrokerageListResponse.builder().requests(List.of()).page(1).build());
+
+		mockMvc.perform(get(URL + "/received").param("status", "REQUESTED"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.page").value(1));
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"", "?status=WRONG", "?status=REQUESTED&page=abc"})
+	@DisplayName("중개 신청 목록은 상태가 없거나 틀리거나 페이지가 숫자가 아니면 400으로 거절한다")
+	void rejectsInvalidListRequest(String query) throws Exception {
+		mockMvc.perform(get(URL + "/received" + query))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+		verifyNoInteractions(propertyService);
 	}
 
 	@ParameterizedTest
