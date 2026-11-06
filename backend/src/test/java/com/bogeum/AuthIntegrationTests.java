@@ -648,6 +648,74 @@ class AuthIntegrationTests {
 			.phone("01000000000").role(role).userStatus(status).build());
 		return new Account(user, password);
 	}
+
+	// AS 통합 검증은 H2의 실제 저장 결과와 Security 필터를 사용하며 외부 사진 저장소는 호출하지 않는다.
+	@Autowired
+	private com.bogeum.domain.property.PropertyRepository asProperties;
+	@Autowired
+	private com.bogeum.domain.contract.ContractRepository asContracts;
+	@Autowired
+	private com.bogeum.domain.aftersales.AfterSalesRepository asRequests;
+
+	@Test
+	@DisplayName("본인 계약의 시작·종료일에 사진 없이 접수하고 타인 요청은 저장하지 않는다")
+	void createsAfterSalesRequestForOwnContractOnly() throws Exception {
+		var tenant = account(Role.USER, UserStatus.ACTIVE, true);
+		var landlord = account(Role.USER, UserStatus.ACTIVE, true);
+		var agent = account(Role.AGENT, UserStatus.ACTIVE, true);
+		var property = asProperties.save(com.bogeum.domain.property.model.Property.builder()
+			.landlord(landlord.user()).leaseType(com.bogeum.common.enums.LeaseType.JEONSE)
+			.deposit(java.math.BigDecimal.TEN).roadAddress("서울특별시 마포구 테스트로 1").build());
+		var today = java.time.LocalDate.now(java.time.ZoneId.of("Asia/Seoul"));
+		var contract = asContracts.save(com.bogeum.domain.contract.model.Contract.builder().property(property)
+			.tenant(tenant.user()).landlord(landlord.user()).agent(agent.user())
+			.leaseType(com.bogeum.common.enums.LeaseType.JEONSE).deposit(java.math.BigDecimal.TEN)
+			.startAt(today.atTime(23, 59)).endAt(today.atStartOfDay()).build());
+		String body = mapper.writeValueAsString(Map.of("contractId", contract.getContractId(), "content", "누수 점검"));
+		long before = asRequests.count();
+		mvc.perform(asMultipart(body, true).header("Authorization", "Bearer " + login(landlord).getAccessToken()))
+			.andExpect(status().isForbidden());
+		assertThat(asRequests.count()).isEqualTo(before);
+		var result = mvc.perform(asMultipart(body, true).header("Authorization", "Bearer " + login(tenant).getAccessToken()))
+			.andExpect(status().isCreated()).andExpect(jsonPath("$.asStatus").value("RECEIVED")).andReturn();
+		long id = mapper.readTree(result.getResponse().getContentAsString()).get("asRequestId").asLong();
+		assertThat(asRequests.findById(id).orElseThrow().getContent()).isEqualTo("누수 점검");
+		assertThat(asRequests.count()).isEqualTo(before + 1);
+	}
+
+	@Test
+	@DisplayName("AS 접수는 JWT·CSRF·일반 회원 권한과 입력값을 검사한다")
+	void afterSalesRequiresAuthenticationCsrfAndValidInput() throws Exception {
+		mvc.perform(asMultipart("{\"contractId\":1,\"content\":\"누수\"}", true))
+			.andExpect(status().isUnauthorized());
+		var user = login(account(Role.USER, UserStatus.ACTIVE, true));
+		mvc.perform(asMultipart("{\"contractId\":1,\"content\":\"누수\"}", false)
+			.header("Authorization", "Bearer " + user.getAccessToken()))
+			.andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("CSRF_INVALID"));
+		var agent = login(account(Role.AGENT, UserStatus.ACTIVE, true));
+		mvc.perform(asMultipart("{\"contractId\":1,\"content\":\"누수\"}", true)
+			.header("Authorization", "Bearer " + agent.getAccessToken()))
+			.andExpect(status().isForbidden());
+		for (String body : java.util.List.of("{}", "{\"contractId\":0,\"content\":\"누수\"}",
+				"{\"contractId\":1,\"content\":\" \"}",
+				mapper.writeValueAsString(Map.of("contractId", 1, "content", "가".repeat(2001))))) {
+			mvc.perform(asMultipart(body, true).header("Authorization", "Bearer " + user.getAccessToken()))
+				.andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+		}
+	}
+
+	private org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder asMultipart(String body,
+			boolean withCsrf) throws Exception {
+		var request = multipart("/as-requests").file(new org.springframework.mock.web.MockMultipartFile(
+			"request", "", "application/json", body.getBytes(StandardCharsets.UTF_8)));
+		if (withCsrf) {
+			// 실제 CSRF 응답과 쿠키를 함께 전달해 테스트용 인증 우회 없이 검증한다.
+			var response = mvc.perform(get("/auth/csrf")).andExpect(status().isOk()).andReturn().getResponse();
+			var csrf = mapper.readTree(response.getContentAsString());
+			request.cookie(response.getCookie("BOGEUM_CSRF")).header(csrf.get("headerName").asText(), csrf.get("token").asText());
+		}
+		return request;
+	}
 	private AuthResult login(Account account) { return auth.login(account.user().getEmail(), account.password()); }
 	private String credentials(Account account) {
 		return mapper.writeValueAsString(Map.of("email", account.user().getEmail(), "password", account.password()));

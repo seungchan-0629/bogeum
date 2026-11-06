@@ -1,6 +1,7 @@
 package com.bogeum.common.exception;
 
 import com.bogeum.domain.agent.AgentException;
+import com.bogeum.domain.aftersales.AfterSalesException;
 import com.bogeum.domain.property.PropertyException;
 
 import org.springframework.http.ResponseEntity;
@@ -9,6 +10,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import com.bogeum.domain.user.UserException;
@@ -16,6 +18,18 @@ import com.bogeum.domain.user.UserException;
 /** 컨트롤러의 검증 오류와 사용자 인증 실패를 공통 JSON 응답으로 변환한다. */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+	/** 서비스가 판단한 AS 실패 사유의 상태 코드와 메시지를 공통 JSON으로 반환한다. */
+	@ExceptionHandler(AfterSalesException.class)
+	public ResponseEntity<ErrorResponse> handleAfterSalesException(AfterSalesException exception) {
+		return toResponse(exception.getErrorCode());
+	}
+
+	/** multipart 파싱 단계의 용량 초과도 현재 사진 오류 정책에 따라 400으로 반환한다. */
+	@ExceptionHandler(MaxUploadSizeExceededException.class)
+	public ResponseEntity<ErrorResponse> handleUploadLimit(Exception exception) {
+		return toResponse(ErrorCode.AS_INVALID_IMAGE);
+	}
 
 	@ExceptionHandler(AgentException.class)
 	public ResponseEntity<ErrorResponse> handleAgentException(AgentException exception) {
