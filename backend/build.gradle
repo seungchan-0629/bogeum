@@ -35,6 +35,10 @@ dependencies {
 	runtimeOnly 'com.mysql:mysql-connector-j'
 	implementation 'com.solapi:sdk:1.0.3'
 
+	// 파일 업로드 (AWS S3)
+	implementation platform('software.amazon.awssdk:bom:2.57.10')
+	implementation 'software.amazon.awssdk:s3'
+
 	// Lombok
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
