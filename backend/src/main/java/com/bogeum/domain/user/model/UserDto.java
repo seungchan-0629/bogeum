@@ -12,6 +12,7 @@ import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.util.List;
 import java.time.Instant;
@@ -61,7 +62,7 @@ public class UserDto {
 	}
 
 
-	/** 임대인·임차인의 일반 회원가입 요청. 본인 인증 결과는 받지 않는다. */
+	/** 임대인·임차인의 일반 회원가입 요청. 서버에서 발급한 휴대폰 인증 토큰을 받는다. */
 	@Getter
 	@NoArgsConstructor
 	@AllArgsConstructor
@@ -83,9 +84,66 @@ public class UserDto {
 		@Size(max = 20, message = "전화번호는 20자 이하로 입력해 주세요.")
 		private String phone;
 
+		@NotBlank(message = "본인 인증을 완료해 주세요.")
+		@Size(max = 36, message = "본인 인증을 다시 진행해 주세요.")
+		private String verificationToken;
+
 		@Valid
 		@NotNull(message = "필수 항목에 동의해 주세요.")
 		private AgreementsRequest agreements;
+	}
+
+	/** 가입 전 인증 문자를 요청할 휴대폰 번호. */
+	@Getter
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class IdentityVerificationReq {
+		@NotBlank(message = "휴대폰 번호를 입력해 주세요.")
+		@Size(max = 20, message = "휴대폰 번호 길이를 확인해 주세요.")
+		private String phone;
+	}
+
+	/** 인증번호를 노출하지 않고 요청 ID와 서버의 만료 시각을 반환한다. */
+	@Getter
+	@Builder
+	public static class IdentityVerificationRes {
+		private String verificationId;
+		private Instant expiresAt;
+		private Instant resendAvailableAt;
+
+		/** 발송한 인증 요청을 화면에 필요한 정보로 변환한다. */
+		public static IdentityVerificationRes from(PhoneVerification verification) {
+			return IdentityVerificationRes.builder().verificationId(verification.getVerificationId())
+				.expiresAt(verification.getExpiresAt()).resendAvailableAt(verification.getSentAt().plusSeconds(60)).build();
+		}
+	}
+
+	/** 문자로 받은 인증번호와 발송 요청 ID. */
+	@Getter
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class IdentityVerificationConfirmReq {
+		@NotBlank(message = "인증 문자를 먼저 요청해 주세요.")
+		@Size(max = 36, message = "인증 문자를 다시 요청해 주세요.")
+		private String verificationId;
+		@NotBlank(message = "인증번호를 입력해 주세요.")
+		@Pattern(regexp = "[0-9]{6}", message = "인증번호 6자리를 입력해 주세요.")
+		private String code;
+	}
+
+	/** 확인한 전화번호로 회원가입할 때 한 번만 사용하는 인증 토큰. */
+	@Getter
+	@Builder
+	public static class IdentityVerificationConfirmRes {
+		private boolean verified;
+		private String verificationToken;
+		private Instant expiresAt;
+
+		/** 서버에서 완료한 인증 결과를 가입용 응답으로 변환한다. */
+		public static IdentityVerificationConfirmRes from(PhoneVerification verification) {
+			return IdentityVerificationConfirmRes.builder().verified(true)
+				.verificationToken(verification.getVerificationToken()).expiresAt(verification.getTokenExpiresAt()).build();
+		}
 	}
 
 	/** 가입 시 각각 확인하는 두 필수 개인정보 동의 항목. */

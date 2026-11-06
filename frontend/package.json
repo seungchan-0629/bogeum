@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "test": "node --test src/utils/jwtUtil.test.js",
+    "test": "node --test src/utils/jwtUtil.test.js vite.config.test.js tests/mypage.test.js",
     "dev": "vite",
     "build": "vite build",
     "lint": "oxlint",

@@ -61,6 +61,8 @@ class BackendApplicationTests {
 
 	@MockitoSpyBean
 	private UserRepository userRepository;
+	@Autowired
+	private com.bogeum.domain.user.PhoneVerificationRepository verifications;
 
 	@Autowired
 	BackendApplicationTests(UserService userService, PasswordEncoder passwordEncoder,
@@ -75,6 +77,7 @@ class BackendApplicationTests {
 	void clearTestDatabase() {
 		jdbcTemplate.update("DELETE FROM user_consent");
 		jdbcTemplate.update("DELETE FROM user");
+		verifications.deleteAll();
 	}
 
 	@Test
@@ -84,10 +87,11 @@ class BackendApplicationTests {
 	@Test
 	@DisplayName("계정·필수 동의를 저장하고 기존 로그인 API로 로그인한다")
 	void signupThenLogin() throws Exception {
+		String verificationToken = verifiedToken();
 		String signupRequest = """
 			{"email":"signup@example.com","password":" password ","name":"가입자","phone":"01012345678",
-			 "agreements":{"privacyCollect":true,"thirdPartyProvide":true}}
-			""";
+			 "verificationToken":"%s","agreements":{"privacyCollect":true,"thirdPartyProvide":true}}
+			""".formatted(verificationToken);
 		mockMvc.perform(csrfPost("/auth/signup/user").contentType(MediaType.APPLICATION_JSON)
 			.content(signupRequest))
 			.andExpect(status().isCreated())
@@ -101,7 +105,7 @@ class BackendApplicationTests {
 		assertNotEquals(" password ", stored.getPasswordHash());
 		assertTrue(passwordEncoder.matches(" password ", stored.getPasswordHash()));
 		assertEquals(UserStatus.ACTIVE, stored.getUserStatus());
-		assertNull(stored.getIdentityVerifiedAt());
+		assertNotNull(stored.getIdentityVerifiedAt());
 		assertNull(stored.getLastLoginProvider());
 		assertEquals(Set.of("PRIVACY_COLLECTION", "THIRD_PARTY_PROVISION"),
 			Set.copyOf(jdbcTemplate.queryForList("SELECT consent_type FROM user_consent WHERE user_id = ?",
@@ -109,7 +113,7 @@ class BackendApplicationTests {
 		assertEquals(2L, jdbcTemplate.queryForObject(
 			"SELECT COUNT(*) FROM user_consent WHERE agreed_at IS NOT NULL", Long.class));
 		mockMvc.perform(csrfPost("/auth/signup/user").contentType(MediaType.APPLICATION_JSON)
-			.content(signupRequest))
+			.content(signupRequest.replace(verificationToken, verifiedToken())))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("EMAIL_ALREADY_EXISTS"));
 		assertDatabaseCounts(1, 2);
@@ -162,8 +166,8 @@ class BackendApplicationTests {
 		mockMvc.perform(csrfPost("/auth/signup/user").contentType(MediaType.APPLICATION_JSON)
 			.content("""
 				{"email":"signup@example.com","password":"password","name":"가입자","phone":"01012345678",
-				 "role":"%s","agreements":{"privacyCollect":true,"thirdPartyProvide":true}}
-				""".formatted(role)))
+				 "role":"%s","verificationToken":"%s","agreements":{"privacyCollect":true,"thirdPartyProvide":true}}
+				""".formatted(role, verifiedToken())))
 			.andExpect(status().isCreated());
 		assertEquals(Role.USER, userRepository.findByEmail("signup@example.com").orElseThrow().getRole());
 	}
@@ -174,7 +178,7 @@ class BackendApplicationTests {
 		for (boolean[] agreements : new boolean[][] {{false, true}, {true, false}, {false, false}}) {
 			UserException exception = assertThrows(UserException.class, () -> userService.signup(
 				"signup@example.com", "password", "가입자", "01012345678",
-				agreements[0], agreements[1]));
+				agreements[0], agreements[1], verifiedToken()));
 			assertEquals(ErrorCode.INVALID_SIGNUP, exception.getErrorCode());
 		}
 		assertDatabaseCounts(0, 0);
@@ -195,7 +199,7 @@ class BackendApplicationTests {
 		};
 		for (String[] input : invalidInputs) {
 			assertThrows(ConstraintViolationException.class, () -> userService.signup(
-				input[0], input[1], input[2], input[3], true, true));
+				input[0], input[1], input[2], input[3], true, true, verifiedToken()));
 		}
 		assertDatabaseCounts(0, 0);
 	}
@@ -205,13 +209,13 @@ class BackendApplicationTests {
 	@DisplayName("비밀번호의 UTF-8 72바이트 경계는 허용하고 초과하면 가입·로그인을 거절한다")
 	void checksPasswordByteLimit(String character) throws Exception {
 		String password = character.repeat(character.equals("a") ? 72 : 24);
-		userService.signup("signup@example.com", password, "가입자", "01012345678", true, true);
+		userService.signup("signup@example.com", password, "가입자", "01012345678", true, true, verifiedToken());
 		mockMvc.perform(csrfPost("/auth/login").contentType(MediaType.APPLICATION_JSON)
 			.content("{\"email\":\"signup@example.com\",\"password\":\"" + password + "\"}"))
 			.andExpect(status().isOk());
 		String oversizedPassword = password + character;
 		UserException exception = assertThrows(UserException.class, () -> userService.signup(
-			"other@example.com", oversizedPassword, "가입자", "01012345678", true, true));
+			"other@example.com", oversizedPassword, "가입자", "01012345678", true, true, verifiedToken()));
 		assertEquals(ErrorCode.INVALID_SIGNUP, exception.getErrorCode());
 		mockMvc.perform(csrfPost("/auth/login").contentType(MediaType.APPLICATION_JSON)
 			.content("{\"email\":\"signup@example.com\",\"password\":\"" + oversizedPassword + "\"}"))
@@ -246,7 +250,11 @@ class BackendApplicationTests {
 
 	private User signup() {
 		return userService.signup("signup@example.com", "password", "가입자", "01012345678",
-			true, true);
+			true, true, verifiedToken());
+	}
+
+	private String verifiedToken() {
+		return PhoneVerificationFixtures.verifiedToken(verifications, "01012345678");
 	}
 
 	private void assertDatabaseCounts(long users, long consents) {

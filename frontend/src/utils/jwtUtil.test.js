@@ -36,7 +36,8 @@ function reject(config, status, code) {
 
 function publicAdapter(client, handleRequest) {
   client.publicApi.defaults.adapter = async (config) => {
-    if (config.url === '/v1/auth/csrf') {
+    assert.match(client.publicApi.getUri(config), /^\/auth\//)
+    if (config.url === '/auth/csrf') {
       return response(config, { headerName: 'X-XSRF-TOKEN', token: 'csrf-value' })
     }
     assert.equal(config.headers.get('X-XSRF-TOKEN'), 'csrf-value')
@@ -46,21 +47,45 @@ function publicAdapter(client, handleRequest) {
 
 const user = { userId: 1, name: '보금', role: 'USER' }
 
+test('인증·계좌·회원 정보는 기능별 루트 경로로 요청한다', async () => {
+  const client = setup()
+  const requests = []
+  client.publicApi.defaults.adapter = async (config) => {
+    requests.push(client.publicApi.getUri(config))
+    if (config.url === '/auth/csrf') return response(config, { headerName: 'X-XSRF-TOKEN', token: 'csrf-value' })
+    return response(config, config.url === '/auth/login' ? { user, accessToken: 'access' } : null)
+  }
+  client.api.defaults.adapter = async (config) => {
+    requests.push(client.api.getUri(config))
+    return response(config, {})
+  }
+  await client.login('user@example.com', 'password')
+  await client.api.get('/openbanking/accounts/me')
+  await client.api.get('/users/me')
+  await client.api.get('/auth/me')
+  await client.logout()
+  assert.deepEqual(requests, [
+    '/auth/csrf', '/auth/login', '/openbanking/accounts/me',
+    '/users/me', '/auth/me', '/auth/csrf', '/auth/logout',
+  ])
+})
+
 test('로그인 뒤 보호 요청에 토큰을 붙이고 로그아웃하면 제거한다', async () => {
   const client = setup()
   publicAdapter(client, (config) => response(config,
-    config.url === '/v1/auth/login' ? { user, accessToken: 'access-1' } : null))
+    config.url === '/auth/login' ? { user, accessToken: 'access-1' } : null))
   assert.deepEqual(await client.login('user@example.com', ' password '), user)
   assert.deepEqual(client.state.user, user)
   assert.equal(JSON.parse(client.cookies.getCookie('member')).refreshToken, 'refresh-access-1')
   const headers = []
   client.api.defaults.adapter = async (config) => {
+    assert.equal(client.api.getUri(config), '/users/me')
     headers.push(config.headers.get('Authorization'))
     return response(config, {})
   }
-  await client.api.get('/v1/auth/me')
+  await client.api.get('/users/me')
   await client.logout()
-  await client.api.get('/v1/auth/me')
+  await client.api.get('/users/me')
   assert.deepEqual(headers, ['Bearer access-1', undefined])
   assert.equal(client.state.user, null)
   assert.equal(client.cookies.getCookie('member'), undefined)
@@ -70,7 +95,7 @@ test('동시에 만료된 요청들은 한 번만 갱신하고 원래 요청을 
   const client = setup()
   let refreshCount = 0
   publicAdapter(client, (config) => {
-    if (config.url === '/v1/auth/refresh') refreshCount += 1
+    if (config.url === '/auth/refresh') refreshCount += 1
     return response(config, { user, accessToken: config.url.endsWith('/login') ? 'old' : 'new' })
   })
   await client.login('user@example.com', 'password')
@@ -106,7 +131,7 @@ test('갱신 후에도 만료 응답이면 더 재시도하지 않고 로그인 
     requestCount += 1
     reject(config, 401, 'ACCESS_TOKEN_EXPIRED')
   }
-  await assert.rejects(client.api.get('/v1/auth/me'))
+  await assert.rejects(client.api.get('/users/me'))
   assert.equal(refreshCount, 1)
   assert.equal(requestCount, 2)
   assert.equal(client.state.user, null)
@@ -134,7 +159,7 @@ test('로그아웃 전에 시작된 갱신 응답은 로그인 상태를 되살�
   })
   await client.login('user@example.com', 'password')
   client.api.defaults.adapter = async (config) => reject(config, 401, 'ACCESS_TOKEN_EXPIRED')
-  const request = client.api.get('/v1/auth/me')
+  const request = client.api.get('/users/me')
   const rejected = assert.rejects(request)
   await started
   const logout = client.logout()
@@ -165,7 +190,7 @@ test('갱신 서버 장애와 CSRF 오류는 변경 요청을 반복하거나 �
   })
   await client.login('user@example.com', 'password')
   client.api.defaults.adapter = async (config) => reject(config, 401, 'ACCESS_TOKEN_EXPIRED')
-  await assert.rejects(client.api.get('/v1/auth/me'))
+  await assert.rejects(client.api.get('/users/me'))
   assert.deepEqual(client.state.user, user)
   let requestCount = 0
   client.api.defaults.adapter = async (config) => {
@@ -185,7 +210,7 @@ test('새 클라이언트는 쿠키의 Refresh를 전송해 복원하고 회전�
   await first.login('user@example.com', 'password')
   const restored = setup(cookies)
   publicAdapter(restored, (config) => {
-    assert.equal(config.url, '/v1/auth/refresh')
+    assert.equal(config.url, '/auth/refresh')
     assert.equal(JSON.parse(config.data).refreshToken, 'refresh-old')
     return response(config, { user, accessToken: 'new' })
   })
@@ -215,8 +240,8 @@ test('중개사도 공통 로그인·복원·로그아웃을 사용하고 갱신
   const client = setup()
   const agent = { userId: 30, agentId: 7, name: '중개사', role: 'AGENT', approvalStatus: 'PENDING' }
   publicAdapter(client, (config) => {
-    if (config.url === '/v1/auth/login') return response(config, { user: agent, accessToken: 'agent-login' })
-    if (config.url === '/v1/auth/refresh') return response(config, { user: { ...agent, approvalStatus: 'APPROVED' }, accessToken: 'agent-refresh' })
+    if (config.url === '/auth/login') return response(config, { user: agent, accessToken: 'agent-login' })
+    if (config.url === '/auth/refresh') return response(config, { user: { ...agent, approvalStatus: 'APPROVED' }, accessToken: 'agent-refresh' })
     return response(config, null, 204)
   })
   assert.deepEqual(await client.login('agent@example.com', 'password'), agent)

@@ -94,6 +94,11 @@ public class User {
 		consents.add(Consent.builder().user(this).consentType(ConsentType.THIRD_PARTY_PROVISION).build());
 	}
 
+	/** 서버에서 확인한 휴대폰 인증 시각만 반영한다. */
+	public void verifyIdentity(LocalDateTime verifiedAt) {
+		this.identityVerifiedAt = verifiedAt;
+	}
+
 	/** 일반 로그인 검증에 성공한 경우에만 최근 로그인 수단을 변경한다. */
 	public void recordLocalLogin() {
 		this.lastLoginProvider = LoginProvider.LOCAL;

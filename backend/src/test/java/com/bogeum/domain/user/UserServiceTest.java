@@ -31,6 +31,10 @@ class UserServiceTest {
 
 	@Mock
 	private UserRepository userRepository;
+	@Mock
+	private PhoneVerificationRepository phoneVerificationRepository;
+	@Mock
+	private com.solapi.sdk.message.service.DefaultMessageService messageService;
 
 	// 테스트 속도를 위한 비용 값이며 운영 설정의 기본 비용에는 영향을 주지 않는다.
 	private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder(4);
@@ -41,7 +45,8 @@ class UserServiceTest {
 		var config = new CustomSecurityConfig();
 		var beanFactory = new DefaultListableBeanFactory();
 		userService = new UserService(passwordEncoder, beanFactory.getBeanProvider(AuthenticationManager.class), userRepository,
-			new JwtUtil());
+			new JwtUtil(), phoneVerificationRepository, messageService,
+			new com.bogeum.config.SolapiProperties("API 키 입력", "API 시크릿 키 입력", "계정에서 등록한 발신번호 입력"));
 		beanFactory.registerSingleton("authenticationManager", config.authenticationManager(userService, passwordEncoder));
 	}
 

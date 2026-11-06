@@ -22,6 +22,7 @@ import PropertyDetailPage from '../pages/property/PropertyDetailPage.jsx'
 import NotificationListPage from '../pages/notification/NotificationListPage.jsx'
 import ChatPage from '../pages/chat/ChatPage.jsx'
 import MyPage from '../pages/auth/MyPage.jsx'
+import OpenBankingCallbackPage from '../pages/auth/OpenBankingCallbackPage.jsx'
 // 사용자 — 임차인으로 계약한 경우
 import FavoriteListPage from '../pages/recommend-favorite/FavoriteListPage.jsx'
 import MyHomeLayout from '../pages/residence/MyHomeLayout.jsx'
@@ -88,6 +89,7 @@ export const router = createBrowserRouter([
             element: <RequireRole roles={[USER]} />,
             children: [
               { path: '/mypage', element: <MyPage /> },
+              { path: '/mypage/openbanking/callback', element: <OpenBankingCallbackPage /> },
               { path: '/mypage/payment-method', element: <PaymentMethodPage /> },
               { path: '/mypage/settlement-account', element: <SettlementAccountPage /> },
               { path: '/favorites', element: <FavoriteListPage /> },

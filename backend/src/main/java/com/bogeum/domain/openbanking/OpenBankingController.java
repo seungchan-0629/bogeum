@@ -26,6 +26,11 @@ public class OpenBankingController {
 	private final OpenBankingRepository openBankingRepository;
 	private final OpenBankingTransferRepository openBankingTransferRepository;
 
+	@PostMapping("/authorize")
+	public Map<String, String> authorize(@AuthenticationPrincipal LoginUser loginUser) {
+		return Map.of("authorizationUrl", openBankingService.createAuthorizationUrl(loginUser.getUserId()));
+	}
+
 	@GetMapping("/callback")
 	public Map<String, Long> registerAccount(@RequestParam String code, @RequestParam String state) {
 		OpenBanking account = openBankingService.registerAccount(code, state);

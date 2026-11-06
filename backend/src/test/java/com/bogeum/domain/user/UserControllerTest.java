@@ -37,7 +37,7 @@ class UserControllerTest {
 
 	private static final String SIGNUP_REQUEST = """
 		{"email":"user@example.com","password":" password ","name":"가입자","phone":"01012345678",
-		 "agreements":{"privacyCollect":true,"thirdPartyProvide":true}}
+		 "verificationToken":"verified-token","agreements":{"privacyCollect":true,"thirdPartyProvide":true}}
 		""";
 
 	private final MockMvc mockMvc;
@@ -56,21 +56,21 @@ class UserControllerTest {
 	@DisplayName("회원가입은 201과 사용자 식별자만 반환하며 입력 비밀번호를 그대로 전달한다")
 	void signupReturnsCreatedUserIdOnly() throws Exception {
 		when(userService.signup("user@example.com", " password ", "가입자", "01012345678",
-			true, true)).thenReturn(User.builder().userId(1L).passwordHash("secret").build());
+			true, true, "verified-token")).thenReturn(User.builder().userId(1L).passwordHash("secret").build());
 
 		mockMvc.perform(post("/auth/signup/user").contentType(MediaType.APPLICATION_JSON)
 			.content(SIGNUP_REQUEST))
 			.andExpect(status().isCreated())
 			.andExpect(content().json("{\"userId\":1}", JsonCompareMode.STRICT));
 		verify(userService).signup("user@example.com", " password ", "가입자", "01012345678",
-			true, true);
+			true, true, "verified-token");
 	}
 
 	@ParameterizedTest
 	@ValueSource(strings = {
 		"{}", "{", "{\"email\":\"invalid\"}", "{\"email\":null}",
 		"{\"password\":\"   \"}", "{\"password\":null}", "{\"name\":\"\"}", "{\"phone\":null}",
-		"{\"agreements\":null}",
+		"{\"agreements\":null}", "{\"verificationToken\":null}", "{\"verificationToken\":\"\"}",
 		"{\"agreements\":{}}", "{\"agreements\":{\"privacyCollect\":true}}",
 		"{\"agreements\":{\"privacyCollect\":false,\"thirdPartyProvide\":true}}",
 		"{\"agreements\":{\"privacyCollect\":true,\"thirdPartyProvide\":false}}",
@@ -101,7 +101,7 @@ class UserControllerTest {
 		};
 		for (UserException exception : exceptions) {
 			doThrow(exception).when(userService).signup("user@example.com", " password ", "가입자", "01012345678",
-				true, true);
+				true, true, "verified-token");
 			mockMvc.perform(post("/auth/signup/user").contentType(MediaType.APPLICATION_JSON)
 				.content(SIGNUP_REQUEST))
 				.andExpect(status().is(exception.getErrorCode().getHttpStatus().value()))
