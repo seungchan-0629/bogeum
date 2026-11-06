@@ -1,17 +1,26 @@
 package com.bogeum.domain.user;
 
 import com.bogeum.common.enums.Role;
+import com.bogeum.common.enums.LoginProvider;
 import com.bogeum.common.enums.UserStatus;
+import com.bogeum.common.enums.SocialProvider;
+import com.bogeum.config.NaverProperties;
+import com.bogeum.config.KakaoProperties;
+import com.bogeum.config.GoogleProperties;
 import com.bogeum.config.SolapiProperties;
+import com.bogeum.domain.user.model.SocialAuthorization;
 import com.bogeum.domain.user.model.PhoneVerification;
+import com.bogeum.domain.user.model.SocialAccount;
 import com.solapi.sdk.message.model.Message;
 import com.solapi.sdk.message.service.DefaultMessageService;
 import io.jsonwebtoken.Claims;
 import java.security.SecureRandom;
+import java.security.MessageDigest;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Locale;
+import java.util.Base64;
 import java.util.UUID;
 import com.bogeum.utils.JwtUtil;
 import com.bogeum.domain.user.model.User;
@@ -20,8 +29,8 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.nio.charset.StandardCharsets;
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -31,13 +40,18 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.http.MediaType;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.util.UriComponentsBuilder;
+import tools.jackson.databind.JsonNode;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
 import com.bogeum.domain.user.model.UserDto.AuthResult;
 
 @Service
 @Validated
-@RequiredArgsConstructor
 public class UserService implements UserDetailsService {
 	private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 	private final PasswordEncoder passwordEncoder;
@@ -48,6 +62,36 @@ public class UserService implements UserDetailsService {
 	private final PhoneVerificationRepository phoneVerificationRepository;
 	private final DefaultMessageService messageService;
 	private final SolapiProperties solapiProperties;
+	private final SocialAccountRepository socialAccountRepository;
+	private final NaverProperties naverProperties;
+	private final RestClient naverRestClient;
+	private final KakaoProperties kakaoProperties;
+	private final RestClient kakaoRestClient;
+	private final GoogleProperties googleProperties;
+	private final RestClient googleRestClient;
+
+	public UserService(PasswordEncoder passwordEncoder, ObjectProvider<AuthenticationManager> authenticationManagerProvider,
+			UserRepository userRepository, JwtUtil jwtUtil, PhoneVerificationRepository phoneVerificationRepository,
+			DefaultMessageService messageService, SolapiProperties solapiProperties,
+			SocialAccountRepository socialAccountRepository, NaverProperties naverProperties,
+			@Qualifier("naverRestClient") RestClient naverRestClient, KakaoProperties kakaoProperties,
+			@Qualifier("kakaoRestClient") RestClient kakaoRestClient, GoogleProperties googleProperties,
+			@Qualifier("googleRestClient") RestClient googleRestClient) {
+		this.passwordEncoder = passwordEncoder;
+		this.authenticationManagerProvider = authenticationManagerProvider;
+		this.userRepository = userRepository;
+		this.jwtUtil = jwtUtil;
+		this.phoneVerificationRepository = phoneVerificationRepository;
+		this.messageService = messageService;
+		this.solapiProperties = solapiProperties;
+		this.socialAccountRepository = socialAccountRepository;
+		this.naverProperties = naverProperties;
+		this.naverRestClient = naverRestClient;
+		this.kakaoProperties = kakaoProperties;
+		this.kakaoRestClient = kakaoRestClient;
+		this.googleProperties = googleProperties;
+		this.googleRestClient = googleRestClient;
+	}
 
 	/**
 	 * 일반 사용자의 계정과 필수 동의를 함께 저장한다.
@@ -62,16 +106,8 @@ public class UserService implements UserDetailsService {
 			@NotBlank @Size(max = 20) String phone,
 			boolean hasPrivacyConsent, boolean hasThirdPartyConsent, String verificationToken) {
 		String normalizedPhone = normalizePhone(phone);
-		if (verificationToken == null || verificationToken.isBlank()) {
-			throw UserException.phoneVerificationRequired();
-		}
-		PhoneVerification verification = phoneVerificationRepository.findByVerificationToken(verificationToken)
-			.orElseThrow(UserException::phoneVerificationRequired);
+		PhoneVerification verification = verifiedPhone(normalizedPhone, verificationToken);
 		Instant now = Instant.now();
-		if (!verification.getPhone().equals(normalizedPhone) || verification.getVerifiedAt() == null
-				|| verification.getConsumedAt() != null || !now.isBefore(verification.getTokenExpiresAt())) {
-			throw UserException.phoneVerificationRequired();
-		}
 		User user = createAccount(email, password, name, normalizedPhone, hasPrivacyConsent, hasThirdPartyConsent, Role.USER);
 		user.verifyIdentity(LocalDateTime.ofInstant(verification.getVerifiedAt(), ZoneId.systemDefault()));
 		verification.consume(now);
@@ -128,6 +164,302 @@ public class UserService implements UserDetailsService {
 		return createAccount(email, password, name, phone, hasPrivacyConsent, hasThirdPartyConsent, Role.AGENT);
 	}
 
+	/** userId가 있으면 로그인한 일반 회원의 연결용 인증을 시작한다. */
+	@Transactional(readOnly = true)
+	public SocialAuthorization createSocialAuthorization(SocialProvider provider, Long userId) {
+		if (userId != null) {
+			regularUser(userId);
+			if (socialAccountRepository.existsByUserUserIdAndProvider(userId, provider)) {
+				throw UserException.socialAlreadyConnected();
+			}
+		}
+		byte[] random = new byte[32];
+		SECURE_RANDOM.nextBytes(random);
+		return new SocialAuthorization(provider, Base64.getUrlEncoder().withoutPadding().encodeToString(random),
+			Instant.now().plusSeconds(600), userId);
+	}
+
+	/** 소셜 서비스에서 확인한 식별자에만 가입하며, 회원·동의·소셜 연결을 함께 저장한다. */
+	@Transactional
+	public AuthResult signupSocial(SocialAuthorization authorization, String name, String email, String phone,
+			String verificationToken, boolean hasPrivacyConsent, boolean hasThirdPartyConsent) {
+		requireSocialProfile(authorization, false);
+		if (!hasPrivacyConsent || !hasThirdPartyConsent) {
+			throw UserException.invalidSignup();
+		}
+		if (socialAccountRepository.findByProviderAndProviderUserId(authorization.getProvider(),
+				authorization.getProviderUserId()).isPresent()) {
+			throw UserException.socialAlreadyConnected();
+		}
+		// 제공받은 프로필을 브라우저에서 다른 이메일이나 이름으로 바꾸지 못하게 한다.
+		String signupName = authorization.getName() == null ? name.trim() : authorization.getName();
+		String signupEmail = authorization.getEmail() == null ? email.trim() : authorization.getEmail();
+		if (userRepository.findByEmail(signupEmail).isPresent()) {
+			throw UserException.socialEmailConflict();
+		}
+		String normalizedPhone = normalizePhone(phone);
+		PhoneVerification verification = verifiedPhone(normalizedPhone, verificationToken);
+		User user = User.builder().name(signupName).email(signupEmail).phone(normalizedPhone).role(Role.USER).build();
+		user.agreeToRequiredTerms();
+		user.verifyIdentity(LocalDateTime.ofInstant(verification.getVerifiedAt(), ZoneId.systemDefault()));
+		user.recordLogin(LoginProvider.valueOf(authorization.getProvider().name()));
+		try {
+			userRepository.saveAndFlush(user);
+			socialAccountRepository.saveAndFlush(SocialAccount.builder().user(user).provider(authorization.getProvider())
+				.providerUserId(authorization.getProviderUserId()).build());
+		} catch (DataIntegrityViolationException exception) {
+			throw UserException.signupConflict(exception);
+		}
+		verification.consume(Instant.now());
+		return issueTokens(user);
+	}
+
+	/** 연결을 시작한 회원과 지금 로그인한 회원이 같을 때만 연결한다. */
+	@Transactional
+	public void connectSocial(Long userId, SocialAuthorization authorization) {
+		requireSocialProfile(authorization, true);
+		if (!userId.equals(authorization.getUserId())) {
+			throw UserException.socialAuthExpired();
+		}
+		User user = regularUser(userId);
+		if (socialAccountRepository.existsByUserUserIdAndProvider(userId, authorization.getProvider())
+				|| socialAccountRepository.findByProviderAndProviderUserId(authorization.getProvider(),
+					authorization.getProviderUserId()).isPresent()) {
+			throw UserException.socialAlreadyConnected();
+		}
+		try {
+			socialAccountRepository.saveAndFlush(SocialAccount.builder().user(user).provider(authorization.getProvider())
+				.providerUserId(authorization.getProviderUserId()).build());
+		} catch (DataIntegrityViolationException exception) {
+			throw UserException.socialAlreadyConnected();
+		}
+	}
+
+	public String naverAuthorizationUrl(SocialAuthorization authorization) {
+		if (authorization.getProvider() != SocialProvider.NAVER) {
+			throw UserException.socialAuthExpired();
+		}
+		if (!naverProperties.isConfigured()) {
+			throw UserException.naverNotConfigured();
+		}
+		return UriComponentsBuilder.fromUriString("https://nid.naver.com/oauth2.0/authorize")
+			.queryParam("response_type", "code").queryParam("client_id", naverProperties.clientId())
+			.queryParam("redirect_uri", naverProperties.redirectUri()).queryParam("state", authorization.getState())
+			.build().encode().toUriString();
+	}
+
+	/** 돌아갈 주소는 설정과 서버에 저장한 목적만 사용하며 외부 입력은 받지 않는다. */
+	public String naverReturnUrl(SocialAuthorization authorization, boolean success) {
+		String path = authorization != null && authorization.getUserId() != null ? "/mypage" : "/login";
+		return naverProperties.frontendUrl().replaceAll("/+$", "") + path + "?naver=" + (success ? "complete" : "error");
+	}
+
+	public String kakaoAuthorizationUrl(SocialAuthorization authorization) {
+		if (authorization.getProvider() != SocialProvider.KAKAO) {
+			throw UserException.socialAuthExpired();
+		}
+		if (!kakaoProperties.isConfigured()) {
+			throw UserException.kakaoNotConfigured();
+		}
+		return UriComponentsBuilder.fromUriString("https://kauth.kakao.com/oauth/authorize")
+			.queryParam("response_type", "code").queryParam("client_id", kakaoProperties.clientId())
+			.queryParam("redirect_uri", kakaoProperties.redirectUri()).queryParam("state", authorization.getState())
+			.build().encode().toUriString();
+	}
+
+	public String kakaoReturnUrl(SocialAuthorization authorization, boolean success) {
+		String path = authorization != null && authorization.getUserId() != null ? "/mypage" : "/login";
+		return kakaoProperties.frontendUrl().replaceAll("/+$", "") + path + "?kakao=" + (success ? "complete" : "error");
+	}
+
+	public String googleAuthorizationUrl(SocialAuthorization authorization) {
+		if (authorization.getProvider() != SocialProvider.GOOGLE) {
+			throw UserException.socialAuthExpired();
+		}
+		if (!googleProperties.isConfigured()) {
+			throw UserException.googleNotConfigured();
+		}
+		return UriComponentsBuilder.fromUriString("https://accounts.google.com/o/oauth2/v2/auth")
+			.queryParam("response_type", "code").queryParam("client_id", googleProperties.clientId())
+			.queryParam("redirect_uri", googleProperties.redirectUri()).queryParam("state", authorization.getState())
+			.queryParam("scope", "openid email profile").queryParam("prompt", "select_account")
+			.build().encode().toUriString();
+	}
+
+	public String googleReturnUrl(SocialAuthorization authorization, boolean success) {
+		String path = authorization != null && authorization.getUserId() != null ? "/mypage" : "/login";
+		return googleProperties.frontendUrl().replaceAll("/+$", "") + path + "?google=" + (success ? "complete" : "error");
+	}
+
+	@Transactional(readOnly = true)
+	public boolean isSocialConnected(Long userId, SocialProvider provider) {
+		regularUser(userId);
+		return socialAccountRepository.existsByUserUserIdAndProvider(userId, provider);
+	}
+
+	/** state와 브라우저 세션을 확인한 뒤 코드를 한 번만 교환한다. 네이버 토큰은 보관하지 않는다. */
+	public void authenticateNaver(SocialAuthorization authorization, String state, String code, String error) {
+		consumeSocialState(authorization, SocialProvider.NAVER, state);
+		if (error != null || code == null || code.isBlank()) {
+			throw UserException.naverAuthFailed();
+		}
+		var parameters = new LinkedMultiValueMap<String, String>();
+		parameters.add("grant_type", "authorization_code");
+		parameters.add("client_id", naverProperties.clientId());
+		parameters.add("client_secret", naverProperties.clientSecret());
+		parameters.add("redirect_uri", naverProperties.redirectUri());
+		parameters.add("code", code);
+		parameters.add("state", state);
+		try {
+			JsonNode token = naverRestClient.post().uri("https://nid.naver.com/oauth2.0/token")
+				.contentType(MediaType.APPLICATION_FORM_URLENCODED).body(parameters).retrieve().body(JsonNode.class);
+			String accessToken = token == null ? null : token.path("access_token").asText(null);
+			if (accessToken == null || accessToken.isBlank() || token.has("error")) {
+				throw UserException.naverAuthFailed();
+			}
+			JsonNode response = naverRestClient.get().uri("https://openapi.naver.com/v1/nid/me")
+				.headers(headers -> headers.setBearerAuth(accessToken)).retrieve().body(JsonNode.class);
+			if (response == null || !"00".equals(response.path("resultcode").asText())) {
+				throw UserException.naverAuthFailed();
+			}
+			JsonNode profile = response.path("response");
+			String providerUserId = profile.path("id").asText("");
+			if (providerUserId.isBlank() || providerUserId.length() > 100) {
+				throw UserException.naverAuthFailed();
+			}
+			authorization.authenticate(providerUserId, profileText(profile, "name", 50), profileText(profile, "email", 255));
+		} catch (RestClientException exception) {
+			throw UserException.naverAuthFailed();
+		}
+	}
+
+	/** 카카오 식별자로만 인증하며, 제공받지 못한 가입 정보는 추가 가입 단계에서 받는다. */
+	public void authenticateKakao(SocialAuthorization authorization, String state, String code, String error) {
+		consumeSocialState(authorization, SocialProvider.KAKAO, state);
+		if (error != null || code == null || code.isBlank()) {
+			throw UserException.kakaoAuthFailed();
+		}
+		var parameters = new LinkedMultiValueMap<String, String>();
+		parameters.add("grant_type", "authorization_code");
+		parameters.add("client_id", kakaoProperties.clientId());
+		parameters.add("client_secret", kakaoProperties.clientSecret());
+		parameters.add("redirect_uri", kakaoProperties.redirectUri());
+		parameters.add("code", code);
+		parameters.add("state", state);
+		try {
+			JsonNode token = kakaoRestClient.post().uri("https://kauth.kakao.com/oauth/token")
+				.contentType(MediaType.APPLICATION_FORM_URLENCODED).body(parameters).retrieve().body(JsonNode.class);
+			String accessToken = token == null ? null : token.path("access_token").asText(null);
+			if (accessToken == null || accessToken.isBlank() || token.has("error")) {
+				throw UserException.kakaoAuthFailed();
+			}
+			JsonNode profile = kakaoRestClient.get().uri("https://kapi.kakao.com/v2/user/me")
+				.headers(headers -> headers.setBearerAuth(accessToken)).retrieve().body(JsonNode.class);
+			if (profile == null || !profile.path("id").isIntegralNumber() || profile.path("id").asLong() <= 0) {
+				throw UserException.kakaoAuthFailed();
+			}
+			JsonNode account = profile.path("kakao_account");
+			String email = account.path("is_email_valid").asBoolean(false)
+				&& account.path("is_email_verified").asBoolean(false) ? profileText(account, "email", 255) : null;
+			// 닉네임은 실명이 아니므로 이름 입력은 보금의 추가 가입 화면에서 받는다.
+			authorization.authenticate(profile.path("id").asText(), profileText(account, "name", 50), email);
+		} catch (RestClientException exception) {
+			throw UserException.kakaoAuthFailed();
+		}
+	}
+
+	/** 서버에서 교환한 토큰으로 구글 사용자 정보를 조회하며, 이메일 대신 고정 식별자 sub로 인증한다. */
+	public void authenticateGoogle(SocialAuthorization authorization, String state, String code, String error) {
+		consumeSocialState(authorization, SocialProvider.GOOGLE, state);
+		if (error != null || code == null || code.isBlank()) {
+			throw UserException.googleAuthFailed();
+		}
+		var parameters = new LinkedMultiValueMap<String, String>();
+		parameters.add("grant_type", "authorization_code");
+		parameters.add("client_id", googleProperties.clientId());
+		parameters.add("client_secret", googleProperties.clientSecret());
+		parameters.add("redirect_uri", googleProperties.redirectUri());
+		parameters.add("code", code);
+		try {
+			JsonNode token = googleRestClient.post().uri("https://oauth2.googleapis.com/token")
+				.contentType(MediaType.APPLICATION_FORM_URLENCODED).body(parameters).retrieve().body(JsonNode.class);
+			String accessToken = token == null ? null : token.path("access_token").asText(null);
+			if (accessToken == null || accessToken.isBlank() || !token.path("access_token").isTextual() || token.has("error")) {
+				throw UserException.googleAuthFailed();
+			}
+			JsonNode profile = googleRestClient.get().uri("https://openidconnect.googleapis.com/v1/userinfo")
+				.headers(headers -> headers.setBearerAuth(accessToken)).retrieve().body(JsonNode.class);
+			String providerUserId = profile == null ? null : profile.path("sub").asText(null);
+			if (providerUserId == null || providerUserId.isBlank() || !profile.path("sub").isTextual() || providerUserId.length() > 255) {
+				throw UserException.googleAuthFailed();
+			}
+			String email = profile.path("email_verified").asBoolean(false) ? profileText(profile, "email", 255) : null;
+			authorization.authenticate(providerUserId, profileText(profile, "name", 50), email);
+		} catch (RestClientException exception) {
+			throw UserException.googleAuthFailed();
+		}
+	}
+
+	/** null은 새 사용자이며, 계정은 추가 정보와 필수 동의를 받기 전에는 만들지 않는다. */
+	@Transactional
+	public AuthResult loginSocial(SocialAuthorization authorization) {
+		requireSocialProfile(authorization, false);
+		SocialAccount account = socialAccountRepository.findByProviderAndProviderUserId(authorization.getProvider(),
+			authorization.getProviderUserId()).orElse(null);
+		if (account == null) {
+			if (authorization.getEmail() != null && userRepository.findByEmail(authorization.getEmail()).isPresent()) {
+				throw UserException.socialEmailConflict();
+			}
+			return null;
+		}
+		User user = regularUser(account.getUser().getUserId());
+		user.recordLogin(LoginProvider.valueOf(authorization.getProvider().name()));
+		return issueTokens(user);
+	}
+
+	private User regularUser(Long userId) {
+		User user = findUser(userId);
+		if (user.getRole() != Role.USER) {
+			throw UserException.socialRoleNotAllowed();
+		}
+		return user;
+	}
+
+	private void requireSocialProfile(SocialAuthorization authorization, boolean isLink) {
+		if (authorization == null || !Instant.now().isBefore(authorization.getExpiresAt())
+				|| authorization.getProviderUserId() == null || (authorization.getUserId() != null) != isLink) {
+			throw UserException.socialAuthExpired();
+		}
+	}
+
+	private void consumeSocialState(SocialAuthorization authorization, SocialProvider provider, String state) {
+		if (authorization == null || authorization.getProvider() != provider
+				|| !Instant.now().isBefore(authorization.getExpiresAt())
+				|| authorization.getState() == null || state == null
+				|| !MessageDigest.isEqual(authorization.getState().getBytes(StandardCharsets.UTF_8), state.getBytes(StandardCharsets.UTF_8))) {
+			throw UserException.socialAuthExpired();
+		}
+		authorization.consumeState();
+	}
+
+	private String profileText(JsonNode profile, String field, int maxLength) {
+		String value = profile.path(field).asText("").trim();
+		return value.isEmpty() || value.length() > maxLength ? null : value;
+	}
+
+	private PhoneVerification verifiedPhone(String phone, String verificationToken) {
+		if (verificationToken == null || verificationToken.isBlank()) {
+			throw UserException.phoneVerificationRequired();
+		}
+		PhoneVerification verification = phoneVerificationRepository.findByVerificationToken(verificationToken)
+			.orElseThrow(UserException::phoneVerificationRequired);
+		if (!verification.getPhone().equals(phone) || verification.getVerifiedAt() == null
+				|| verification.getConsumedAt() != null || !Instant.now().isBefore(verification.getTokenExpiresAt())) {
+			throw UserException.phoneVerificationRequired();
+		}
+		return verification;
+	}
+
 	private User createAccount(String email, String password, String name, String phone,
 			boolean hasPrivacyConsent, boolean hasThirdPartyConsent, Role role) {
 		if (!hasPrivacyConsent || !hasThirdPartyConsent
@@ -172,7 +504,11 @@ public class UserService implements UserDetailsService {
 			throw UserException.loginFailed();
 		}
 		User user = userRepository.findById(principal.getUserId()).orElseThrow(UserException::loginFailed);
-		user.recordLocalLogin();
+		user.recordLogin(LoginProvider.LOCAL);
+		return issueTokens(user);
+	}
+
+	private AuthResult issueTokens(User user) {
 		Instant now = Instant.now();
 		Instant expiresAt = jwtUtil.calculateRefreshExpiresAt(now);
 		String sessionKey = UUID.randomUUID().toString();

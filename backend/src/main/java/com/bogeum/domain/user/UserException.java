@@ -51,6 +51,16 @@ public class UserException extends RuntimeException {
 
 	public static UserException invalidProfile() { return new UserException(ErrorCode.INVALID_PROFILE); }
 	public static UserException currentPasswordMismatch() { return new UserException(ErrorCode.CURRENT_PASSWORD_MISMATCH); }
+	public static UserException naverNotConfigured() { return new UserException(ErrorCode.NAVER_NOT_CONFIGURED); }
+	public static UserException naverAuthFailed() { return new UserException(ErrorCode.NAVER_AUTH_FAILED); }
+	public static UserException kakaoNotConfigured() { return new UserException(ErrorCode.KAKAO_NOT_CONFIGURED); }
+	public static UserException kakaoAuthFailed() { return new UserException(ErrorCode.KAKAO_AUTH_FAILED); }
+	public static UserException googleNotConfigured() { return new UserException(ErrorCode.GOOGLE_NOT_CONFIGURED); }
+	public static UserException googleAuthFailed() { return new UserException(ErrorCode.GOOGLE_AUTH_FAILED); }
+	public static UserException socialAuthExpired() { return new UserException(ErrorCode.SOCIAL_AUTH_EXPIRED); }
+	public static UserException socialEmailConflict() { return new UserException(ErrorCode.SOCIAL_EMAIL_CONFLICT); }
+	public static UserException socialAlreadyConnected() { return new UserException(ErrorCode.SOCIAL_ALREADY_CONNECTED); }
+	public static UserException socialRoleNotAllowed() { return new UserException(ErrorCode.SOCIAL_ROLE_NOT_ALLOWED); }
 
 	public static UserException required() { return new UserException(ErrorCode.AUTH_REQUIRED); }
 	public static UserException expired() { return new UserException(ErrorCode.ACCESS_TOKEN_EXPIRED); }

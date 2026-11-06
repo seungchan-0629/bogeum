@@ -6,10 +6,10 @@
 // - 등록 계좌 조회: GET /openbanking/accounts/me
 // - 수정: PUT/PATCH /users/me (BE-014) — 비밀번호, 전화번호, 주소
 // - 탈퇴: DELETE /users/me (BE-015)
-// - 소셜 연결: POST /api/v1/users/me/social/{provider} (BE-006) — 재인증을 거친다
-import { useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate } from 'react-router'
+// - 소셜 연결: POST /auth/social/{naver|kakao|google}/link — 현재 로그인 상태와 소셜 인증을 확인한다
+import { useEffect, useRef, useState } from 'react'
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 import PageHeader from '../../components/common/PageHeader.jsx'
 import StatusBadge from '../../components/common/StatusBadge.jsx'
 import ConfirmModal from '../../components/common/ConfirmModal.jsx'
@@ -18,24 +18,34 @@ import { useAuthStore } from '../../stores/authStore.js'
 import { api, logout } from '../../utils/jwtUtil.js'
 import { CONTRACT_ROLES, ROLE_LABELS } from '../../constants/auth.js'
 
-// 주소와 소셜 연결은 기존 표시를 유지한다.
+// 주소는 기존 표시를 유지한다.
 const SAMPLE_PROFILE = {
   address: '서울 강남구 역삼동 123-4',
-  connectedProviders: ['NAVER'],
 }
 
 const SOCIAL_PROVIDERS = [
-  { key: 'NAVER', label: '네이버' },
-  { key: 'KAKAO', label: '카카오' },
-  { key: 'GOOGLE', label: '구글' },
+  { key: 'NAVER', label: '네이버', slug: 'naver' },
+  { key: 'KAKAO', label: '카카오', slug: 'kakao' },
+  { key: 'GOOGLE', label: '구글', slug: 'google' },
 ]
+const AVAILABLE_SOCIAL_PROVIDERS = SOCIAL_PROVIDERS.filter((provider) => provider.slug)
 
 function MyPage() {
   const user = useAuthStore((state) => state.user)
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const callbackProvider = AVAILABLE_SOCIAL_PROVIDERS.find((provider) => searchParams.has(provider.slug))
   const [isWithdrawOpen, setIsWithdrawOpen] = useState(false)
   const [accountMessage, setAccountMessage] = useState('')
   const [isRegisteringAccount, setIsRegisteringAccount] = useState(false)
+  const [connectingProvider, setConnectingProvider] = useState(
+    callbackProvider && searchParams.get(callbackProvider.slug) === 'complete' ? callbackProvider : null,
+  )
+  const isConnecting = Boolean(connectingProvider)
+  const [socialMessage, setSocialMessage] = useState('')
+  const [socialError, setSocialError] = useState(callbackProvider && searchParams.get(callbackProvider.slug) === 'error'
+    ? `${callbackProvider.label} 인증이 취소되었거나 만료되었습니다. 다시 시도해 주세요.` : '')
+  const socialHandled = useRef(false)
   const isTenant = user?.contractRoles?.includes(CONTRACT_ROLES.TENANT)
   const isLandlord = user?.contractRoles?.includes(CONTRACT_ROLES.LANDLORD)
 
@@ -50,6 +60,45 @@ function MyPage() {
     retry: false,
     refetchOnWindowFocus: false,
   })
+  const connectionQueries = useQueries({
+    queries: AVAILABLE_SOCIAL_PROVIDERS.map((provider) => ({
+      queryKey: [`${provider.slug}-connection`, userId],
+      queryFn: async ({ signal }) => (await api.get(`/auth/social/${provider.slug}/connection`, { signal })).data,
+      enabled: Boolean(userId),
+      gcTime: 0,
+      retry: false,
+      refetchOnWindowFocus: false,
+    })),
+  })
+  const connections = Object.fromEntries(AVAILABLE_SOCIAL_PROVIDERS.map((provider, index) => [provider.key, connectionQueries[index]]))
+  useEffect(() => {
+    if (!callbackProvider || !userId || socialHandled.current) return
+    const result = searchParams.get(callbackProvider.slug)
+    const connectionQueryKey = [`${callbackProvider.slug}-connection`, userId]
+    socialHandled.current = true
+    const clearResult = () => setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      next.delete(callbackProvider.slug)
+      return next
+    }, { replace: true })
+    if (result !== 'complete') {
+      clearResult()
+      return
+    }
+    queryClient.cancelQueries({ queryKey: connectionQueryKey })
+      .then(() => api.post(`/auth/social/${callbackProvider.slug}/link`))
+      .then(({ data }) => {
+        if (useAuthStore.getState().user?.userId !== userId) return
+        queryClient.setQueryData(connectionQueryKey, data)
+        setSocialMessage(`${callbackProvider.label} 계정이 연결되었습니다.`)
+      })
+      .catch((failure) => setSocialError(failure.response?.data?.message || `${callbackProvider.label} 계정을 연결하지 못했습니다. 다시 시도해 주세요.`))
+      .finally(() => {
+        setConnectingProvider(null)
+        clearResult()
+        queryClient.invalidateQueries({ queryKey: connectionQueryKey })
+      })
+  }, [callbackProvider, searchParams, setSearchParams, userId, queryClient])
   const {
     data: account,
     isPending: isAccountPending,
@@ -75,6 +124,7 @@ function MyPage() {
   const [saveError, setSaveError] = useState('')
   const [saveMessage, setSaveMessage] = useState('')
   const isFormDisabled = !profile || isPending || isFetching || Boolean(error) || isSaving
+  const passwordLoginAvailable = profile?.passwordLoginAvailable === true
 
   const handleSave = async (event) => {
     event.preventDefault()
@@ -136,8 +186,19 @@ function MyPage() {
     }
   }
 
-  // TODO: 각 제공자 인증 창 → 받은 코드로 POST /api/v1/users/me/social/{provider} (BE-006)
-  const handleConnect = () => {}
+  const handleConnect = async (provider) => {
+    if (isConnecting) return
+    setSocialError('')
+    setSocialMessage('')
+    setConnectingProvider(provider)
+    try {
+      const { data } = await api.post(`/auth/social/${provider.slug}/link/authorize`)
+      window.location.assign(data.authorizationUrl)
+    } catch (failure) {
+      setSocialError(failure.response?.data?.message || `${provider.label} 연결 화면을 열지 못했습니다. 다시 시도해 주세요.`)
+      setConnectingProvider(null)
+    }
+  }
 
   // TODO: DELETE /users/me (BE-015, 확인용 비밀번호 포함 여부는 백엔드와 협의) 성공 후 로그아웃
   const handleWithdraw = async () => {
@@ -216,16 +277,31 @@ function MyPage() {
 
           <section aria-labelledby="social-title" className="card flex flex-col gap-3">
             <h2 id="social-title" className="text-lg font-bold">소셜 계정 연결</h2>
-            {SOCIAL_PROVIDERS.map((provider) => (
-              <div key={provider.key} className="flex items-center justify-between">
-                <span>{provider.label}</span>
-                {SAMPLE_PROFILE.connectedProviders.includes(provider.key) ? (
-                  <StatusBadge tone="green">연결됨</StatusBadge>
-                ) : (
-                  <button type="button" onClick={() => handleConnect(provider.key)} className="btn-secondary btn-sm">연결하기</button>
+            {SOCIAL_PROVIDERS.map((provider) => {
+              const connection = connections[provider.key]
+              return <div key={provider.key} className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span>{provider.label}</span>
+                  {connection?.data?.connected ? (
+                    <StatusBadge tone="green">연결됨</StatusBadge>
+                  ) : (
+                    <button type="button" onClick={() => handleConnect(provider)}
+                      disabled={!provider.slug || isConnecting || !connection?.data || Boolean(connection?.error)}
+                      className="btn-secondary btn-sm">{provider.slug ? '연결하기' : '준비 중'}</button>
+                  )}
+                </div>
+                {connection && !connection.data && !connection.error && <p role="status" className="text-sm text-gray-600">{provider.label} 연결 상태를 확인하고 있어요.</p>}
+                {connection?.error && (
+                  <div role="alert" className="flex flex-col items-start gap-2">
+                    <p className="text-sm text-red-600">{provider.label} 연결 상태를 불러오지 못했습니다.</p>
+                    <button type="button" onClick={() => connection.refetch()} disabled={connection.isFetching} className="btn-secondary btn-sm">다시 불러오기</button>
+                  </div>
                 )}
               </div>
-            ))}
+            })}
+            {isConnecting && <p role="status" className="text-sm text-gray-600">{connectingProvider.label} 연결을 진행하고 있어요.</p>}
+            {socialError && <p role="alert" className="text-sm text-red-600">{socialError}</p>}
+            {socialMessage && <p role="status" className="text-sm text-gray-600">{socialMessage}</p>}
           </section>
 
           {/* 임차인으로 계약했으면 월세 결제 수단, 임대인으로 계약했으면 월세 받을 정산 계좌. 둘 다면 둘 다 보여준다 */}
@@ -252,6 +328,7 @@ function MyPage() {
         <div className="flex flex-col gap-3">
           <form onSubmit={handleSave} className="card flex flex-col gap-4">
             <h2 className="text-lg font-bold">정보 수정</h2>
+            {passwordLoginAvailable && <>
             <Field label="현재 비밀번호" htmlFor="mypage-current-password" hint="비밀번호를 변경할 때만 입력해 주세요.">
               <TextInput id="mypage-current-password" type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} disabled={isFormDisabled} />
             </Field>
@@ -261,6 +338,7 @@ function MyPage() {
             <Field label="새 비밀번호 확인" htmlFor="mypage-password-confirm">
               <TextInput id="mypage-password-confirm" type="password" autoComplete="new-password" value={passwordConfirm} onChange={(event) => setPasswordConfirm(event.target.value)} disabled={isFormDisabled} />
             </Field>
+            </>}
             <Field label="전화번호" htmlFor="mypage-phone">
               <TextInput id="mypage-phone" type="tel" autoComplete="tel" maxLength={20} required value={phone ?? profile?.phone ?? ''} onChange={(event) => setPhone(event.target.value)} disabled={isFormDisabled} />
             </Field>
@@ -286,9 +364,9 @@ function MyPage() {
           onConfirm={handleWithdraw}
           onClose={() => setIsWithdrawOpen(false)}
         >
-          <Field label="확인을 위해 비밀번호 입력" htmlFor="withdraw-password">
+          {passwordLoginAvailable && <Field label="확인을 위해 비밀번호 입력" htmlFor="withdraw-password">
             <TextInput id="withdraw-password" type="password" autoComplete="current-password" />
-          </Field>
+          </Field>}
         </ConfirmModal>
       )}
     </div>

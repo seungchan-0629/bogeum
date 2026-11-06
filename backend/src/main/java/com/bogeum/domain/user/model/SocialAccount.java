@@ -53,7 +53,7 @@ public class SocialAccount {
 	private SocialProvider provider;
 
 	// 소셜 서비스가 부여한 사용자 고유 ID
-	@Column(nullable = false, length = 100)
+	@Column(nullable = false, length = 255)
 	private String providerUserId;
 
 	@CreationTimestamp
