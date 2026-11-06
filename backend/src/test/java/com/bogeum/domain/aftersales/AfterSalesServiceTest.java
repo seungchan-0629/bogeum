@@ -13,6 +13,11 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.Arguments;
+import java.util.Arrays;
+import java.util.stream.Stream;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -25,6 +30,7 @@ import com.bogeum.common.exception.ErrorCode;
 import com.bogeum.domain.aftersales.model.AfterSalesDto;
 import com.bogeum.domain.aftersales.model.AfterSalesRequest;
 import com.bogeum.domain.aftersales.model.AfterSalesRequestImage;
+import com.bogeum.domain.aftersales.model.AfterSalesComment;
 import com.bogeum.domain.contract.ContractRepository;
 import com.bogeum.domain.contract.model.Contract;
 import com.bogeum.domain.property.model.Property;
@@ -35,6 +41,7 @@ class AfterSalesServiceTest {
 	private final AfterSalesRepository requests = mock(AfterSalesRepository.class);
 	private final ContractRepository contracts = mock(ContractRepository.class);
 	private final AfterSalesRequestImageRepository images = mock(AfterSalesRequestImageRepository.class);
+	private final AfterSalesCommentRepository comments = mock(AfterSalesCommentRepository.class);
 	private final AfterSalesImageProcessor processor = mock(AfterSalesImageProcessor.class);
 	@SuppressWarnings("unchecked")
 	private final ObjectProvider<AfterSalesImageStorage> provider = mock(ObjectProvider.class);
@@ -45,7 +52,7 @@ class AfterSalesServiceTest {
 
 	@BeforeEach
 	void setUp() {
-		service = new AfterSalesService(requests, contracts, images, processor, provider, 10);
+		service = new AfterSalesService(requests, contracts, images, comments, processor, provider, 10);
 		when(requests.save(any())).thenAnswer(call -> call.getArgument(0));
 	}
 
@@ -219,9 +226,125 @@ class AfterSalesServiceTest {
 		verifyNoInteractions(images, contracts, provider, processor, storage);
 	}
 
+	@Test
+	void createsCommentForOwnerWithoutChangingStatus() {
+		var asRequest = receivedRequest();
+		when(requests.findForUpdateByAsRequestIdAndProperty_Landlord_UserId(10L, 7L)).thenReturn(Optional.of(asRequest));
+		when(comments.save(any())).thenAnswer(call -> {
+			AfterSalesComment comment = call.getArgument(0);
+			return AfterSalesComment.builder().asCommentId(30L).asRequest(comment.getAsRequest()).author(comment.getAuthor())
+				.content(comment.getContent()).createdAt(asRequest.getCreatedAt()).build();
+		});
+
+		var response = service.createAfterSalesComment(7L, 10L, new AfterSalesDto.CommentCreateRequest("  기사 방문 예정  "));
+
+		var captor = org.mockito.ArgumentCaptor.forClass(AfterSalesComment.class);
+		verify(comments).save(captor.capture());
+		assertSame(asRequest, captor.getValue().getAsRequest());
+		assertEquals(7L, captor.getValue().getAuthor().getUserId());
+		assertEquals("기사 방문 예정", captor.getValue().getContent());
+		assertEquals(30L, response.getAsCommentId());
+		assertEquals(10L, response.getAsRequestId());
+		assertEquals("임대인", response.getAuthorName());
+		assertEquals(asRequest.getCreatedAt(), response.getCreatedAt());
+		assertEquals(AsStatus.CHECKING, asRequest.getAsStatus());
+		verify(requests, never()).save(any());
+		verifyNoInteractions(images, contracts, provider, processor, storage);
+	}
+
+	@Test
+	void rejectsCommentOnCompletedRequest() {
+		var asRequest = receivedRequest();
+		asRequest.changeStatus(AsStatus.COMPLETED);
+		when(requests.findForUpdateByAsRequestIdAndProperty_Landlord_UserId(10L, 7L)).thenReturn(Optional.of(asRequest));
+
+		assertEquals(ErrorCode.AS_ALREADY_COMPLETED, assertThrows(AfterSalesException.class,
+			() -> service.createAfterSalesComment(7L, 10L, new AfterSalesDto.CommentCreateRequest("추가 조치"))).getErrorCode());
+		verifyNoInteractions(comments);
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"comment", "status"})
+	void rejectsWritesWithoutOwnedRequest(String operation) {
+		when(requests.findForUpdateByAsRequestIdAndProperty_Landlord_UserId(10L, 7L)).thenReturn(Optional.empty());
+
+		var exception = assertThrows(AfterSalesException.class, () -> {
+			if (operation.equals("comment")) {
+				service.createAfterSalesComment(7L, 10L, new AfterSalesDto.CommentCreateRequest("조치"));
+			} else {
+				service.updateAfterSalesStatus(7L, 10L, new AfterSalesDto.StatusUpdateRequest("CHECKING"));
+			}
+		});
+		assertEquals(ErrorCode.AS_REQUEST_NOT_FOUND, exception.getErrorCode());
+		verifyNoInteractions(comments, images, contracts, provider, processor, storage);
+	}
+
+	@Test
+	void includesCommentsInDetailWithoutExposingUserEntities() {
+		var request = receivedRequest();
+		when(requests.findByAsRequestIdAndProperty_Landlord_UserId(10L, 7L)).thenReturn(Optional.of(request));
+		when(comments.findAllByAsRequest_AsRequestIdOrderByCreatedAtAscAsCommentIdAsc(10L)).thenReturn(List.of(
+			AfterSalesComment.builder().asCommentId(30L).asRequest(request).author(request.getProperty().getLandlord())
+				.content("기사 방문 예정").createdAt(request.getCreatedAt()).build()));
+
+		var response = service.readAfterSalesRequest(7L, 10L);
+
+		assertEquals(1, response.getComments().size());
+		assertEquals(30L, response.getComments().get(0).getAsCommentId());
+		assertEquals("임대인", response.getComments().get(0).getAuthorName());
+		assertEquals("기사 방문 예정", response.getComments().get(0).getContent());
+		assertTrue(response.getImages().isEmpty());
+	}
+
+	@ParameterizedTest
+	@MethodSource("openStatusTransitions")
+	void changesOpenStatusFreelyWithoutTouchingComments(AsStatus current, AsStatus target) {
+		var request = receivedRequest();
+		request.changeStatus(current);
+		when(requests.findForUpdateByAsRequestIdAndProperty_Landlord_UserId(10L, 7L)).thenReturn(Optional.of(request));
+
+		var response = service.updateAfterSalesStatus(7L, 10L, new AfterSalesDto.StatusUpdateRequest(target.name()));
+
+		assertEquals(10L, response.getAsRequestId());
+		assertEquals(target, response.getAsStatus());
+		assertEquals(target, request.getAsStatus());
+		verify(requests, never()).save(any());
+		verifyNoInteractions(comments, images, contracts, provider, processor, storage);
+	}
+
+	private static Stream<Arguments> openStatusTransitions() {
+		return Arrays.stream(AsStatus.values()).filter(status -> status != AsStatus.COMPLETED)
+			.flatMap(current -> Arrays.stream(AsStatus.values()).map(target -> Arguments.of(current, target)));
+	}
+
+	@ParameterizedTest
+	@EnumSource(value = AsStatus.class, names = {"RECEIVED", "CHECKING", "IN_PROGRESS"})
+	void rejectsReopeningCompletedRequest(AsStatus target) {
+		var request = receivedRequest();
+		request.changeStatus(AsStatus.COMPLETED);
+		when(requests.findForUpdateByAsRequestIdAndProperty_Landlord_UserId(10L, 7L)).thenReturn(Optional.of(request));
+
+		assertEquals(ErrorCode.AS_ALREADY_COMPLETED, assertThrows(AfterSalesException.class,
+			() -> service.updateAfterSalesStatus(7L, 10L, new AfterSalesDto.StatusUpdateRequest(target.name()))).getErrorCode());
+		assertEquals(AsStatus.COMPLETED, request.getAsStatus());
+		verifyNoInteractions(comments);
+	}
+
+	@Test
+	void repeatsCompletedStatusWithoutChange() {
+		var request = receivedRequest();
+		request.changeStatus(AsStatus.COMPLETED);
+		when(requests.findForUpdateByAsRequestIdAndProperty_Landlord_UserId(10L, 7L)).thenReturn(Optional.of(request));
+
+		assertEquals(AsStatus.COMPLETED,
+			service.updateAfterSalesStatus(7L, 10L, new AfterSalesDto.StatusUpdateRequest("COMPLETED")).getAsStatus());
+		verify(requests, never()).save(any());
+		verifyNoInteractions(comments);
+	}
+
 	private AfterSalesRequest receivedRequest() {
 		return AfterSalesRequest.builder().asRequestId(10L)
-			.property(Property.builder().propertyId(3L).landlord(User.builder().userId(7L).build())
+			.property(Property.builder().propertyId(3L).landlord(User.builder().userId(7L).name("임대인").build())
 				.roadAddress("서울특별시 마포구 테스트로 1").detailAddress("101호").build())
 			.tenant(User.builder().userId(8L).name("임차인").build()).content("누수 수리").asStatus(AsStatus.CHECKING)
 			.createdAt(LocalDateTime.of(2026, 11, 6, 10, 0)).updatedAt(LocalDateTime.of(2026, 11, 6, 11, 0)).build();

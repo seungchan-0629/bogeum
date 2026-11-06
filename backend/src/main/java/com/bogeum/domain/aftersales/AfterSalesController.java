@@ -6,7 +6,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -34,6 +36,14 @@ public class AfterSalesController {
 		return afterSalesService.createAfterSalesRequest(loginUser.getUserId(), request, images);
 	}
 
+	/** JSON 댓글만 받으며 작성자와 완료 여부는 서비스가 소유 관계 확인 후 판단한다 (AS_003). */
+	@PostMapping(value = "/as-requests/{asRequestId}/comments", consumes = "application/json")
+	@ResponseStatus(HttpStatus.CREATED)
+	public AfterSalesDto.CommentResponse createAfterSalesComment(@AuthenticationPrincipal LoginUser loginUser,
+			@PathVariable("asRequestId") Long asRequestId, @Valid @RequestBody AfterSalesDto.CommentCreateRequest request) {
+		return afterSalesService.createAfterSalesComment(loginUser.getUserId(), asRequestId, request);
+	}
+
 	// 임대인 ID는 요청에서 받지 않고 JWT 인증 정보에서 가져온다 (AS_002).
 	@GetMapping("/as-requests/received")
 	public AfterSalesDto.ListResponse readReceivedAfterSalesRequests(@AuthenticationPrincipal LoginUser loginUser,
@@ -46,5 +56,12 @@ public class AfterSalesController {
 	public AfterSalesDto.DetailResponse readAfterSalesRequest(@AuthenticationPrincipal LoginUser loginUser,
 			@PathVariable("asRequestId") Long asRequestId) {
 		return afterSalesService.readAfterSalesRequest(loginUser.getUserId(), asRequestId);
+	}
+
+	/** 상태만 변경하며 소유자 검증·완료 후 제한은 서비스와 엔티티에서 처리한다 (AS_003). */
+	@PatchMapping(value = "/as-requests/{asRequestId}/status", consumes = "application/json")
+	public AfterSalesDto.StatusUpdateResponse updateAfterSalesStatus(@AuthenticationPrincipal LoginUser loginUser,
+			@PathVariable("asRequestId") Long asRequestId, @Valid @RequestBody AfterSalesDto.StatusUpdateRequest request) {
+		return afterSalesService.updateAfterSalesStatus(loginUser.getUserId(), asRequestId, request);
 	}
 }

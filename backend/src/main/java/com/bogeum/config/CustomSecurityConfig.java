@@ -92,6 +92,9 @@ public class CustomSecurityConfig {
 				.requestMatchers(HttpMethod.POST, "/as-requests").hasRole("USER")
 				// 임대인·임차인은 같은 USER 역할이다. 매물 소유 여부는 AS 조회 조건에서 검사한다 (AS_002).
 				.requestMatchers(HttpMethod.GET, "/as-requests/received", "/as-requests/*").hasRole("USER")
+				// 댓글도 USER 역할과 실제 매물 소유 관계를 모두 확인하며 기존 CSRF 검증을 유지한다 (AS_003).
+				.requestMatchers(HttpMethod.POST, "/as-requests/*/comments").hasRole("USER")
+				.requestMatchers(HttpMethod.PATCH, "/as-requests/*/status").hasRole("USER")
 				.requestMatchers("/api/v1/agents/me", "/api/v1/agents/me/demo-approval", "/api/v1/agents/me/documents", "/api/v1/agents/me/documents/**").hasRole("AGENT")
 				.requestMatchers("/api/v1/agents/**").access(approvedAgent)
 				.anyRequest().authenticated())
