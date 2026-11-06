@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import clsx from 'clsx'
 import { LAST_LOGIN_TYPE_KEY, LOGIN_TYPES, LOGIN_TYPE_LABELS } from '../../constants/auth.js'
-import { login, loginNaver, loginKakao, publicApi } from '../../utils/jwtUtil.js'
+import { login, loginNaver, loginKakao, loginGoogle, publicApi } from '../../utils/jwtUtil.js'
 import DevLoginPanel from './DevLoginPanel.jsx'
 
 const loginSchema = z.object({
@@ -23,6 +23,7 @@ const SOCIAL_BUTTONS = [
 const SOCIAL_AUTH = {
   [LOGIN_TYPES.NAVER]: { slug: 'naver', login: loginNaver },
   [LOGIN_TYPES.KAKAO]: { slug: 'kakao', login: loginKakao },
+  [LOGIN_TYPES.GOOGLE]: { slug: 'google', login: loginGoogle },
 }
 
 function readLastLoginType() {

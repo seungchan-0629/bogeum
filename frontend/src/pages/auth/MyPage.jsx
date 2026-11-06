@@ -6,7 +6,7 @@
 // - 등록 계좌 조회: GET /openbanking/accounts/me
 // - 수정: PUT/PATCH /users/me (BE-014) — 비밀번호, 전화번호, 주소
 // - 탈퇴: DELETE /users/me (BE-015)
-// - 소셜 연결: POST /auth/social/{naver|kakao}/link — 현재 로그인 상태와 소셜 인증을 확인한다
+// - 소셜 연결: POST /auth/social/{naver|kakao|google}/link — 현재 로그인 상태와 소셜 인증을 확인한다
 import { useEffect, useRef, useState } from 'react'
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useSearchParams } from 'react-router'
@@ -26,7 +26,7 @@ const SAMPLE_PROFILE = {
 const SOCIAL_PROVIDERS = [
   { key: 'NAVER', label: '네이버', slug: 'naver' },
   { key: 'KAKAO', label: '카카오', slug: 'kakao' },
-  { key: 'GOOGLE', label: '구글' },
+  { key: 'GOOGLE', label: '구글', slug: 'google' },
 ]
 const AVAILABLE_SOCIAL_PROVIDERS = SOCIAL_PROVIDERS.filter((provider) => provider.slug)
 

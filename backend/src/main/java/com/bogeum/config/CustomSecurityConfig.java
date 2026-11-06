@@ -46,7 +46,9 @@ public class CustomSecurityConfig {
 		"/auth/social/naver/authorize", "/auth/social/naver/callback",
 		"/auth/social/naver/login", "/auth/social/naver/signup",
 		"/auth/social/kakao/authorize", "/auth/social/kakao/callback",
-		"/auth/social/kakao/login", "/auth/social/kakao/signup");
+		"/auth/social/kakao/login", "/auth/social/kakao/signup",
+		"/auth/social/google/authorize", "/auth/social/google/callback",
+		"/auth/social/google/login", "/auth/social/google/signup");
 
 	/** 사용자 조회와 비밀번호 검증을 Spring Security 인증 관리자에 연결한다. */
 	@Bean

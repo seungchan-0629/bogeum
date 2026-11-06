@@ -6,6 +6,7 @@ import com.bogeum.common.enums.UserStatus;
 import com.bogeum.common.enums.SocialProvider;
 import com.bogeum.config.NaverProperties;
 import com.bogeum.config.KakaoProperties;
+import com.bogeum.config.GoogleProperties;
 import com.bogeum.config.SolapiProperties;
 import com.bogeum.domain.user.model.SocialAuthorization;
 import com.bogeum.domain.user.model.PhoneVerification;
@@ -66,13 +67,16 @@ public class UserService implements UserDetailsService {
 	private final RestClient naverRestClient;
 	private final KakaoProperties kakaoProperties;
 	private final RestClient kakaoRestClient;
+	private final GoogleProperties googleProperties;
+	private final RestClient googleRestClient;
 
 	public UserService(PasswordEncoder passwordEncoder, ObjectProvider<AuthenticationManager> authenticationManagerProvider,
 			UserRepository userRepository, JwtUtil jwtUtil, PhoneVerificationRepository phoneVerificationRepository,
 			DefaultMessageService messageService, SolapiProperties solapiProperties,
 			SocialAccountRepository socialAccountRepository, NaverProperties naverProperties,
 			@Qualifier("naverRestClient") RestClient naverRestClient, KakaoProperties kakaoProperties,
-			@Qualifier("kakaoRestClient") RestClient kakaoRestClient) {
+			@Qualifier("kakaoRestClient") RestClient kakaoRestClient, GoogleProperties googleProperties,
+			@Qualifier("googleRestClient") RestClient googleRestClient) {
 		this.passwordEncoder = passwordEncoder;
 		this.authenticationManagerProvider = authenticationManagerProvider;
 		this.userRepository = userRepository;
@@ -85,6 +89,8 @@ public class UserService implements UserDetailsService {
 		this.naverRestClient = naverRestClient;
 		this.kakaoProperties = kakaoProperties;
 		this.kakaoRestClient = kakaoRestClient;
+		this.googleProperties = googleProperties;
+		this.googleRestClient = googleRestClient;
 	}
 
 	/**
@@ -266,6 +272,25 @@ public class UserService implements UserDetailsService {
 		return kakaoProperties.frontendUrl().replaceAll("/+$", "") + path + "?kakao=" + (success ? "complete" : "error");
 	}
 
+	public String googleAuthorizationUrl(SocialAuthorization authorization) {
+		if (authorization.getProvider() != SocialProvider.GOOGLE) {
+			throw UserException.socialAuthExpired();
+		}
+		if (!googleProperties.isConfigured()) {
+			throw UserException.googleNotConfigured();
+		}
+		return UriComponentsBuilder.fromUriString("https://accounts.google.com/o/oauth2/v2/auth")
+			.queryParam("response_type", "code").queryParam("client_id", googleProperties.clientId())
+			.queryParam("redirect_uri", googleProperties.redirectUri()).queryParam("state", authorization.getState())
+			.queryParam("scope", "openid email profile").queryParam("prompt", "select_account")
+			.build().encode().toUriString();
+	}
+
+	public String googleReturnUrl(SocialAuthorization authorization, boolean success) {
+		String path = authorization != null && authorization.getUserId() != null ? "/mypage" : "/login";
+		return googleProperties.frontendUrl().replaceAll("/+$", "") + path + "?google=" + (success ? "complete" : "error");
+	}
+
 	@Transactional(readOnly = true)
 	public boolean isSocialConnected(Long userId, SocialProvider provider) {
 		regularUser(userId);
@@ -340,6 +365,38 @@ public class UserService implements UserDetailsService {
 			authorization.authenticate(profile.path("id").asText(), profileText(account, "name", 50), email);
 		} catch (RestClientException exception) {
 			throw UserException.kakaoAuthFailed();
+		}
+	}
+
+	/** 서버에서 교환한 토큰으로 구글 사용자 정보를 조회하며, 이메일 대신 고정 식별자 sub로 인증한다. */
+	public void authenticateGoogle(SocialAuthorization authorization, String state, String code, String error) {
+		consumeSocialState(authorization, SocialProvider.GOOGLE, state);
+		if (error != null || code == null || code.isBlank()) {
+			throw UserException.googleAuthFailed();
+		}
+		var parameters = new LinkedMultiValueMap<String, String>();
+		parameters.add("grant_type", "authorization_code");
+		parameters.add("client_id", googleProperties.clientId());
+		parameters.add("client_secret", googleProperties.clientSecret());
+		parameters.add("redirect_uri", googleProperties.redirectUri());
+		parameters.add("code", code);
+		try {
+			JsonNode token = googleRestClient.post().uri("https://oauth2.googleapis.com/token")
+				.contentType(MediaType.APPLICATION_FORM_URLENCODED).body(parameters).retrieve().body(JsonNode.class);
+			String accessToken = token == null ? null : token.path("access_token").asText(null);
+			if (accessToken == null || accessToken.isBlank() || !token.path("access_token").isTextual() || token.has("error")) {
+				throw UserException.googleAuthFailed();
+			}
+			JsonNode profile = googleRestClient.get().uri("https://openidconnect.googleapis.com/v1/userinfo")
+				.headers(headers -> headers.setBearerAuth(accessToken)).retrieve().body(JsonNode.class);
+			String providerUserId = profile == null ? null : profile.path("sub").asText(null);
+			if (providerUserId == null || providerUserId.isBlank() || !profile.path("sub").isTextual() || providerUserId.length() > 255) {
+				throw UserException.googleAuthFailed();
+			}
+			String email = profile.path("email_verified").asBoolean(false) ? profileText(profile, "email", 255) : null;
+			authorization.authenticate(providerUserId, profileText(profile, "name", 50), email);
+		} catch (RestClientException exception) {
+			throw UserException.googleAuthFailed();
 		}
 	}
 

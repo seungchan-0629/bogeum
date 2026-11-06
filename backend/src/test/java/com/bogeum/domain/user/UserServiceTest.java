@@ -53,6 +53,8 @@ class UserServiceTest {
 			socialAccountRepository, new com.bogeum.config.NaverProperties("", "", "", ""),
 			org.springframework.web.client.RestClient.builder().build(),
 			new com.bogeum.config.KakaoProperties("", "", "", ""),
+			org.springframework.web.client.RestClient.builder().build(),
+			new com.bogeum.config.GoogleProperties("", "", "", ""),
 			org.springframework.web.client.RestClient.builder().build());
 		beanFactory.registerSingleton("authenticationManager", config.authenticationManager(userService, passwordEncoder));
 	}
@@ -71,6 +73,14 @@ class UserServiceTest {
 		var authorization = userService.createSocialAuthorization(SocialProvider.KAKAO, null);
 		UserException exception = assertThrows(UserException.class, () -> userService.kakaoAuthorizationUrl(authorization));
 		assertEquals(ErrorCode.KAKAO_NOT_CONFIGURED, exception.getErrorCode());
+	}
+
+	@Test
+	@DisplayName("구글 키가 비어 있으면 인증 시작만 거절한다")
+	void rejectsGoogleWithoutCredentials() {
+		var authorization = userService.createSocialAuthorization(SocialProvider.GOOGLE, null);
+		UserException exception = assertThrows(UserException.class, () -> userService.googleAuthorizationUrl(authorization));
+		assertEquals(ErrorCode.GOOGLE_NOT_CONFIGURED, exception.getErrorCode());
 	}
 
 	@Test

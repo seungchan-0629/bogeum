@@ -50,6 +50,7 @@ const user = { userId: 1, name: '보금', role: 'USER' }
 for (const [provider, label, loginMethod, signupMethod] of [
   ['naver', '네이버', 'loginNaver', 'signupNaver'],
   ['kakao', '카카오', 'loginKakao', 'signupKakao'],
+  ['google', '구글', 'loginGoogle', 'signupGoogle'],
 ]) {
   test(`기존 ${label} 로그인은 공통 쿠키와 보호 요청에 보금 토큰을 저장한다`, async () => {
     const client = setup()

@@ -41,6 +41,8 @@ public enum ErrorCode {
 	NAVER_AUTH_FAILED(HttpStatus.BAD_GATEWAY, "네이버 인증을 완료하지 못했습니다. 다시 시도해 주세요."),
 	KAKAO_NOT_CONFIGURED(HttpStatus.SERVICE_UNAVAILABLE, "카카오 로그인을 준비 중입니다. 잠시 후 다시 시도해 주세요."),
 	KAKAO_AUTH_FAILED(HttpStatus.BAD_GATEWAY, "카카오 인증을 완료하지 못했습니다. 다시 시도해 주세요."),
+	GOOGLE_NOT_CONFIGURED(HttpStatus.SERVICE_UNAVAILABLE, "구글 로그인을 준비 중입니다. 잠시 후 다시 시도해 주세요."),
+	GOOGLE_AUTH_FAILED(HttpStatus.BAD_GATEWAY, "구글 인증을 완료하지 못했습니다. 다시 시도해 주세요."),
 	SOCIAL_AUTH_EXPIRED(HttpStatus.BAD_REQUEST, "소셜 인증 정보가 없거나 만료되었습니다. 소셜 인증을 다시 진행해 주세요."),
 	SOCIAL_EMAIL_CONFLICT(HttpStatus.CONFLICT, "이미 가입된 이메일입니다. 기존 계정으로 로그인한 뒤 마이페이지에서 소셜 계정을 연결해 주세요."),
 	SOCIAL_ALREADY_CONNECTED(HttpStatus.CONFLICT, "이미 해당 서비스의 계정이 연결되어 있거나 다른 보금 계정에 연결된 소셜 계정입니다."),

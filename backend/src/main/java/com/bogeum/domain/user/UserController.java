@@ -74,18 +74,18 @@ public class UserController {
 		return tokenResponse(userService.login(request.getEmail(), request.getPassword()));
 	}
 
-	@PostMapping("/social/{provider:naver|kakao}/authorize")
+	@PostMapping("/social/{provider:naver|kakao|google}/authorize")
 	public UserDto.SocialAuthorizationResponse authorizeSocial(@PathVariable String provider, HttpServletRequest request) {
 		return startSocial(socialProvider(provider), request, null);
 	}
 
-	@PostMapping("/social/{provider:naver|kakao}/link/authorize")
+	@PostMapping("/social/{provider:naver|kakao|google}/link/authorize")
 	public UserDto.SocialAuthorizationResponse authorizeSocialLink(@PathVariable String provider, @AuthenticationPrincipal LoginUser loginUser,
 			HttpServletRequest request) {
 		return startSocial(socialProvider(provider), request, loginUser.getUserId());
 	}
 
-	@PostMapping("/social/{provider:naver|kakao}/signup")
+	@PostMapping("/social/{provider:naver|kakao|google}/signup")
 	public TokenResponse signupSocial(@PathVariable String provider, @Valid @RequestBody UserDto.SocialSignupRequest body,
 			HttpServletRequest request) {
 		HttpSession session = socialSession(request);
@@ -98,7 +98,7 @@ public class UserController {
 		}
 	}
 
-	@PostMapping("/social/{provider:naver|kakao}/login")
+	@PostMapping("/social/{provider:naver|kakao|google}/login")
 	public UserDto.SocialLoginResponse loginSocial(@PathVariable String provider, HttpServletRequest request) {
 		HttpSession session = socialSession(request);
 		synchronized (session) {
@@ -112,7 +112,7 @@ public class UserController {
 		}
 	}
 
-	@PostMapping("/social/{provider:naver|kakao}/link")
+	@PostMapping("/social/{provider:naver|kakao|google}/link")
 	public UserDto.SocialConnectionResponse connectSocial(@PathVariable String provider, @AuthenticationPrincipal LoginUser loginUser,
 			HttpServletRequest request) {
 		HttpSession session = socialSession(request);
@@ -124,7 +124,7 @@ public class UserController {
 	}
 
 	/** 외부 인증 콜백만 JSON 대신 고정된 보금 화면으로 돌려보낸다. */
-	@GetMapping("/social/{provider:naver|kakao}/callback")
+	@GetMapping("/social/{provider:naver|kakao|google}/callback")
 	public ResponseEntity<Void> socialCallback(@PathVariable String provider, @RequestParam(required = false) String state,
 			@RequestParam(required = false) String code, @RequestParam(required = false) String error,
 			HttpServletRequest request) {
@@ -136,10 +136,10 @@ public class UserController {
 			synchronized (session) {
 				try {
 					authorization = socialAuthorization(session, socialProvider);
-					if (socialProvider == SocialProvider.NAVER) {
-						userService.authenticateNaver(authorization, state, code, error);
-					} else {
-						userService.authenticateKakao(authorization, state, code, error);
+					switch (socialProvider) {
+						case NAVER -> userService.authenticateNaver(authorization, state, code, error);
+						case KAKAO -> userService.authenticateKakao(authorization, state, code, error);
+						case GOOGLE -> userService.authenticateGoogle(authorization, state, code, error);
 					}
 					success = true;
 				} catch (UserException exception) {
@@ -148,12 +148,15 @@ public class UserController {
 			}
 		}
 		return ResponseEntity.status(HttpStatus.FOUND)
-			.header("Location", socialProvider == SocialProvider.NAVER
-				? userService.naverReturnUrl(authorization, success) : userService.kakaoReturnUrl(authorization, success))
+			.header("Location", switch (socialProvider) {
+				case NAVER -> userService.naverReturnUrl(authorization, success);
+				case KAKAO -> userService.kakaoReturnUrl(authorization, success);
+				case GOOGLE -> userService.googleReturnUrl(authorization, success);
+			})
 			.header("Cache-Control", "no-store").header("Referrer-Policy", "no-referrer").build();
 	}
 
-	@GetMapping("/social/{provider:naver|kakao}/connection")
+	@GetMapping("/social/{provider:naver|kakao|google}/connection")
 	public UserDto.SocialConnectionResponse socialConnection(@PathVariable String provider, @AuthenticationPrincipal LoginUser loginUser) {
 		return new UserDto.SocialConnectionResponse(userService.isSocialConnected(loginUser.getUserId(), socialProvider(provider)));
 	}
@@ -198,8 +201,11 @@ public class UserController {
 
 	private UserDto.SocialAuthorizationResponse startSocial(SocialProvider provider, HttpServletRequest request, Long userId) {
 		SocialAuthorization authorization = userService.createSocialAuthorization(provider, userId);
-		String authorizationUrl = provider == SocialProvider.NAVER
-			? userService.naverAuthorizationUrl(authorization) : userService.kakaoAuthorizationUrl(authorization);
+		String authorizationUrl = switch (provider) {
+			case NAVER -> userService.naverAuthorizationUrl(authorization);
+			case KAKAO -> userService.kakaoAuthorizationUrl(authorization);
+			case GOOGLE -> userService.googleAuthorizationUrl(authorization);
+		};
 		HttpSession session = request.getSession();
 		request.changeSessionId();
 		session.setMaxInactiveInterval(600);

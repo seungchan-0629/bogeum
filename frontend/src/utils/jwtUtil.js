@@ -156,6 +156,14 @@ export function createAuthClient(store, cookies = cookieUtil) {
     return (await requestLogin('/auth/social/kakao/signup', body)).user
   }
 
+  function loginGoogle() {
+    return requestLogin('/auth/social/google/login')
+  }
+
+  async function signupGoogle(body) {
+    return (await requestLogin('/auth/social/google/signup', body)).user
+  }
+
   function restoreSession() {
     // React StrictMode가 Effect를 다시 실행해도 초기 복원은 한 번만 한다.
     if (!restorePromise) {
@@ -178,7 +186,7 @@ export function createAuthClient(store, cookies = cookieUtil) {
     await publicApi.post('/auth/logout', { refreshToken })
   }
 
-  return { api, publicApi, login, loginNaver, signupNaver, loginKakao, signupKakao, logout, restoreSession }
+  return { api, publicApi, login, loginNaver, signupNaver, loginKakao, signupKakao, loginGoogle, signupGoogle, logout, restoreSession }
 }
 
-export const { api, publicApi, login, loginNaver, signupNaver, loginKakao, signupKakao, logout, restoreSession } = createAuthClient(useAuthStore)
+export const { api, publicApi, login, loginNaver, signupNaver, loginKakao, signupKakao, loginGoogle, signupGoogle, logout, restoreSession } = createAuthClient(useAuthStore)

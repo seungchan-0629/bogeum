@@ -3,14 +3,15 @@ import AuthLayout from '../../components/auth/AuthLayout.jsx'
 import UserSignupForm from '../../components/auth/UserSignupForm.jsx'
 import SocialSignupForm from '../../components/auth/SocialSignupForm.jsx'
 import { LAST_LOGIN_TYPE_KEY, LOGIN_TYPES, LOGIN_TYPE_LABELS } from '../../constants/auth.js'
-import { signupNaver, signupKakao } from '../../utils/jwtUtil.js'
+import { signupNaver, signupKakao, signupGoogle } from '../../utils/jwtUtil.js'
 
 function SignupPage() {
   const navigate = useNavigate()
   const { state } = useLocation()
   const signupProfile = state?.socialSignup
   const signupSocial = signupProfile?.provider === LOGIN_TYPES.NAVER ? signupNaver
-    : signupProfile?.provider === LOGIN_TYPES.KAKAO ? signupKakao : null
+    : signupProfile?.provider === LOGIN_TYPES.KAKAO ? signupKakao
+    : signupProfile?.provider === LOGIN_TYPES.GOOGLE ? signupGoogle : null
 
   const handleSocialSignup = async (values) => {
     const user = await signupSocial(values)

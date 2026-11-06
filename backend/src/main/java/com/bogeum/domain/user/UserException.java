@@ -55,6 +55,8 @@ public class UserException extends RuntimeException {
 	public static UserException naverAuthFailed() { return new UserException(ErrorCode.NAVER_AUTH_FAILED); }
 	public static UserException kakaoNotConfigured() { return new UserException(ErrorCode.KAKAO_NOT_CONFIGURED); }
 	public static UserException kakaoAuthFailed() { return new UserException(ErrorCode.KAKAO_AUTH_FAILED); }
+	public static UserException googleNotConfigured() { return new UserException(ErrorCode.GOOGLE_NOT_CONFIGURED); }
+	public static UserException googleAuthFailed() { return new UserException(ErrorCode.GOOGLE_AUTH_FAILED); }
 	public static UserException socialAuthExpired() { return new UserException(ErrorCode.SOCIAL_AUTH_EXPIRED); }
 	public static UserException socialEmailConflict() { return new UserException(ErrorCode.SOCIAL_EMAIL_CONFLICT); }
 	public static UserException socialAlreadyConnected() { return new UserException(ErrorCode.SOCIAL_ALREADY_CONNECTED); }

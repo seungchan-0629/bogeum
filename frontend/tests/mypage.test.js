@@ -31,7 +31,7 @@ after(async () => { await server?.close() })
 function renderAccount(account, error, passwordLoginAvailable = true, connections = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, retryOnMount: false, staleTime: Infinity } } })
   client.setQueryData(['user-profile', profile.userId], { ...profile, passwordLoginAvailable })
-  for (const provider of ['naver', 'kakao']) {
+  for (const provider of ['naver', 'kakao', 'google']) {
     const queryKey = [`${provider}-connection`, profile.userId]
     const connection = connections[provider]
     if (connection instanceof Error) {
@@ -82,14 +82,14 @@ test('계좌 조회만 실패해도 기존 회원 정보와 저장 버튼은 정
   assert.doesNotMatch(html, /등록된 계좌가 없어요/)
 })
 
-test('네이버·카카오 연결 버튼은 비밀번호 입력 없이 사용할 수 있고 재확인을 요구하지 않는다', () => {
+test('네이버·카카오·구글 연결 버튼은 비밀번호 입력 없이 사용할 수 있고 재확인을 요구하지 않는다', () => {
   for (const passwordLoginAvailable of [true, false]) {
     const html = renderAccount(null, null, passwordLoginAvailable)
     assert.doesNotMatch(html, /연결됨/)
     assert.match(html, /<button(?![^>]*\bdisabled\b)[^>]*>연결하기<\/button>/)
-    assert.equal((html.match(/<button(?![^>]*\bdisabled\b)[^>]*>연결하기<\/button>/g) ?? []).length, 2)
+    assert.equal((html.match(/<button(?![^>]*\bdisabled\b)[^>]*>연결하기<\/button>/g) ?? []).length, 3)
     assert.doesNotMatch(html, /네이버 연결을 위한 현재 비밀번호/)
-    assert.match(html, /준비 중/)
+    assert.doesNotMatch(html, /준비 중/)
   }
 })
 
@@ -100,12 +100,12 @@ test('네이버 전용 계정은 연결 상태를 표시하고 비밀번호 설�
   assert.doesNotMatch(html, /새 비밀번호/)
 })
 
-test('네이버와 카카오의 연결 상태는 각각 표시한다', () => {
-  for (const connections of [{ naver: true }, { kakao: true }, { naver: true, kakao: true }]) {
+test('네이버·카카오·구글의 연결 상태는 각각 표시한다', () => {
+  for (const connections of [{ naver: true }, { kakao: true }, { google: true }, { naver: true, kakao: true, google: true }]) {
     const html = renderAccount(null, null, true, connections)
     const count = Object.values(connections).filter(Boolean).length
     assert.equal((html.match(/연결됨/g) ?? []).length, count)
-    assert.equal((html.match(/<button(?![^>]*\bdisabled\b)[^>]*>연결하기<\/button>/g) ?? []).length, 2 - count)
+    assert.equal((html.match(/<button(?![^>]*\bdisabled\b)[^>]*>연결하기<\/button>/g) ?? []).length, 3 - count)
   }
 })
 
@@ -114,17 +114,26 @@ test('카카오 연결 조회가 실패해도 네이버 연결과 회원 정보�
   assertProfileVisible(html)
   assert.match(html, /카카오 연결 상태를 불러오지 못했습니다/)
   assert.doesNotMatch(html, /네이버 연결 상태를 불러오지 못했습니다/)
-  assert.equal((html.match(/<button(?![^>]*\bdisabled\b)[^>]*>연결하기<\/button>/g) ?? []).length, 1)
+  assert.equal((html.match(/<button(?![^>]*\bdisabled\b)[^>]*>연결하기<\/button>/g) ?? []).length, 2)
 })
 
-test('로그인 화면은 네이버·카카오 버튼을 활성화하고 구글은 준비 중으로 표시한다', () => {
+test('구글 연결 조회가 실패해도 다른 소셜 연결과 회원 정보는 사용할 수 있다', () => {
+  const html = renderAccount(null, null, true, { google: new Error('조회 실패') })
+  assertProfileVisible(html)
+  assert.match(html, /구글 연결 상태를 불러오지 못했습니다/)
+  assert.doesNotMatch(html, /네이버 연결 상태를 불러오지 못했습니다/)
+  assert.doesNotMatch(html, /카카오 연결 상태를 불러오지 못했습니다/)
+  assert.equal((html.match(/<button(?![^>]*\bdisabled\b)[^>]*>연결하기<\/button>/g) ?? []).length, 2)
+})
+
+test('로그인 화면은 네이버·카카오·구글 버튼을 활성화한다', () => {
   const html = renderToStaticMarkup(createElement(MemoryRouter, { initialEntries: ['/login'] }, createElement(LoginForm)))
-  for (const label of ['네이버', '카카오']) {
+  for (const label of ['네이버', '카카오', '구글']) {
     const button = html.match(new RegExp(`<button([^>]*)>${label}로 로그인`))
     assert.ok(button)
     assert.doesNotMatch(button[1], /\sdisabled(?:=|\s|$)/)
   }
-  assert.match(html, /<button[^>]*disabled[^>]*>구글로 로그인 \(준비 중\)/)
+  assert.doesNotMatch(html, /준비 중/)
 })
 
 function renderSignup(state) {
@@ -132,8 +141,8 @@ function renderSignup(state) {
     createElement(Routes, null, createElement(Route, { path: '/signup', element: createElement(SignupPage) }))))
 }
 
-test('/signup은 네이버·카카오 신규 회원에게 소셜 추가 가입 폼을 표시한다', () => {
-  for (const [provider, label] of [['NAVER', '네이버'], ['KAKAO', '카카오']]) {
+test('/signup은 네이버·카카오·구글 신규 회원에게 소셜 추가 가입 폼을 표시한다', () => {
+  for (const [provider, label] of [['NAVER', '네이버'], ['KAKAO', '카카오'], ['GOOGLE', '구글']]) {
     const html = renderSignup({ socialSignup: { provider, name: '소셜 가입 회원', email: 'social@example.com' } })
     assert.match(html, /<h1[^>]*>회원가입<\/h1>/)
     assert.ok(html.includes(`${label} 회원가입`))
@@ -147,7 +156,7 @@ test('/signup은 네이버·카카오 신규 회원에게 소셜 추가 가입 �
 })
 
 test('/signup에 소셜 프로필이 없으면 일반 회원가입을 표시한다', () => {
-  for (const state of [null, { socialSignup: { provider: 'GOOGLE' } }]) {
+  for (const state of [null, { socialSignup: { provider: 'UNKNOWN' } }]) {
     const html = renderSignup(state)
     assert.match(html, /type="password"/)
     assert.match(html, /가입하기/)
@@ -156,12 +165,14 @@ test('/signup에 소셜 프로필이 없으면 일반 회원가입을 표시한�
 })
 
 test('/signup의 소셜 가입은 제공받지 못한 이름·이메일을 직접 입력받는다', () => {
-  const html = renderSignup({ socialSignup: { provider: 'KAKAO', name: null, email: null } })
-  assert.match(html, /카카오 회원가입/)
-  assert.match(html, /name="name"/)
-  assert.match(html, /name="email"/)
-  assert.doesNotMatch(html, /readOnly=""/)
-  assert.doesNotMatch(html, /type="password"/)
+  for (const [provider, label] of [['KAKAO', '카카오'], ['GOOGLE', '구글']]) {
+    const html = renderSignup({ socialSignup: { provider, name: null, email: null } })
+    assert.ok(html.includes(`${label} 회원가입`))
+    assert.match(html, /name="name"/)
+    assert.match(html, /name="email"/)
+    assert.doesNotMatch(html, /readOnly=""/)
+    assert.doesNotMatch(html, /type="password"/)
+  }
 })
 
 test('공통 소셜 가입 폼은 제공자 이름을 표시하고 필요한 추가 정보만 받는다', () => {
