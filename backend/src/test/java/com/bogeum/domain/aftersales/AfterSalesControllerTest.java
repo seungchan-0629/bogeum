@@ -105,7 +105,7 @@ class AfterSalesControllerTest {
 		var image = AfterSalesRequestImage.builder().asRequestImageId(20L).asRequest(request)
 			.fileKey("private/as/photo.jpg").createdAt(request.getCreatedAt()).build();
 		when(service.readAfterSalesRequest(7L, 10L))
-			.thenReturn(AfterSalesDto.DetailResponse.from(request, List.of(image)));
+			.thenReturn(AfterSalesDto.DetailResponse.from(request, List.of(image), List.of()));
 
 		mvc.perform(get("/as-requests/10").param("landlordId", "999")).andExpect(status().isOk())
 			.andExpect(jsonPath("$.asRequestId").value(10)).andExpect(jsonPath("$.propertyId").value(3))

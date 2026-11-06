@@ -163,14 +163,17 @@ public class AfterSalesDto {
 		private LocalDateTime createdAt;
 		private LocalDateTime updatedAt;
 		private List<ImageResponse> images;
+		private List<CommentResponse> comments;
 
-		public static DetailResponse from(AfterSalesRequest request, List<AfterSalesRequestImage> images) {
+		public static DetailResponse from(AfterSalesRequest request, List<AfterSalesRequestImage> images,
+				List<AfterSalesComment> comments) {
 			return DetailResponse.builder().asRequestId(request.getAsRequestId())
 				.propertyId(request.getProperty().getPropertyId())
 				.roadAddress(request.getProperty().getRoadAddress()).detailAddress(request.getProperty().getDetailAddress())
 				.tenantName(request.getTenant().getName()).content(request.getContent())
 				.asStatus(request.getAsStatus()).createdAt(request.getCreatedAt()).updatedAt(request.getUpdatedAt())
-				.images(images.stream().map(ImageResponse::from).toList()).build();
+				.images(images.stream().map(ImageResponse::from).toList())
+				.comments(comments.stream().map(CommentResponse::from).toList()).build();
 		}
 	}
 }

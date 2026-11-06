@@ -15,12 +15,13 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 import com.bogeum.domain.aftersales.model.AfterSalesDto;
+import com.bogeum.domain.aftersales.model.AfterSalesComment;
 import com.bogeum.domain.aftersales.model.AfterSalesRequest;
 import com.bogeum.domain.aftersales.model.AfterSalesRequestImage;
 import com.bogeum.domain.contract.ContractRepository;
 import lombok.extern.slf4j.Slf4j;
 
-/** 계약 임차인의 접수와 매물 현 소유자의 조회 규칙을 처리한다 (AS_001, AS_002). */
+/** 계약 임차인의 접수와 매물 현 소유자의 조회·응답 규칙을 처리한다 (AS_001~003). */
 @Service
 @Slf4j
 public class AfterSalesService {
@@ -30,16 +31,19 @@ public class AfterSalesService {
 	private final AfterSalesRepository afterSalesRepository;
 	private final ContractRepository contractRepository;
 	private final AfterSalesRequestImageRepository imageRepository;
+	private final AfterSalesCommentRepository commentRepository;
 	private final AfterSalesImageProcessor imageProcessor;
 	private final ObjectProvider<AfterSalesImageStorage> storageProvider;
 	private final int maxCount;
 
 	public AfterSalesService(AfterSalesRepository afterSalesRepository, ContractRepository contractRepository,
-			AfterSalesRequestImageRepository imageRepository, AfterSalesImageProcessor imageProcessor,
+			AfterSalesRequestImageRepository imageRepository, AfterSalesCommentRepository commentRepository,
+			AfterSalesImageProcessor imageProcessor,
 			ObjectProvider<AfterSalesImageStorage> storageProvider, @Value("${as-image.max-count:10}") int maxCount) {
 		this.afterSalesRepository = afterSalesRepository;
 		this.contractRepository = contractRepository;
 		this.imageRepository = imageRepository;
+		this.commentRepository = commentRepository;
 		this.imageProcessor = imageProcessor;
 		this.storageProvider = storageProvider;
 		if (maxCount <= 0) {
@@ -108,6 +112,18 @@ public class AfterSalesService {
 		return AfterSalesDto.CreateResponse.from(saved);
 	}
 
+	/** 현 소유자만 종료 전 접수에 조치 사항을 남긴다. 댓글 작성 자체는 AS 상태를 변경하지 않는다 (AS_003). */
+	@Transactional
+	public AfterSalesDto.CommentResponse createAfterSalesComment(Long userId, Long asRequestId,
+			AfterSalesDto.CommentCreateRequest request) {
+		var asRequest = findOwnedRequestForUpdate(userId, asRequestId);
+		asRequest.validateNotCompleted();
+		// 인증 사용자와 소유자가 같음을 조회에서 확인했으므로 요청의 작성자 ID를 신뢰할 필요가 없다.
+		var saved = commentRepository.save(AfterSalesComment.builder().asRequest(asRequest)
+			.author(asRequest.getProperty().getLandlord()).content(request.getContent().trim()).build());
+		return AfterSalesDto.CommentResponse.from(saved);
+	}
+
 	/** 본인 소유 매물의 접수를 최신순으로 조회한다. 페이지 번호는 1부터 시작한다 (AS_002). */
 	@Transactional(readOnly = true)
 	public AfterSalesDto.ListResponse readReceivedAfterSalesRequests(Long userId, int page) {
@@ -127,7 +143,14 @@ public class AfterSalesService {
 			.orElseThrow(AfterSalesException::requestNotFound);
 		// 권한을 확인한 뒤 DB 메타데이터만 읽는다. 파일 저장소나 URL 생성은 호출하지 않는다.
 		return AfterSalesDto.DetailResponse.from(request,
-			imageRepository.findAllByAsRequest_AsRequestIdOrderByCreatedAtAscAsRequestImageIdAsc(asRequestId));
+			imageRepository.findAllByAsRequest_AsRequestIdOrderByCreatedAtAscAsRequestImageIdAsc(asRequestId),
+			commentRepository.findAllByAsRequest_AsRequestIdOrderByCreatedAtAscAsCommentIdAsc(asRequestId));
+	}
+
+	/** 소유자 조건과 행 잠금을 댓글·상태 변경에서 함께 사용한다. 타인 접수의 존재 여부도 숨긴다. */
+	private AfterSalesRequest findOwnedRequestForUpdate(Long userId, Long asRequestId) {
+		return afterSalesRepository.findForUpdateByAsRequestIdAndProperty_Landlord_UserId(asRequestId, userId)
+			.orElseThrow(AfterSalesException::requestNotFound);
 	}
 
 	/** 정리 실패는 로그로 남기고 다음 키를 계속 정리한다. 롤백 자체를 되돌리지는 않는다. */

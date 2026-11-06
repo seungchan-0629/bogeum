@@ -16,6 +16,7 @@ public class AfterSalesException extends RuntimeException {
 	public static AfterSalesException contractNotFound() { return new AfterSalesException(ErrorCode.AS_CONTRACT_NOT_FOUND); }
 	// 조회 권한이 없는 접수도 같은 오류로 응답한다 (AS_002).
 	public static AfterSalesException requestNotFound() { return new AfterSalesException(ErrorCode.AS_REQUEST_NOT_FOUND); }
+	public static AfterSalesException alreadyCompleted() { return new AfterSalesException(ErrorCode.AS_ALREADY_COMPLETED); }
 	public static AfterSalesException forbidden() { return new AfterSalesException(ErrorCode.ACCESS_DENIED); }
 	public static AfterSalesException outsideContract() { return new AfterSalesException(ErrorCode.AS_OUTSIDE_CONTRACT); }
 	public static AfterSalesException invalidImage() { return new AfterSalesException(ErrorCode.AS_INVALID_IMAGE); }

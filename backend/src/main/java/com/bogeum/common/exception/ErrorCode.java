@@ -7,6 +7,8 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum ErrorCode {
+	// 종료된 AS의 댓글 추가·재개 요청을 거절한다 (AS_003).
+	AS_ALREADY_COMPLETED(HttpStatus.CONFLICT, "처리가 완료된 AS 요청은 변경할 수 없습니다."),
 	// 타인 소유 AS와 없는 AS를 구분하지 않는다 (AS_002).
 	AS_REQUEST_NOT_FOUND(HttpStatus.NOT_FOUND, "AS 요청을 찾을 수 없습니다."),
 	// AS 최초 접수의 계약 검증·사진 처리·저장소 연결 실패 (AS_001)

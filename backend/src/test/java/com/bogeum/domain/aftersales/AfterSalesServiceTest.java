@@ -35,6 +35,7 @@ class AfterSalesServiceTest {
 	private final AfterSalesRepository requests = mock(AfterSalesRepository.class);
 	private final ContractRepository contracts = mock(ContractRepository.class);
 	private final AfterSalesRequestImageRepository images = mock(AfterSalesRequestImageRepository.class);
+	private final AfterSalesCommentRepository comments = mock(AfterSalesCommentRepository.class);
 	private final AfterSalesImageProcessor processor = mock(AfterSalesImageProcessor.class);
 	@SuppressWarnings("unchecked")
 	private final ObjectProvider<AfterSalesImageStorage> provider = mock(ObjectProvider.class);
@@ -45,7 +46,7 @@ class AfterSalesServiceTest {
 
 	@BeforeEach
 	void setUp() {
-		service = new AfterSalesService(requests, contracts, images, processor, provider, 10);
+		service = new AfterSalesService(requests, contracts, images, comments, processor, provider, 10);
 		when(requests.save(any())).thenAnswer(call -> call.getArgument(0));
 	}
 

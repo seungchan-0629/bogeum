@@ -8,6 +8,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.type.SqlTypes;
 
 import com.bogeum.common.enums.AsStatus;
+import com.bogeum.domain.aftersales.AfterSalesException;
 import com.bogeum.domain.property.model.Property;
 import com.bogeum.domain.user.model.User;
 
@@ -67,4 +68,13 @@ public class AfterSalesRequest {
 	@UpdateTimestamp
 	@Column(nullable = false)
 	private LocalDateTime updatedAt;
+
+	/** 완료된 접수는 댓글을 추가하거나 다시 열 수 없다. 서비스는 소유 권한 확인 후 호출한다 (AS_003). */
+	public void validateNotCompleted() {
+		if (asStatus == AsStatus.COMPLETED) {
+			throw AfterSalesException.alreadyCompleted();
+		}
+	}
+
+
 }
