@@ -53,6 +53,8 @@ class AuthIntegrationTests {
 	private com.bogeum.domain.agent.AgentRepository agents;
 	@Autowired
 	private org.springframework.jdbc.core.JdbcTemplate jdbc;
+	@Autowired
+	private com.bogeum.domain.user.PhoneVerificationRepository verifications;
 	private final MockMvc mvc;
 	private final UserRepository users;
 	private final PasswordEncoder encoder;
@@ -78,7 +80,7 @@ class AuthIntegrationTests {
 		String password = UUID.randomUUID().toString();
 		mvc.perform(csrfPost("/auth/signup/user").contentType(MediaType.APPLICATION_JSON)
 			.content(mapper.writeValueAsString(Map.of("email", email, "password", password,
-				"name", "학습자", "phone", "01000000000", "agreements",
+				"name", "학습자", "phone", "01000000000", "verificationToken", verifiedToken(), "agreements",
 				Map.of("privacyCollect", true, "thirdPartyProvide", true)))))
 			.andExpect(status().isCreated()).andExpect(jsonPath("$.userId").isNumber())
 			.andExpect(jsonPath("$.passwordHash").doesNotExist());
@@ -92,7 +94,7 @@ class AuthIntegrationTests {
 	void rejectsMissingAgreement() throws Exception {
 		mvc.perform(csrfPost("/auth/signup/user").contentType(MediaType.APPLICATION_JSON)
 			.content(mapper.writeValueAsString(Map.of("email", "no-consent@example.com", "password", UUID.randomUUID().toString(),
-				"name", "학습자", "phone", "01000000000", "agreements",
+				"name", "학습자", "phone", "01000000000", "verificationToken", verifiedToken(), "agreements",
 				Map.of("privacyCollect", false, "thirdPartyProvide", true)))))
 			.andExpect(status().isBadRequest());
 		assertThat(users.findByEmail("no-consent@example.com")).isEmpty();
@@ -171,7 +173,7 @@ class AuthIntegrationTests {
 			mvc.perform(csrfPost("/auth/signup/user").header("Authorization", authorization)
 				.contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(Map.of(
 					"email", email, "password", password, "name", "학습자", "phone", "01000000000",
-					"agreements", Map.of("privacyCollect", true, "thirdPartyProvide", true)))))
+					"verificationToken", verifiedToken(), "agreements", Map.of("privacyCollect", true, "thirdPartyProvide", true)))))
 				.andExpect(status().isCreated());
 			MvcResult loggedIn = mvc.perform(csrfPost("/auth/login").header("Authorization", authorization)
 				.contentType(MediaType.APPLICATION_JSON)
@@ -447,7 +449,7 @@ class AuthIntegrationTests {
 		}
 		Account agent = agentAccount();
 		mvc.perform(csrfPost("/auth/signup/user").contentType(MediaType.APPLICATION_JSON)
-			.content(mapper.writeValueAsString(Map.of("email", agent.user().getEmail(), "password", "password", "name", "회원", "phone", "01000000000", "agreements", Map.of("privacyCollect", true, "thirdPartyProvide", true)))))
+			.content(mapper.writeValueAsString(Map.of("email", agent.user().getEmail(), "password", "password", "name", "회원", "phone", "01000000000", "verificationToken", verifiedToken(), "agreements", Map.of("privacyCollect", true, "thirdPartyProvide", true)))))
 			.andExpect(status().isConflict());
 	}
 
@@ -495,7 +497,7 @@ class AuthIntegrationTests {
 	void myProfileUsesAuthenticatedUser() throws Exception {
 		Account account = account(Role.USER, UserStatus.ACTIVE, true);
 		AuthResult session = login(account);
-		mvc.perform(get("/api/v1/users/me").param("userId", "999999")
+		mvc.perform(get("/users/me").param("userId", "999999")
 				.header("Authorization", "Bearer " + session.getAccessToken()))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.userId").value(account.user().getUserId()))
@@ -513,7 +515,7 @@ class AuthIntegrationTests {
 		Account account = account(Role.USER, UserStatus.ACTIVE, true);
 		Account other = account(Role.USER, UserStatus.ACTIVE, true);
 		AuthResult session = login(account);
-		mvc.perform(csrfPatch("/api/v1/users/me").header("Authorization", "Bearer " + session.getAccessToken())
+		mvc.perform(csrfPatch("/users/me").header("Authorization", "Bearer " + session.getAccessToken())
 				.contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(Map.of(
 					"phone", " 010-9876-5432 ", "newPassword", "", "passwordConfirm", "",
 					"userId", other.user().getUserId(), "role", "ADMIN", "email", "changed@example.com"))))
@@ -525,7 +527,7 @@ class AuthIntegrationTests {
 		assertThat(saved.getRole()).isEqualTo(Role.USER);
 		assertThat(saved.getAddress()).isEqualTo(account.user().getAddress());
 		assertThat(users.findById(other.user().getUserId()).orElseThrow().getPhone()).isEqualTo("01000000000");
-		mvc.perform(get("/api/v1/users/me").header("Authorization", "Bearer " + session.getAccessToken()))
+		mvc.perform(get("/users/me").header("Authorization", "Bearer " + session.getAccessToken()))
 			.andExpect(status().isOk()).andExpect(jsonPath("$.phone").value("010-9876-5432"));
 	}
 
@@ -535,7 +537,7 @@ class AuthIntegrationTests {
 		Account account = account(Role.USER, UserStatus.ACTIVE, true);
 		AuthResult session = login(account);
 		String password = " new-" + UUID.randomUUID() + " ";
-		MvcResult result = mvc.perform(csrfPatch("/api/v1/users/me")
+		MvcResult result = mvc.perform(csrfPatch("/users/me")
 				.header("Authorization", "Bearer " + session.getAccessToken()).contentType(MediaType.APPLICATION_JSON)
 				.content(mapper.writeValueAsString(Map.of("currentPassword", account.password(),
 					"newPassword", password, "passwordConfirm", password))))
@@ -557,7 +559,7 @@ class AuthIntegrationTests {
 		Account account = account(Role.USER, UserStatus.ACTIVE, true);
 		AuthResult session = login(account);
 		for (String current : new String[]{"", "wrong", "가".repeat(25)}) {
-			mvc.perform(csrfPatch("/api/v1/users/me").header("Authorization", "Bearer " + session.getAccessToken())
+			mvc.perform(csrfPatch("/users/me").header("Authorization", "Bearer " + session.getAccessToken())
 					.contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(Map.of(
 						"phone", "01099999999", "currentPassword", current, "newPassword", "new-password",
 						"passwordConfirm", "new-password"))))
@@ -581,7 +583,7 @@ class AuthIntegrationTests {
 				Map.of("phone", " "), Map.of("phone", "1".repeat(21)))) {
 			var body = new java.util.HashMap<>(invalid);
 			body.put("currentPassword", account.password());
-			mvc.perform(csrfPatch("/api/v1/users/me").header("Authorization", "Bearer " + session.getAccessToken())
+			mvc.perform(csrfPatch("/users/me").header("Authorization", "Bearer " + session.getAccessToken())
 					.contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(body)))
 				.andExpect(status().isBadRequest());
 		}
@@ -593,11 +595,11 @@ class AuthIntegrationTests {
 	@Test
 	@DisplayName("프로필 조회·수정에는 로그인이 필요하고 수정에는 CSRF도 필요하다")
 	void profileRequiresAuthenticationAndCsrf() throws Exception {
-		mvc.perform(get("/api/v1/users/me")).andExpect(status().isUnauthorized());
-		mvc.perform(csrfPatch("/api/v1/users/me").contentType(MediaType.APPLICATION_JSON).content("{}"))
+		mvc.perform(get("/users/me")).andExpect(status().isUnauthorized());
+		mvc.perform(csrfPatch("/users/me").contentType(MediaType.APPLICATION_JSON).content("{}"))
 			.andExpect(status().isUnauthorized());
 		AuthResult session = login(account(Role.USER, UserStatus.ACTIVE, true));
-		mvc.perform(patch("/api/v1/users/me").header("Authorization", "Bearer " + session.getAccessToken())
+		mvc.perform(patch("/users/me").header("Authorization", "Bearer " + session.getAccessToken())
 				.contentType(MediaType.APPLICATION_JSON).content("{\"phone\":\"01099999999\"}"))
 			.andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("CSRF_INVALID"));
 	}
@@ -628,6 +630,9 @@ class AuthIntegrationTests {
 		var data = mapper.readTree(result.getResponse().getContentAsString());
 		return post(path).cookie(result.getResponse().getCookie("BOGEUM_CSRF"))
 			.header(data.get("headerName").asText(), data.get("token").asText());
+	}
+	private String verifiedToken() {
+		return PhoneVerificationFixtures.verifiedToken(verifications, "01000000000");
 	}
 	private String refreshBody(String token) {
 		return mapper.writeValueAsString(Map.of("refreshToken", token));

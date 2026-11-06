@@ -24,6 +24,16 @@ public class UserException extends RuntimeException {
 		return new UserException(ErrorCode.INVALID_SIGNUP);
 	}
 
+	public static UserException invalidPhone() { return new UserException(ErrorCode.INVALID_PHONE); }
+	public static UserException smsNotConfigured() { return new UserException(ErrorCode.SMS_NOT_CONFIGURED); }
+	public static UserException smsSendFailed(Throwable cause) { return new UserException(ErrorCode.SMS_SEND_FAILED, cause); }
+	public static UserException smsRateLimited() { return new UserException(ErrorCode.SMS_RATE_LIMITED); }
+	public static UserException phoneVerificationInvalid() { return new UserException(ErrorCode.PHONE_VERIFICATION_INVALID); }
+	public static UserException phoneVerificationExpired() { return new UserException(ErrorCode.PHONE_VERIFICATION_EXPIRED); }
+	public static UserException phoneCodeMismatch() { return new UserException(ErrorCode.PHONE_CODE_MISMATCH); }
+	public static UserException phoneAttemptsExceeded() { return new UserException(ErrorCode.PHONE_ATTEMPTS_EXCEEDED); }
+	public static UserException phoneVerificationRequired() { return new UserException(ErrorCode.PHONE_VERIFICATION_REQUIRED); }
+
 	/** 기존 계정의 이메일을 재사용할 수 없다. */
 	public static UserException emailAlreadyExists() {
 		return new UserException(ErrorCode.EMAIL_ALREADY_EXISTS);

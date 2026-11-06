@@ -23,7 +23,7 @@ function AgentPendingPage() {
     setApprovalError('')
     try {
       await queryClient.cancelQueries({ queryKey: ['agent-profile', agent.userId] })
-      const { data } = await api.post('/v1/agents/me/demo-approval')
+      const { data } = await api.post('/api/v1/agents/me/demo-approval')
       const current = useAuthStore.getState().user
       if (current?.userId === data.userId) {
         queryClient.setQueryData(['agent-profile', data.userId], data)

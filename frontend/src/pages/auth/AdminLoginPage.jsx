@@ -1,7 +1,7 @@
 // [페이지] 관리자 로그인 — /admin/login
 // 누가: 관리자. 회원가입·소셜 로그인 없이 운영팀이 발급한 계정으로만 로그인한다
 // 요구사항: USER_001 (관리자 로그인)
-// API: POST /api/v1/auth/login (BE-001) — 일반 로그인과 같은 API. 응답의 role이 ADMIN이 아니면 막는다
+// API: POST /auth/login (BE-001) — 일반 로그인과 같은 API. 응답의 role이 ADMIN이 아니면 막는다
 import { useNavigate } from 'react-router'
 import Logo from '../../components/common/Logo.jsx'
 import { Field, TextInput } from '../../components/common/FormControls.jsx'

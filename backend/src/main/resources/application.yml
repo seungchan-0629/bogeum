@@ -25,3 +25,9 @@ as-image:
   max-dimension: ${AS_IMAGE_MAX_DIMENSION:2048}
   jpeg-quality: ${AS_IMAGE_JPEG_QUALITY:0.85}
   formats: ${AS_IMAGE_FORMATS:JPEG,PNG}
+
+solapi:
+  api-key: ${SOLAPI_API_KEY}
+  api-secret: ${SOLAPI_API_SECRET}
+  sender-number: ${SOLAPI_SENDER_NUMBER}
+

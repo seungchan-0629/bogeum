@@ -5,14 +5,17 @@ import com.bogeum.domain.openbanking.model.OpenBanking;
 import com.bogeum.domain.openbanking.model.OpenBankingDTO.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.util.UriComponentsBuilder;
 import tools.jackson.databind.JsonNode;
 
+import java.net.http.HttpClient;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -20,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.function.Function;
 
 /*
@@ -31,10 +35,30 @@ import java.util.function.Function;
 @RequiredArgsConstructor
 public class OpenBankingService
 {
+	private static final String REDIRECT_URI = "http://localhost:5173/mypage/openbanking/callback";
+
     private final OpenBankingRepository openBankingRepository;
     private final OpenBankingTransferRepository openBankingTransferRepository;
     private final StateStore stateStore;
-    private final RestClient restClient = RestClient.create("http://localhost:8090");
+	// 가상 금결원은 HTTP/1.1만 지원하므로 HTTP/2 업그레이드 협상을 하지 않는다.
+	private final RestClient restClient = RestClient.builder()
+		.baseUrl("http://localhost:8090")
+		.requestFactory(new JdkClientHttpRequestFactory(HttpClient.newBuilder()
+			.version(HttpClient.Version.HTTP_1_1).build()))
+		.build();
+
+	public String createAuthorizationUrl(Long userId) {
+		String state = UUID.randomUUID().toString().replace("-", "");
+		stateStore.save(state, userId);
+		return UriComponentsBuilder.fromUriString("http://localhost:8090/oauth/2.0/authorize")
+			.queryParam("response_type", "code")
+			.queryParam("client_id", "bogeum")
+			.queryParam("redirect_uri", REDIRECT_URI)
+			.queryParam("scope", "login inquiry transfer")
+			.queryParam("state", state)
+			.queryParam("auth_type", "0")
+			.build().encode().toUriString();
+	}
 
 
     //계좌 등록
@@ -50,7 +74,7 @@ public class OpenBankingService
         form.add("code", code);
         form.add("client_id", "bogeum");
         form.add("client_secret", "mock-secret");
-        form.add("redirect_uri", "http://localhost:8080/openbanking/callback");
+        form.add("redirect_uri", REDIRECT_URI);
 
         // 4. 인증 코드로 토큰 발급 요청
         JsonNode tokenJson = restClient.post()

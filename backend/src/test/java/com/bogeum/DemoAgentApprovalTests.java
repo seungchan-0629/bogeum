@@ -34,6 +34,7 @@ class DemoAgentApprovalTests {
 	@Autowired private AgentRepository repository;
 	@Autowired private UserService users;
 	@Autowired private JsonMapper mapper;
+	@Autowired private com.bogeum.domain.user.PhoneVerificationRepository verifications;
 
 	@Test
 	void approvesOnlySelfAndImmediatelyAllowsBusiness() throws Exception {
@@ -67,7 +68,8 @@ class DemoAgentApprovalTests {
 		mvc.perform(post(PATH).header("Authorization", "Bearer " + session.getAccessToken()))
 			.andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("CSRF_INVALID"));
 		mvc.perform(csrfPost()).andExpect(status().isUnauthorized());
-		var user = users.signup(UUID.randomUUID() + "@example.com", "password", "일반회원", "01000000000", true, true);
+		var user = users.signup(UUID.randomUUID() + "@example.com", "password", "일반회원", "01000000000", true, true,
+			PhoneVerificationFixtures.verifiedToken(verifications, "01000000000"));
 		var userSession = users.login(user.getEmail(), "password");
 		mvc.perform(csrfPost().header("Authorization", "Bearer " + userSession.getAccessToken())).andExpect(status().isForbidden());
 		assertThat(repository.findById(agent.getAgentProfileId()).orElseThrow().getApprovalStatus()).isEqualTo(ApprovalStatus.PENDING);
