@@ -4,13 +4,19 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -18,12 +24,13 @@ import com.bogeum.common.enums.AsStatus;
 import com.bogeum.common.exception.ErrorCode;
 import com.bogeum.domain.aftersales.model.AfterSalesDto;
 import com.bogeum.domain.aftersales.model.AfterSalesRequest;
+import com.bogeum.domain.aftersales.model.AfterSalesRequestImage;
 import com.bogeum.domain.contract.ContractRepository;
 import com.bogeum.domain.contract.model.Contract;
 import com.bogeum.domain.property.model.Property;
 import com.bogeum.domain.user.model.User;
 
-/** 계약·기간·저장소 분기를 DB 없이 확인한다. 실제 파일 저장과 DB 트랜잭션 검증은 포함하지 않는다. */
+/** 접수 규칙과 임대인 조회의 DTO·권한 분기를 DB 없이 확인한다. 실제 DB 조건은 통합 테스트에서 검증한다. */
 class AfterSalesServiceTest {
 	private final AfterSalesRepository requests = mock(AfterSalesRepository.class);
 	private final ContractRepository contracts = mock(ContractRepository.class);
@@ -128,6 +135,96 @@ class AfterSalesServiceTest {
 		TransactionSynchronizationManager.getSynchronizations().forEach(sync -> sync.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
 		verify(storage).delete(any());
 		verifyNoInteractions(images);
+	}
+
+	@Test
+	void readsOwnedRequestsWithPageAndSort() {
+		var request = receivedRequest();
+		var pageable = org.mockito.ArgumentCaptor.forClass(Pageable.class);
+		when(requests.findAllByProperty_Landlord_UserId(eq(7L), pageable.capture()))
+			.thenAnswer(call -> new PageImpl<>(List.of(request), call.getArgument(1), 6));
+
+		var response = service.readReceivedAfterSalesRequests(7L, 2);
+
+		assertEquals(1, pageable.getValue().getPageNumber());
+		assertEquals(5, pageable.getValue().getPageSize());
+		assertEquals(Sort.by(Sort.Direction.DESC, "createdAt", "asRequestId"), pageable.getValue().getSort());
+		assertEquals(2, response.getPage());
+		assertEquals(2, response.getTotalPages());
+		assertEquals(6, response.getTotalElements());
+		var item = response.getRequests().get(0);
+		assertEquals(10L, item.getAsRequestId());
+		assertEquals(3L, item.getPropertyId());
+		assertEquals("서울특별시 마포구 테스트로 1", item.getRoadAddress());
+		assertEquals("101호", item.getDetailAddress());
+		assertEquals("임차인", item.getTenantName());
+		assertEquals("누수 수리", item.getContent());
+		assertEquals(AsStatus.CHECKING, item.getAsStatus());
+		assertEquals(request.getCreatedAt(), item.getCreatedAt());
+		verifyNoInteractions(contracts, images, provider, processor, storage);
+	}
+
+	@ParameterizedTest
+	@ValueSource(ints = {0, -1})
+	void readsFirstPageWhenPageIsTooSmall(int page) {
+		when(requests.findAllByProperty_Landlord_UserId(eq(7L), any()))
+			.thenAnswer(call -> new PageImpl<>(List.of(), call.getArgument(1), 0));
+
+		var response = service.readReceivedAfterSalesRequests(7L, page);
+
+		assertEquals(1, response.getPage());
+		assertTrue(response.getRequests().isEmpty());
+		assertEquals(0, response.getTotalPages());
+		assertEquals(0, response.getTotalElements());
+	}
+
+	@Test
+	void readsDetailWithOnlyImageMetadataWithoutStorage() {
+		var request = receivedRequest();
+		when(requests.findByAsRequestIdAndProperty_Landlord_UserId(10L, 7L)).thenReturn(Optional.of(request));
+		when(images.findAllByAsRequest_AsRequestIdOrderByCreatedAtAscAsRequestImageIdAsc(10L)).thenReturn(List.of(
+			AfterSalesRequestImage.builder().asRequestImageId(20L).asRequest(request).fileKey("private/as/photo.jpg")
+				.createdAt(request.getCreatedAt()).build()));
+
+		var response = service.readAfterSalesRequest(7L, 10L);
+
+		assertEquals(10L, response.getAsRequestId());
+		assertEquals(3L, response.getPropertyId());
+		assertEquals("임차인", response.getTenantName());
+		assertEquals("누수 수리", response.getContent());
+		assertEquals(AsStatus.CHECKING, response.getAsStatus());
+		assertEquals(request.getUpdatedAt(), response.getUpdatedAt());
+		assertEquals(20L, response.getImages().get(0).getAsRequestImageId());
+		assertEquals(request.getCreatedAt(), response.getImages().get(0).getCreatedAt());
+		verifyNoInteractions(contracts, provider, processor, storage);
+	}
+
+	@Test
+	void readsDetailWithoutPhotos() {
+		when(requests.findByAsRequestIdAndProperty_Landlord_UserId(10L, 7L))
+			.thenReturn(Optional.of(receivedRequest()));
+		when(images.findAllByAsRequest_AsRequestIdOrderByCreatedAtAscAsRequestImageIdAsc(10L)).thenReturn(List.of());
+
+		assertTrue(service.readAfterSalesRequest(7L, 10L).getImages().isEmpty());
+		verifyNoInteractions(provider, processor, storage);
+	}
+
+	@Test
+	void rejectsUnavailableDetailBeforeReadingImages() {
+		when(requests.findByAsRequestIdAndProperty_Landlord_UserId(10L, 7L)).thenReturn(Optional.empty());
+
+		assertEquals(ErrorCode.AS_REQUEST_NOT_FOUND, assertThrows(AfterSalesException.class,
+			() -> service.readAfterSalesRequest(7L, 10L)).getErrorCode());
+		verify(requests, never()).findById(any());
+		verifyNoInteractions(images, contracts, provider, processor, storage);
+	}
+
+	private AfterSalesRequest receivedRequest() {
+		return AfterSalesRequest.builder().asRequestId(10L)
+			.property(Property.builder().propertyId(3L).landlord(User.builder().userId(7L).build())
+				.roadAddress("서울특별시 마포구 테스트로 1").detailAddress("101호").build())
+			.tenant(User.builder().userId(8L).name("임차인").build()).content("누수 수리").asStatus(AsStatus.CHECKING)
+			.createdAt(LocalDateTime.of(2026, 11, 6, 10, 0)).updatedAt(LocalDateTime.of(2026, 11, 6, 11, 0)).build();
 	}
 
 	private MockMultipartFile photo() {

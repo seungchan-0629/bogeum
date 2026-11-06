@@ -8,6 +8,8 @@ import java.util.List;
 import java.util.UUID;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -18,10 +20,13 @@ import com.bogeum.domain.aftersales.model.AfterSalesRequestImage;
 import com.bogeum.domain.contract.ContractRepository;
 import lombok.extern.slf4j.Slf4j;
 
-/** 계약 임차인·기간을 검증하고 AS 접수와 사진 저장 키를 같은 DB 트랜잭션으로 기록한다 (AS_001). */
+/** 계약 임차인의 접수와 매물 현 소유자의 조회 규칙을 처리한다 (AS_001, AS_002). */
 @Service
 @Slf4j
 public class AfterSalesService {
+	// 중개 신청 목록과 같은 페이지 크기를 사용한다 (AS_002).
+	private static final int PAGE_SIZE = 5;
+
 	private final AfterSalesRepository afterSalesRepository;
 	private final ContractRepository contractRepository;
 	private final AfterSalesRequestImageRepository imageRepository;
@@ -101,6 +106,28 @@ public class AfterSalesService {
 			}
 		}
 		return AfterSalesDto.CreateResponse.from(saved);
+	}
+
+	/** 본인 소유 매물의 접수를 최신순으로 조회한다. 페이지 번호는 1부터 시작한다 (AS_002). */
+	@Transactional(readOnly = true)
+	public AfterSalesDto.ListResponse readReceivedAfterSalesRequests(Long userId, int page) {
+		var pageable = PageRequest.of(Math.max(page, 1) - 1, PAGE_SIZE,
+			Sort.by(Sort.Direction.DESC, "createdAt", "asRequestId"));
+		return AfterSalesDto.ListResponse.from(
+			afterSalesRepository.findAllByProperty_Landlord_UserId(userId, pageable));
+	}
+
+	/**
+	 * 매물의 현 소유자에게만 상세를 제공하며, 타인 소유와 없는 접수는 동일하게 거절한다 (AS_002).
+	 * AS에는 계약 연결이 없어 접수 당시 계약상 임대인을 별도로 판정하지 않는다.
+	 */
+	@Transactional(readOnly = true)
+	public AfterSalesDto.DetailResponse readAfterSalesRequest(Long userId, Long asRequestId) {
+		var request = afterSalesRepository.findByAsRequestIdAndProperty_Landlord_UserId(asRequestId, userId)
+			.orElseThrow(AfterSalesException::requestNotFound);
+		// 권한을 확인한 뒤 DB 메타데이터만 읽는다. 파일 저장소나 URL 생성은 호출하지 않는다.
+		return AfterSalesDto.DetailResponse.from(request,
+			imageRepository.findAllByAsRequest_AsRequestIdOrderByCreatedAtAscAsRequestImageIdAsc(asRequestId));
 	}
 
 	/** 정리 실패는 로그로 남기고 다음 키를 계속 정리한다. 롤백 자체를 되돌리지는 않는다. */

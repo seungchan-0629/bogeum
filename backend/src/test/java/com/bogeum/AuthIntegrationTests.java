@@ -656,6 +656,8 @@ class AuthIntegrationTests {
 	private com.bogeum.domain.contract.ContractRepository asContracts;
 	@Autowired
 	private com.bogeum.domain.aftersales.AfterSalesRepository asRequests;
+	@Autowired
+	private com.bogeum.domain.aftersales.AfterSalesRequestImageRepository asImages;
 
 	@Test
 	@DisplayName("본인 계약의 시작·종료일에 사진 없이 접수하고 타인 요청은 저장하지 않는다")
@@ -702,6 +704,179 @@ class AuthIntegrationTests {
 			mvc.perform(asMultipart(body, true).header("Authorization", "Bearer " + user.getAccessToken()))
 				.andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
 		}
+	}
+
+	@Test
+	@DisplayName("임대인의 여러 매물 AS만 접수일·번호 역순으로 5개씩 조회한다")
+	void readsOwnedAfterSalesRequestsAcrossProperties() throws Exception {
+		var landlord = account(Role.USER, UserStatus.ACTIVE, true);
+		var other = account(Role.USER, UserStatus.ACTIVE, true);
+		var tenant = account(Role.USER, UserStatus.ACTIVE, true);
+		var first = readProperty(landlord.user(), "서울특별시 마포구 첫째로 1");
+		var second = readProperty(landlord.user(), "서울특별시 마포구 둘째로 2");
+		var foreign = readProperty(other.user(), "서울특별시 마포구 타인로 3");
+		var createdAt = java.time.LocalDateTime.of(2026, 11, 1, 10, 0);
+		var ids = new java.util.ArrayList<Long>();
+		for (int i = 0; i < 7; i++) {
+			// 가장 큰 ID를 가장 오래된 접수로 만들어 접수일 우선 정렬과 동률 정렬을 함께 검증한다.
+			ids.add(readRequest(i % 2 == 0 ? first : second, tenant.user(), "수리 요청 " + i,
+				i == 6 ? createdAt.minusDays(1) : createdAt).getAsRequestId());
+		}
+		readRequest(foreign, tenant.user(), "타인 매물 요청", createdAt.plusDays(1));
+		var token = login(landlord).getAccessToken();
+		var result = mvc.perform(get("/as-requests/received").param("landlordId", other.user().getUserId().toString())
+			.header("Authorization", "Bearer " + token)).andExpect(status().isOk())
+			.andExpect(jsonPath("$.requests.length()").value(5)).andExpect(jsonPath("$.page").value(1))
+			.andExpect(jsonPath("$.totalPages").value(2)).andExpect(jsonPath("$.totalElements").value(7))
+			.andExpect(jsonPath("$.requests[0].asRequestId").value(ids.get(5).intValue()))
+			.andExpect(jsonPath("$.requests[1].asRequestId").value(ids.get(4).intValue()))
+			.andExpect(jsonPath("$.requests[2].asRequestId").value(ids.get(3).intValue()))
+			.andExpect(jsonPath("$.requests[3].asRequestId").value(ids.get(2).intValue()))
+			.andExpect(jsonPath("$.requests[4].asRequestId").value(ids.get(1).intValue()))
+			.andExpect(jsonPath("$.requests[0].propertyId").value(second.getPropertyId().intValue()))
+			.andExpect(jsonPath("$.requests[1].propertyId").value(first.getPropertyId().intValue()))
+			.andExpect(jsonPath("$.requests[0].tenantName").value(tenant.user().getName()))
+			.andExpect(jsonPath("$..email").doesNotExist()).andExpect(jsonPath("$..phone").doesNotExist())
+			.andExpect(jsonPath("$..passwordHash").doesNotExist()).andReturn();
+		assertThat(result.getResponse().getContentAsString()).doesNotContain("passwordHash", "email", "phone", "fileKey");
+		mvc.perform(get("/as-requests/received").param("page", "2").header("Authorization", "Bearer " + token))
+			.andExpect(status().isOk()).andExpect(jsonPath("$.page").value(2))
+			.andExpect(jsonPath("$.requests.length()").value(2))
+			.andExpect(jsonPath("$.requests[0].asRequestId").value(ids.get(0).intValue()))
+			.andExpect(jsonPath("$.requests[1].asRequestId").value(ids.get(6).intValue()));
+		mvc.perform(get("/as-requests/received").param("page", "3").header("Authorization", "Bearer " + token))
+			.andExpect(status().isOk()).andExpect(jsonPath("$.requests").isEmpty())
+			.andExpect(jsonPath("$.page").value(3)).andExpect(jsonPath("$.totalElements").value(7));
+	}
+
+	@Test
+	@DisplayName("소유 매물의 AS가 없으면 빈 목록이며 1 미만 페이지는 첫 페이지다")
+	void readsEmptyAfterSalesList() throws Exception {
+		var landlord = account(Role.USER, UserStatus.ACTIVE, true);
+		readProperty(landlord.user(), "서울특별시 마포구 빈매물로 1");
+		var token = login(landlord).getAccessToken();
+		for (String page : java.util.List.of("0", "-1", "1")) {
+			mvc.perform(get("/as-requests/received").param("page", page).header("Authorization", "Bearer " + token))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.requests").isEmpty())
+				.andExpect(jsonPath("$.page").value(1)).andExpect(jsonPath("$.totalPages").value(0))
+				.andExpect(jsonPath("$.totalElements").value(0));
+		}
+	}
+
+	@Test
+	@DisplayName("저장소 없이 AS 상세와 해당 접수의 사진 ID·등록일만 반환한다")
+	void readsAfterSalesDetailWithImageMetadata() throws Exception {
+		var landlord = account(Role.USER, UserStatus.ACTIVE, true);
+		var tenant = account(Role.USER, UserStatus.ACTIVE, true);
+		var property = readProperty(landlord.user(), "서울특별시 마포구 상세로 1");
+		var createdAt = java.time.LocalDateTime.of(2026, 11, 1, 10, 0);
+		var request = readRequest(property, tenant.user(), "누수 점검", createdAt);
+		var another = readRequest(property, tenant.user(), "별도 접수", createdAt);
+		var first = asImages.save(com.bogeum.domain.aftersales.model.AfterSalesRequestImage.builder()
+			.asRequest(request).fileKey("private/as/first.jpg").build());
+		var second = asImages.save(com.bogeum.domain.aftersales.model.AfterSalesRequestImage.builder()
+			.asRequest(request).fileKey("private/as/second.jpg").build());
+		asImages.save(com.bogeum.domain.aftersales.model.AfterSalesRequestImage.builder()
+			.asRequest(another).fileKey("private/as/another.jpg").build());
+		// 등록 시각이 같을 때도 사진 번호 오름차순을 유지한다.
+		jdbc.update("update as_request_image set created_at = ? where as_request_id = ?", createdAt, request.getAsRequestId());
+		var result = mvc.perform(get("/as-requests/" + request.getAsRequestId())
+			.header("Authorization", "Bearer " + login(landlord).getAccessToken())).andExpect(status().isOk())
+			.andExpect(jsonPath("$.asRequestId").value(request.getAsRequestId().intValue()))
+			.andExpect(jsonPath("$.propertyId").value(property.getPropertyId().intValue()))
+			.andExpect(jsonPath("$.roadAddress").value(property.getRoadAddress()))
+			.andExpect(jsonPath("$.detailAddress").value("101호"))
+			.andExpect(jsonPath("$.tenantName").value(tenant.user().getName()))
+			.andExpect(jsonPath("$.content").value("누수 점검")).andExpect(jsonPath("$.asStatus").value("RECEIVED"))
+			.andExpect(jsonPath("$.createdAt").value("2026-11-01T10:00:00")).andExpect(jsonPath("$.updatedAt").isNotEmpty())
+			.andExpect(jsonPath("$.images.length()").value(2))
+			.andExpect(jsonPath("$.images[0].asRequestImageId").value(first.getAsRequestImageId().intValue()))
+			.andExpect(jsonPath("$.images[1].asRequestImageId").value(second.getAsRequestImageId().intValue()))
+			.andExpect(jsonPath("$.images[0].createdAt").value("2026-11-01T10:00:00"))
+			.andExpect(jsonPath("$..fileKey").doesNotExist()).andExpect(jsonPath("$..url").doesNotExist())
+			.andExpect(jsonPath("$..email").doesNotExist()).andExpect(jsonPath("$..phone").doesNotExist())
+			.andExpect(jsonPath("$..passwordHash").doesNotExist()).andReturn();
+		assertThat(result.getResponse().getContentAsString()).doesNotContain("private/as/", "passwordHash", "email", "phone");
+	}
+
+	@Test
+	@DisplayName("사진이 없는 AS 상세는 images 빈 배열을 반환한다")
+	void readsAfterSalesDetailWithoutPhotos() throws Exception {
+		var landlord = account(Role.USER, UserStatus.ACTIVE, true);
+		var tenant = account(Role.USER, UserStatus.ACTIVE, true);
+		var request = readRequest(readProperty(landlord.user(), "서울특별시 마포구 무사진로 1"), tenant.user(),
+			"사진 없는 접수", java.time.LocalDateTime.of(2025, 1, 1, 10, 0));
+
+		mvc.perform(get("/as-requests/" + request.getAsRequestId())
+			.header("Authorization", "Bearer " + login(landlord).getAccessToken())).andExpect(status().isOk())
+			.andExpect(jsonPath("$.images").isArray()).andExpect(jsonPath("$.images").isEmpty());
+	}
+
+	@Test
+	@DisplayName("타인 소유·본인이 작성한 타인 매물 AS와 없는 AS는 같은 404다")
+	void hidesForeignAndMissingAfterSalesRequests() throws Exception {
+		var landlord = account(Role.USER, UserStatus.ACTIVE, true);
+		var tenant = account(Role.USER, UserStatus.ACTIVE, true);
+		var request = readRequest(readProperty(landlord.user(), "서울특별시 마포구 권한로 1"), tenant.user(),
+			"비공개 접수", java.time.LocalDateTime.now());
+		var token = login(tenant).getAccessToken();
+		var foreign = mvc.perform(get("/as-requests/" + request.getAsRequestId())
+			.header("Authorization", "Bearer " + token)).andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.code").value("AS_REQUEST_NOT_FOUND")).andReturn();
+		var missing = mvc.perform(get("/as-requests/" + Long.MAX_VALUE)
+			.header("Authorization", "Bearer " + token)).andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.code").value("AS_REQUEST_NOT_FOUND")).andReturn();
+		assertThat(foreign.getResponse().getContentAsString()).isEqualTo(missing.getResponse().getContentAsString());
+	}
+
+	@Test
+	@DisplayName("AS 조회는 계약상 과거 임대인이 아닌 매물의 현 소유자를 기준으로 한다")
+	void readsAfterSalesByCurrentPropertyOwner() throws Exception {
+		var former = account(Role.USER, UserStatus.ACTIVE, true);
+		var current = account(Role.USER, UserStatus.ACTIVE, true);
+		var tenant = account(Role.USER, UserStatus.ACTIVE, true);
+		var agent = account(Role.AGENT, UserStatus.ACTIVE, true);
+		var property = readProperty(former.user(), "서울특별시 마포구 소유로 1");
+		var past = java.time.LocalDateTime.of(2025, 1, 1, 10, 0);
+		asContracts.save(com.bogeum.domain.contract.model.Contract.builder().property(property)
+			.landlord(former.user()).tenant(tenant.user()).agent(agent.user())
+			.leaseType(com.bogeum.common.enums.LeaseType.JEONSE).deposit(java.math.BigDecimal.TEN)
+			.startAt(past).endAt(past.plusMonths(1)).build());
+		var request = readRequest(property, tenant.user(), "과거 접수", past);
+		// 소유권 이전 API를 구현하는 대신 테스트 데이터에서 현 소유자와 계약상 임대인을 구분한다.
+		jdbc.update("update property set landlord_id = ? where property_id = ?", current.user().getUserId(), property.getPropertyId());
+		mvc.perform(get("/as-requests/" + request.getAsRequestId())
+			.header("Authorization", "Bearer " + login(former).getAccessToken())).andExpect(status().isNotFound());
+		mvc.perform(get("/as-requests/" + request.getAsRequestId())
+			.header("Authorization", "Bearer " + login(current).getAccessToken())).andExpect(status().isOk());
+	}
+
+	@Test
+	@DisplayName("AS 목록·상세는 JWT와 USER 역할이 필요하며 GET에는 CSRF가 필요 없다")
+	void afterSalesReadsRequireAuthenticationAndUserRole() throws Exception {
+		for (String path : java.util.List.of("/as-requests/received", "/as-requests/1")) {
+			mvc.perform(get(path)).andExpect(status().isUnauthorized());
+			mvc.perform(get(path).header("Authorization", "Bearer invalid")).andExpect(status().isUnauthorized());
+			for (Role role : java.util.List.of(Role.AGENT, Role.ADMIN)) {
+				mvc.perform(get(path).header("Authorization", "Bearer " + login(account(role, UserStatus.ACTIVE, true)).getAccessToken()))
+					.andExpect(status().isForbidden());
+			}
+		}
+	}
+
+	private com.bogeum.domain.property.model.Property readProperty(User landlord, String roadAddress) {
+		return asProperties.save(com.bogeum.domain.property.model.Property.builder().landlord(landlord)
+			.leaseType(com.bogeum.common.enums.LeaseType.JEONSE).deposit(java.math.BigDecimal.TEN)
+			.roadAddress(roadAddress).detailAddress("101호").build());
+	}
+
+	private com.bogeum.domain.aftersales.model.AfterSalesRequest readRequest(
+			com.bogeum.domain.property.model.Property property, User tenant, String content, java.time.LocalDateTime createdAt) {
+		var request = asRequests.save(com.bogeum.domain.aftersales.model.AfterSalesRequest.builder()
+			.property(property).tenant(tenant).content(content).build());
+		// CreationTimestamp 대신 명시한 시각으로 정렬을 재현한다. 운영 엔티티·스키마는 변경하지 않는다.
+		jdbc.update("update as_request set created_at = ? where as_request_id = ?", createdAt, request.getAsRequestId());
+		return request;
 	}
 
 	private org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder asMultipart(String body,

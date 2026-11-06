@@ -4,8 +4,11 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.multipart.MultipartFile;
 import com.bogeum.domain.aftersales.model.AfterSalesDto;
@@ -14,7 +17,7 @@ import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
 
-/** 계약 임차인의 AS 최초 접수 요청을 서비스로 전달한다 (AS_001). */
+/** 인증된 사용자의 AS 접수와 임대인 조회 요청을 서비스로 전달한다 (AS_001, AS_002). */
 @RestController
 @RequiredArgsConstructor
 public class AfterSalesController {
@@ -29,5 +32,19 @@ public class AfterSalesController {
 			@Valid @RequestPart("request") AfterSalesDto.CreateRequest request,
 			@RequestPart(value = "images", required = false) List<MultipartFile> images) {
 		return afterSalesService.createAfterSalesRequest(loginUser.getUserId(), request, images);
+	}
+
+	// 임대인 ID는 요청에서 받지 않고 JWT 인증 정보에서 가져온다 (AS_002).
+	@GetMapping("/as-requests/received")
+	public AfterSalesDto.ListResponse readReceivedAfterSalesRequests(@AuthenticationPrincipal LoginUser loginUser,
+			@RequestParam(value = "page", defaultValue = "1") int page) {
+		return afterSalesService.readReceivedAfterSalesRequests(loginUser.getUserId(), page);
+	}
+
+	// 상세도 목록과 같은 소유 조건을 적용하며, 사진은 저장된 메타데이터만 반환한다 (AS_002).
+	@GetMapping("/as-requests/{asRequestId}")
+	public AfterSalesDto.DetailResponse readAfterSalesRequest(@AuthenticationPrincipal LoginUser loginUser,
+			@PathVariable("asRequestId") Long asRequestId) {
+		return afterSalesService.readAfterSalesRequest(loginUser.getUserId(), asRequestId);
 	}
 }
