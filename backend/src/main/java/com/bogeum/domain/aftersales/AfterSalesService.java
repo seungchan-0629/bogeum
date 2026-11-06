@@ -147,6 +147,15 @@ public class AfterSalesService {
 			commentRepository.findAllByAsRequest_AsRequestIdOrderByCreatedAtAscAsCommentIdAsc(asRequestId));
 	}
 
+	/** 상태만 변경하며 기존 댓글은 보존한다. JPA 변경 감지로 저장하고 완료 재요청은 멱등 처리한다 (AS_003). */
+	@Transactional
+	public AfterSalesDto.StatusUpdateResponse updateAfterSalesStatus(Long userId, Long asRequestId,
+			AfterSalesDto.StatusUpdateRequest request) {
+		var asRequest = findOwnedRequestForUpdate(userId, asRequestId);
+		asRequest.changeStatus(request.getAsStatus());
+		return AfterSalesDto.StatusUpdateResponse.from(asRequest);
+	}
+
 	/** 소유자 조건과 행 잠금을 댓글·상태 변경에서 함께 사용한다. 타인 접수의 존재 여부도 숨긴다. */
 	private AfterSalesRequest findOwnedRequestForUpdate(Long userId, Long asRequestId) {
 		return afterSalesRepository.findForUpdateByAsRequestIdAndProperty_Landlord_UserId(asRequestId, userId)

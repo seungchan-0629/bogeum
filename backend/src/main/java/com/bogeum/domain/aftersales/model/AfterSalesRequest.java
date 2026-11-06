@@ -76,5 +76,12 @@ public class AfterSalesRequest {
 		}
 	}
 
-
+	/** 완료 전에는 자유롭게 변경하되 완료 상태는 재개하지 않는다. 같은 상태 재요청은 변경 없이 성공한다. */
+	public void changeStatus(AsStatus nextStatus) {
+		if (asStatus == nextStatus) {
+			return;
+		}
+		validateNotCompleted();
+		asStatus = nextStatus;
+	}
 }

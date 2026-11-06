@@ -6,6 +6,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -57,5 +58,10 @@ public class AfterSalesController {
 		return afterSalesService.readAfterSalesRequest(loginUser.getUserId(), asRequestId);
 	}
 
-
+	/** 상태만 변경하며 소유자 검증·완료 후 제한은 서비스와 엔티티에서 처리한다 (AS_003). */
+	@PatchMapping(value = "/as-requests/{asRequestId}/status", consumes = "application/json")
+	public AfterSalesDto.StatusUpdateResponse updateAfterSalesStatus(@AuthenticationPrincipal LoginUser loginUser,
+			@PathVariable("asRequestId") Long asRequestId, @Valid @RequestBody AfterSalesDto.StatusUpdateRequest request) {
+		return afterSalesService.updateAfterSalesStatus(loginUser.getUserId(), asRequestId, request);
+	}
 }
