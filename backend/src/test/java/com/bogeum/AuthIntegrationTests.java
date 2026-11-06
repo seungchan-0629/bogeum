@@ -53,6 +53,8 @@ class AuthIntegrationTests {
 	private com.bogeum.domain.agent.AgentRepository agents;
 	@Autowired
 	private org.springframework.jdbc.core.JdbcTemplate jdbc;
+	@Autowired
+	private com.bogeum.domain.user.PhoneVerificationRepository verifications;
 	private final MockMvc mvc;
 	private final UserRepository users;
 	private final PasswordEncoder encoder;
@@ -78,7 +80,7 @@ class AuthIntegrationTests {
 		String password = UUID.randomUUID().toString();
 		mvc.perform(csrfPost("/auth/signup/user").contentType(MediaType.APPLICATION_JSON)
 			.content(mapper.writeValueAsString(Map.of("email", email, "password", password,
-				"name", "학습자", "phone", "01000000000", "agreements",
+				"name", "학습자", "phone", "01000000000", "verificationToken", verifiedToken(), "agreements",
 				Map.of("privacyCollect", true, "thirdPartyProvide", true)))))
 			.andExpect(status().isCreated()).andExpect(jsonPath("$.userId").isNumber())
 			.andExpect(jsonPath("$.passwordHash").doesNotExist());
@@ -92,7 +94,7 @@ class AuthIntegrationTests {
 	void rejectsMissingAgreement() throws Exception {
 		mvc.perform(csrfPost("/auth/signup/user").contentType(MediaType.APPLICATION_JSON)
 			.content(mapper.writeValueAsString(Map.of("email", "no-consent@example.com", "password", UUID.randomUUID().toString(),
-				"name", "학습자", "phone", "01000000000", "agreements",
+				"name", "학습자", "phone", "01000000000", "verificationToken", verifiedToken(), "agreements",
 				Map.of("privacyCollect", false, "thirdPartyProvide", true)))))
 			.andExpect(status().isBadRequest());
 		assertThat(users.findByEmail("no-consent@example.com")).isEmpty();
@@ -171,7 +173,7 @@ class AuthIntegrationTests {
 			mvc.perform(csrfPost("/auth/signup/user").header("Authorization", authorization)
 				.contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(Map.of(
 					"email", email, "password", password, "name", "학습자", "phone", "01000000000",
-					"agreements", Map.of("privacyCollect", true, "thirdPartyProvide", true)))))
+					"verificationToken", verifiedToken(), "agreements", Map.of("privacyCollect", true, "thirdPartyProvide", true)))))
 				.andExpect(status().isCreated());
 			MvcResult loggedIn = mvc.perform(csrfPost("/auth/login").header("Authorization", authorization)
 				.contentType(MediaType.APPLICATION_JSON)
@@ -447,7 +449,7 @@ class AuthIntegrationTests {
 		}
 		Account agent = agentAccount();
 		mvc.perform(csrfPost("/auth/signup/user").contentType(MediaType.APPLICATION_JSON)
-			.content(mapper.writeValueAsString(Map.of("email", agent.user().getEmail(), "password", "password", "name", "회원", "phone", "01000000000", "agreements", Map.of("privacyCollect", true, "thirdPartyProvide", true)))))
+			.content(mapper.writeValueAsString(Map.of("email", agent.user().getEmail(), "password", "password", "name", "회원", "phone", "01000000000", "verificationToken", verifiedToken(), "agreements", Map.of("privacyCollect", true, "thirdPartyProvide", true)))))
 			.andExpect(status().isConflict());
 	}
 
@@ -628,6 +630,9 @@ class AuthIntegrationTests {
 		var data = mapper.readTree(result.getResponse().getContentAsString());
 		return post(path).cookie(result.getResponse().getCookie("BOGEUM_CSRF"))
 			.header(data.get("headerName").asText(), data.get("token").asText());
+	}
+	private String verifiedToken() {
+		return PhoneVerificationFixtures.verifiedToken(verifications, "01000000000");
 	}
 	private String refreshBody(String token) {
 		return mapper.writeValueAsString(Map.of("refreshToken", token));

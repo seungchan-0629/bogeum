@@ -44,6 +44,8 @@ class OpenBankingAccountIntegrationTest {
 	private final UserRepository userRepository;
 	private final OpenBankingRepository openBankingRepository;
 	private final JwtUtil jwtUtil;
+	@Autowired
+	private com.bogeum.domain.user.PhoneVerificationRepository verifications;
 
 	@Autowired
 	OpenBankingAccountIntegrationTest(MockMvc mockMvc, UserRepository userRepository,
@@ -113,8 +115,8 @@ class OpenBankingAccountIntegrationTest {
 		mockMvc.perform(post("/auth/signup/user").cookie(csrfCookie).header(headerName, csrfToken)
 			.contentType(MediaType.APPLICATION_JSON).content("""
 				{"email":"%s","password":"test-password","name":"계좌 사용자","phone":"01012345678",
-				 "agreements":{"privacyCollect":true,"thirdPartyProvide":true}}
-				""".formatted(email)))
+				 "verificationToken":"%s","agreements":{"privacyCollect":true,"thirdPartyProvide":true}}
+				""".formatted(email, com.bogeum.PhoneVerificationFixtures.verifiedToken(verifications, "01012345678"))))
 			.andExpect(status().isCreated());
 		createAccount(userRepository.findByEmail(email).orElseThrow(), "국민은행", "123-****-5678");
 

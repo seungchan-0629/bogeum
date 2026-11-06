@@ -2,8 +2,16 @@ package com.bogeum.domain.user;
 
 import com.bogeum.common.enums.Role;
 import com.bogeum.common.enums.UserStatus;
+import com.bogeum.config.SolapiProperties;
+import com.bogeum.domain.user.model.PhoneVerification;
+import com.solapi.sdk.message.model.Message;
+import com.solapi.sdk.message.service.DefaultMessageService;
 import io.jsonwebtoken.Claims;
+import java.security.SecureRandom;
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.Locale;
 import java.util.UUID;
 import com.bogeum.utils.JwtUtil;
 import com.bogeum.domain.user.model.User;
@@ -31,15 +39,19 @@ import com.bogeum.domain.user.model.UserDto.AuthResult;
 @Validated
 @RequiredArgsConstructor
 public class UserService implements UserDetailsService {
+	private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 	private final PasswordEncoder passwordEncoder;
 	// 인증 관리자가 이 서비스를 사용자 조회에 사용하므로 로그인 시점에 가져온다.
 	private final ObjectProvider<AuthenticationManager> authenticationManagerProvider;
 	private final UserRepository userRepository;
 	private final JwtUtil jwtUtil;
+	private final PhoneVerificationRepository phoneVerificationRepository;
+	private final DefaultMessageService messageService;
+	private final SolapiProperties solapiProperties;
 
 	/**
 	 * 일반 사용자의 계정과 필수 동의를 함께 저장한다.
-	 * 이름·전화번호는 사용자가 입력한 정보이며 본인 인증 완료 시각은 채우지 않는다.
+	 * 같은 전화번호의 인증 토큰을 확인하고 가입과 함께 한 번만 사용 처리한다.
 	 *
 	 * @return 저장된 사용자. 비밀번호 해시가 있으므로 HTTP 응답으로 직접 반환하지 않는다.
 	 * @throws UserException 가입 조건을 충족하지 않거나 저장이 충돌한 경우
@@ -48,8 +60,63 @@ public class UserService implements UserDetailsService {
 	public User signup(@NotBlank @Email @Size(max = 255) String email,
 			@NotBlank String password, @NotBlank @Size(max = 50) String name,
 			@NotBlank @Size(max = 20) String phone,
-			boolean hasPrivacyConsent, boolean hasThirdPartyConsent) {
-		return createAccount(email, password, name, phone, hasPrivacyConsent, hasThirdPartyConsent, Role.USER);
+			boolean hasPrivacyConsent, boolean hasThirdPartyConsent, String verificationToken) {
+		String normalizedPhone = normalizePhone(phone);
+		if (verificationToken == null || verificationToken.isBlank()) {
+			throw UserException.phoneVerificationRequired();
+		}
+		PhoneVerification verification = phoneVerificationRepository.findByVerificationToken(verificationToken)
+			.orElseThrow(UserException::phoneVerificationRequired);
+		Instant now = Instant.now();
+		if (!verification.getPhone().equals(normalizedPhone) || verification.getVerifiedAt() == null
+				|| verification.getConsumedAt() != null || !now.isBefore(verification.getTokenExpiresAt())) {
+			throw UserException.phoneVerificationRequired();
+		}
+		User user = createAccount(email, password, name, normalizedPhone, hasPrivacyConsent, hasThirdPartyConsent, Role.USER);
+		user.verifyIdentity(LocalDateTime.ofInstant(verification.getVerifiedAt(), ZoneId.systemDefault()));
+		verification.consume(now);
+		return user;
+	}
+
+	/** 번호별 발송 제한을 확인하고 인증번호의 해시를 저장한 뒤 SOLAPI로 발송한다. */
+	@Transactional
+	public PhoneVerification requestIdentityVerification(String phone) {
+		String normalizedPhone = normalizePhone(phone);
+		if (!solapiProperties.isConfigured()) {
+			throw UserException.smsNotConfigured();
+		}
+		PhoneVerification verification = phoneVerificationRepository.findByPhone(normalizedPhone).orElse(null);
+		Instant now = Instant.now();
+		if (verification == null) {
+			try {
+				verification = phoneVerificationRepository.saveAndFlush(new PhoneVerification(normalizedPhone));
+			} catch (DataIntegrityViolationException exception) {
+				// 같은 번호로 처음 요청한 두 호출이 동시에 발송되는 것을 막는다.
+				throw UserException.smsRateLimited();
+			}
+		}
+		if (verification.getSentAt() != null && now.isBefore(verification.getSentAt().plusSeconds(60))
+				|| verification.getSendWindowStartedAt() != null
+				&& now.isBefore(verification.getSendWindowStartedAt().plusSeconds(3600))
+				&& verification.getSendCount() >= 5) {
+			throw UserException.smsRateLimited();
+		}
+		String code = String.format(Locale.ROOT, "%06d", SECURE_RANDOM.nextInt(1_000_000));
+		verification.issueCode(UUID.randomUUID().toString(), passwordEncoder.encode(code), now, now.plusSeconds(180));
+		Message message = new Message();
+		message.setFrom(solapiProperties.senderNumber());
+		message.setTo(normalizedPhone);
+		message.setText("[보금] 인증번호 [" + code + "]를 3분 안에 입력해 주세요.");
+		try {
+			var response = messageService.send(message);
+			if (response == null || !response.getFailedMessageList().isEmpty()) {
+				throw new IllegalStateException("인증 문자 발송이 접수되지 않았습니다.");
+			}
+		} catch (Exception exception) {
+			// 발송이 실패하면 새 인증번호와 발송 제한 변경도 함께 롤백한다.
+			throw UserException.smsSendFailed(exception);
+		}
+		return verification;
 	}
 
 	/** AgentService의 가입 트랜잭션에 참여하며 계정 역할은 서버에서 지정한다. */
@@ -135,6 +202,40 @@ public class UserService implements UserDetailsService {
 			throw UserException.required();
 		}
 		return user;
+	}
+
+	/** 오입력 횟수는 실패 응답에도 커밋하여 반복 추측을 제한한다. */
+	@Transactional(noRollbackFor = UserException.class)
+	public PhoneVerification confirmIdentityVerification(String verificationId, String code) {
+		PhoneVerification verification = phoneVerificationRepository.findByVerificationId(verificationId)
+			.orElseThrow(UserException::phoneVerificationInvalid);
+		Instant now = Instant.now();
+		if (verification.getVerifiedAt() != null || verification.getConsumedAt() != null) {
+			throw UserException.phoneVerificationInvalid();
+		}
+		if (!now.isBefore(verification.getExpiresAt())) {
+			throw UserException.phoneVerificationExpired();
+		}
+		if (verification.getFailedAttempts() >= 5) {
+			throw UserException.phoneAttemptsExceeded();
+		}
+		if (code == null || !code.matches("\\d{6}") || !passwordEncoder.matches(code, verification.getCodeHash())) {
+			verification.recordFailure();
+			if (verification.getFailedAttempts() >= 5) {
+				throw UserException.phoneAttemptsExceeded();
+			}
+			throw UserException.phoneCodeMismatch();
+		}
+		verification.verify(UUID.randomUUID().toString(), now, now.plusSeconds(600));
+		return verification;
+	}
+
+	private String normalizePhone(String phone) {
+		String normalizedPhone = phone == null ? "" : phone.replaceAll("[\\s-]", "");
+		if (!normalizedPhone.matches("010\\d{8}")) {
+			throw UserException.invalidPhone();
+		}
+		return normalizedPhone;
 	}
 
 	/** 현재 비밀번호를 확인한 뒤 새 해시를 저장한다. 빈 새 비밀번호는 기존 값을 유지한다. */

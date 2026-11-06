@@ -39,7 +39,23 @@ public class UserController {
 	public UserDto.SignupResponse signup(@Valid @RequestBody UserDto.SignupRequest request) {
 		return UserDto.SignupResponse.from(userService.signup(
 			request.getEmail(), request.getPassword(), request.getName(), request.getPhone(),
-			request.getAgreements().getPrivacyCollect(), request.getAgreements().getThirdPartyProvide()));
+			request.getAgreements().getPrivacyCollect(), request.getAgreements().getThirdPartyProvide(),
+			request.getVerificationToken()));
+	}
+
+	/** 가입 전에 휴대폰 인증번호를 발송한다. */
+	@PostMapping("/identity-verification")
+	public UserDto.IdentityVerificationRes requestIdentityVerification(
+			@Valid @RequestBody UserDto.IdentityVerificationReq request) {
+		return UserDto.IdentityVerificationRes.from(userService.requestIdentityVerification(request.getPhone()));
+	}
+
+	/** 인증번호를 확인하고 회원가입용 토큰을 발급한다. */
+	@PostMapping("/identity-verification/confirm")
+	public UserDto.IdentityVerificationConfirmRes confirmIdentityVerification(
+			@Valid @RequestBody UserDto.IdentityVerificationConfirmReq request) {
+		return UserDto.IdentityVerificationConfirmRes.from(
+			userService.confirmIdentityVerification(request.getVerificationId(), request.getCode()));
 	}
 
 
