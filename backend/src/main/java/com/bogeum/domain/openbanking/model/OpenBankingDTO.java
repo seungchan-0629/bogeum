@@ -12,6 +12,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
+import java.time.LocalDateTime;
 
 public class OpenBankingDTO
 {
@@ -298,4 +299,20 @@ public class OpenBankingDTO
         private String scope;         // "oob"
         private String clientUseCode; // 이용기관코드
     }
+
+	// 관리자 코드
+	/** 관리자 화면용 응답. 토큰 원문은 전달하지 않는다. */
+	public record InstitutionTokenResponse(boolean issued, boolean usable, String clientUseCode,
+			String maskedToken, LocalDateTime issuedAt, LocalDateTime expiresAt) {
+
+		public static InstitutionTokenResponse from(InstitutionToken token) {
+			if (token == null) {
+				return new InstitutionTokenResponse(false, false, null, null, null, null);
+			}
+			String raw = token.getAccessToken();
+			String masked = raw.length() > 8 ? raw.substring(0, 4) + "••••••••" + raw.substring(raw.length() - 4) : "••••••••";
+			return new InstitutionTokenResponse(true, token.isUsable(), token.getClientUseCode(),
+				masked, token.getIssuedAt(), token.getExpiresAt());
+		}
+	}
 }
