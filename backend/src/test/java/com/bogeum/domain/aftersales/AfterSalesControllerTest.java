@@ -2,6 +2,8 @@ package com.bogeum.domain.aftersales;
 
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import java.time.LocalDateTime;
@@ -11,6 +13,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
+import java.util.stream.Stream;
+import org.springframework.http.MediaType;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -28,6 +34,7 @@ import com.bogeum.common.enums.Role;
 import com.bogeum.domain.aftersales.model.AfterSalesDto;
 import com.bogeum.domain.aftersales.model.AfterSalesRequest;
 import com.bogeum.domain.aftersales.model.AfterSalesRequestImage;
+import com.bogeum.domain.aftersales.model.AfterSalesComment;
 import com.bogeum.domain.property.model.Property;
 import com.bogeum.domain.user.model.User;
 import com.bogeum.domain.user.model.UserDto.LoginUser;
@@ -136,6 +143,101 @@ class AfterSalesControllerTest {
 	void rejectsInvalidReadArguments(String path) throws Exception {
 		mvc.perform(get(path)).andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+		verifyNoInteractions(service);
+	}
+
+	@Test
+	void createsCommentUsingAuthenticatedUser() throws Exception {
+		var now = LocalDateTime.of(2026, 11, 6, 10, 0);
+		when(service.createAfterSalesComment(eq(7L), eq(10L), any())).thenReturn(AfterSalesDto.CommentResponse.builder()
+			.asCommentId(30L).asRequestId(10L).authorName("임대인").content("기사 방문 예정").createdAt(now).build());
+
+		mvc.perform(post("/as-requests/10/comments").contentType(MediaType.APPLICATION_JSON)
+			.content("{\"content\":\"기사 방문 예정\",\"authorId\":999,\"landlordId\":999}"))
+			.andExpect(status().isCreated()).andExpect(jsonPath("$.asCommentId").value(30))
+			.andExpect(jsonPath("$.asRequestId").value(10)).andExpect(jsonPath("$.authorName").value("임대인"))
+			.andExpect(jsonPath("$.content").value("기사 방문 예정"))
+			.andExpect(jsonPath("$.createdAt").value("2026-11-06T10:00:00"))
+			.andExpect(jsonPath("$.author").doesNotExist()).andExpect(jsonPath("$.authorId").doesNotExist());
+		verify(service).createAfterSalesComment(eq(7L), eq(10L), any());
+	}
+
+	@Test
+	void acceptsCommentAtLengthLimit() throws Exception {
+		when(service.createAfterSalesComment(eq(7L), eq(10L), any())).thenReturn(AfterSalesDto.CommentResponse.builder().build());
+		mvc.perform(post("/as-requests/10/comments").contentType(MediaType.APPLICATION_JSON)
+			.content("{\"content\":\"" + "가".repeat(1000) + "\"}")).andExpect(status().isCreated());
+	}
+
+	@ParameterizedTest
+	@MethodSource("invalidComments")
+	void rejectsInvalidCommentsBeforeService(String body) throws Exception {
+		mvc.perform(post("/as-requests/10/comments").contentType(MediaType.APPLICATION_JSON).content(body))
+			.andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+		verifyNoInteractions(service);
+	}
+
+	private static Stream<String> invalidComments() {
+		return Stream.of("{}", "{\"content\":null}", "{\"content\":\"\"}", "{\"content\":\"   \"}",
+			"{\"content\":\"" + "가".repeat(1001) + "\"}");
+	}
+
+	@ParameterizedTest
+	@EnumSource(AsStatus.class)
+	void updatesOnlyStatusUsingAuthenticatedUser(AsStatus target) throws Exception {
+		when(service.updateAfterSalesStatus(eq(7L), eq(10L), any())).thenReturn(AfterSalesDto.StatusUpdateResponse.builder()
+			.asRequestId(10L).asStatus(target).build());
+
+		mvc.perform(patch("/as-requests/10/status").contentType(MediaType.APPLICATION_JSON)
+			.content("{\"asStatus\":\"" + target + "\"}")).andExpect(status().isOk())
+			.andExpect(jsonPath("$.asRequestId").value(10)).andExpect(jsonPath("$.asStatus").value(target.name()));
+		var captor = org.mockito.ArgumentCaptor.forClass(AfterSalesDto.StatusUpdateRequest.class);
+		verify(service).updateAfterSalesStatus(eq(7L), eq(10L), captor.capture());
+		org.junit.jupiter.api.Assertions.assertEquals(target, captor.getValue().getAsStatus());
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"{}", "{\"asStatus\":null}", "{\"asStatus\":\"WRONG\"}", "{\"asStatus\":\"\"}",
+		"{\"asStatus\":\"completed\"}", "{\"asStatus\":0}", "{\"asStatus\":\"0\"}", "{\"asStatus\":true}"})
+	void rejectsInvalidStatusBeforeService(String body) throws Exception {
+		mvc.perform(patch("/as-requests/10/status").contentType(MediaType.APPLICATION_JSON).content(body))
+			.andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+		verifyNoInteractions(service);
+	}
+
+	@Test
+	void serializesCommentsInExistingDetail() throws Exception {
+		var request = request();
+		var comment = AfterSalesComment.builder().asCommentId(30L).asRequest(request)
+			.author(User.builder().userId(7L).name("임대인").email("private@example.com").phone("01012345678")
+				.passwordHash("private-hash").build()).content("기사 방문 예정").createdAt(request.getCreatedAt()).build();
+		when(service.readAfterSalesRequest(7L, 10L)).thenReturn(AfterSalesDto.DetailResponse.from(request, List.of(), List.of(comment)));
+
+		var result = mvc.perform(get("/as-requests/10")).andExpect(status().isOk())
+			.andExpect(jsonPath("$.comments[0].asCommentId").value(30))
+			.andExpect(jsonPath("$.comments[0].asRequestId").value(10))
+			.andExpect(jsonPath("$.comments[0].authorName").value("임대인"))
+			.andExpect(jsonPath("$.comments[0].content").value("기사 방문 예정"))
+			.andExpect(jsonPath("$.comments[0].createdAt").value("2026-11-06T10:00:00"))
+			.andExpect(jsonPath("$.images").isEmpty()).andReturn();
+		org.assertj.core.api.Assertions.assertThat(result.getResponse().getContentAsString())
+			.doesNotContain("email", "phone", "passwordHash", "\"author\"", "fileKey");
+	}
+
+	@Test
+	void mapsCompletedWritesToConflict() throws Exception {
+		when(service.createAfterSalesComment(eq(7L), eq(10L), any())).thenThrow(AfterSalesException.alreadyCompleted());
+		when(service.updateAfterSalesStatus(eq(7L), eq(10L), any())).thenThrow(AfterSalesException.alreadyCompleted());
+		mvc.perform(post("/as-requests/10/comments").contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"조치\"}"))
+			.andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("AS_ALREADY_COMPLETED"));
+		mvc.perform(patch("/as-requests/10/status").contentType(MediaType.APPLICATION_JSON).content("{\"asStatus\":\"CHECKING\"}"))
+			.andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("AS_ALREADY_COMPLETED"));
+	}
+
+	@Test
+	void rejectsImageMultipartOnCommentEndpoint() throws Exception {
+		mvc.perform(post("/as-requests/10/comments").contentType(MediaType.MULTIPART_FORM_DATA))
+			.andExpect(status().isUnsupportedMediaType());
 		verifyNoInteractions(service);
 	}
 
