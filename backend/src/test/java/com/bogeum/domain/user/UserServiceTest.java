@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.Optional;
 import com.bogeum.common.enums.Role;
+import com.bogeum.common.enums.SocialProvider;
 import com.bogeum.config.CustomSecurityConfig;
 import com.bogeum.utils.JwtUtil;
 
@@ -35,6 +36,8 @@ class UserServiceTest {
 	private PhoneVerificationRepository phoneVerificationRepository;
 	@Mock
 	private com.solapi.sdk.message.service.DefaultMessageService messageService;
+	@Mock
+	private SocialAccountRepository socialAccountRepository;
 
 	// 테스트 속도를 위한 비용 값이며 운영 설정의 기본 비용에는 영향을 주지 않는다.
 	private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder(4);
@@ -46,8 +49,28 @@ class UserServiceTest {
 		var beanFactory = new DefaultListableBeanFactory();
 		userService = new UserService(passwordEncoder, beanFactory.getBeanProvider(AuthenticationManager.class), userRepository,
 			new JwtUtil(), phoneVerificationRepository, messageService,
-			new com.bogeum.config.SolapiProperties("API 키 입력", "API 시크릿 키 입력", "계정에서 등록한 발신번호 입력"));
+			new com.bogeum.config.SolapiProperties("API 키 입력", "API 시크릿 키 입력", "계정에서 등록한 발신번호 입력"),
+			socialAccountRepository, new com.bogeum.config.NaverProperties("", "", "", ""),
+			org.springframework.web.client.RestClient.builder().build(),
+			new com.bogeum.config.KakaoProperties("", "", "", ""),
+			org.springframework.web.client.RestClient.builder().build());
 		beanFactory.registerSingleton("authenticationManager", config.authenticationManager(userService, passwordEncoder));
+	}
+
+	@Test
+	@DisplayName("네이버 키가 비어 있으면 인증 시작만 거절한다")
+	void rejectsNaverWithoutCredentials() {
+		var authorization = userService.createSocialAuthorization(SocialProvider.NAVER, null);
+		UserException exception = assertThrows(UserException.class, () -> userService.naverAuthorizationUrl(authorization));
+		assertEquals(ErrorCode.NAVER_NOT_CONFIGURED, exception.getErrorCode());
+	}
+
+	@Test
+	@DisplayName("카카오 키가 비어 있으면 인증 시작만 거절한다")
+	void rejectsKakaoWithoutCredentials() {
+		var authorization = userService.createSocialAuthorization(SocialProvider.KAKAO, null);
+		UserException exception = assertThrows(UserException.class, () -> userService.kakaoAuthorizationUrl(authorization));
+		assertEquals(ErrorCode.KAKAO_NOT_CONFIGURED, exception.getErrorCode());
 	}
 
 	@Test

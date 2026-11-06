@@ -125,14 +125,35 @@ export function createAuthClient(store, cookies = cookieUtil) {
     })
   }
 
-  async function login(email, password) {
+  async function requestLogin(path, body) {
     if (refreshPromise) await refreshPromise.catch(() => {})
     clearSession()
     const version = authVersion
-    const { data } = await publicApi.post('/auth/login', { email, password })
+    const { data } = await publicApi.post(path, body)
     if (version !== authVersion) throw new axios.CanceledError('로그인 요청이 취소되었습니다.')
-    setSession(data)
-    return data.user
+    if (data.authentication) setSession(data.authentication)
+    else if (data.accessToken) setSession(data)
+    return data
+  }
+
+  async function login(email, password) {
+    return (await requestLogin('/auth/login', { email, password })).user
+  }
+
+  function loginNaver() {
+    return requestLogin('/auth/social/naver/login')
+  }
+
+  async function signupNaver(body) {
+    return (await requestLogin('/auth/social/naver/signup', body)).user
+  }
+
+  function loginKakao() {
+    return requestLogin('/auth/social/kakao/login')
+  }
+
+  async function signupKakao(body) {
+    return (await requestLogin('/auth/social/kakao/signup', body)).user
   }
 
   function restoreSession() {
@@ -157,7 +178,7 @@ export function createAuthClient(store, cookies = cookieUtil) {
     await publicApi.post('/auth/logout', { refreshToken })
   }
 
-  return { api, publicApi, login, logout, restoreSession }
+  return { api, publicApi, login, loginNaver, signupNaver, loginKakao, signupKakao, logout, restoreSession }
 }
 
-export const { api, publicApi, login, logout, restoreSession } = createAuthClient(useAuthStore)
+export const { api, publicApi, login, loginNaver, signupNaver, loginKakao, signupKakao, logout, restoreSession } = createAuthClient(useAuthStore)

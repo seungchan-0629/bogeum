@@ -53,13 +53,39 @@ public class UserDto {
 		private Role role;
 		private String email;
 		private String phone;
+		private boolean passwordLoginAvailable;
 
 		/** DB에 저장된 본인의 정보를 화면 응답으로 변환한다. */
 		public static ProfileRes from(User user) {
 			return ProfileRes.builder().userId(user.getUserId()).name(user.getName())
-				.role(user.getRole()).email(user.getEmail()).phone(user.getPhone()).build();
+				.role(user.getRole()).email(user.getEmail()).phone(user.getPhone())
+				.passwordLoginAvailable(user.getPasswordHash() != null && !user.getPasswordHash().isBlank()).build();
 		}
 	}
+
+	/** 소셜 서비스가 제공하지 않은 정보와 보금의 가입 요건만 추가로 받는다. */
+	@Getter
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class SocialSignupRequest {
+		@NotBlank @Email @Size(max = 255)
+		private String email;
+		@NotBlank @Size(max = 50)
+		private String name;
+		@NotBlank @Size(max = 20)
+		private String phone;
+		@NotBlank @Size(max = 36)
+		private String verificationToken;
+		@Valid @NotNull
+		private AgreementsRequest agreements;
+	}
+
+	public record SocialAuthorizationResponse(String authorizationUrl) { }
+
+	public record SocialConnectionResponse(boolean connected) { }
+
+	/** 신규 사용자는 추가 가입 화면으로, 기존 사용자는 공통 토큰 저장 흐름으로 이어진다. */
+	public record SocialLoginResponse(boolean isNewUser, String name, String email, TokenResponse authentication) { }
 
 
 	/** 임대인·임차인의 일반 회원가입 요청. 서버에서 발급한 휴대폰 인증 토큰을 받는다. */
@@ -243,7 +269,7 @@ public class UserDto {
 
 		public LoginUser(com.bogeum.domain.user.model.User user) {
 			// 부모 순서: 로그인 아이디, 저장된 해시, 활성, 계정미만료, 암호미만료, 잠금해제, 권한
-			super(user.getEmail(), user.getPasswordHash(),
+			super(user.getEmail(), user.getPasswordHash() == null ? "" : user.getPasswordHash(),
 				user.getUserStatus() == UserStatus.ACTIVE, true, true, true,
 				List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name())));
 			// 부모에 없는 우리 서비스 정보만 추가한다. pw 필드를 중복으로 만들지 않는다.

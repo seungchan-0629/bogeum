@@ -47,6 +47,53 @@ function publicAdapter(client, handleRequest) {
 
 const user = { userId: 1, name: '보금', role: 'USER' }
 
+for (const [provider, label, loginMethod, signupMethod] of [
+  ['naver', '네이버', 'loginNaver', 'signupNaver'],
+  ['kakao', '카카오', 'loginKakao', 'signupKakao'],
+]) {
+  test(`기존 ${label} 로그인은 공통 쿠키와 보호 요청에 보금 토큰을 저장한다`, async () => {
+    const client = setup()
+    const authentication = { user: { ...user, lastLoginProvider: provider.toUpperCase() }, accessToken: `${provider}-login-access`,
+      refreshToken: `${provider}-login-refresh`, refreshExpiresAt: '2030-01-01T00:00:00Z' }
+    publicAdapter(client, (config) => {
+      assert.equal(config.url, `/auth/social/${provider}/login`)
+      return response(config, { isNewUser: false, authentication })
+    })
+    const result = await client[loginMethod]()
+    assert.equal(result.isNewUser, false)
+    assert.deepEqual(client.state.user, authentication.user)
+    assert.equal(JSON.parse(client.cookies.getCookie('member')).refreshToken, `${provider}-login-refresh`)
+    client.api.defaults.adapter = async (config) => {
+      assert.equal(config.headers.get('Authorization'), `Bearer ${provider}-login-access`)
+      return response(config, {})
+    }
+    await client.api.get('/users/me')
+  })
+
+  test(`${label} 신규 사용자는 추가 가입을 완료하기 전에는 로그인 상태나 토큰을 저장하지 않는다`, async () => {
+    const client = setup()
+    publicAdapter(client, (config) => response(config, { isNewUser: true, name: '추가 가입', email: 'new@example.com', authentication: null }))
+    const result = await client[loginMethod]()
+    assert.equal(result.isNewUser, true)
+    assert.equal(client.state.user, null)
+    assert.equal(client.cookies.getCookie('member'), undefined)
+  })
+
+  test(`${label} 추가 가입은 인증·동의 정보를 보내고 성공 응답으로 즉시 로그인한다`, async () => {
+    const client = setup()
+    const body = { name: `${label} 회원`, email: 'new@example.com', phone: '01012345678', verificationToken: 'phone-proof',
+      agreements: { privacyCollect: true, thirdPartyProvide: true } }
+    publicAdapter(client, (config) => {
+      assert.equal(config.url, `/auth/social/${provider}/signup`)
+      assert.deepEqual(JSON.parse(config.data), body)
+      return response(config, { user, accessToken: 'signup-access' })
+    })
+    assert.deepEqual(await client[signupMethod](body), user)
+    assert.deepEqual(client.state.user, user)
+    assert.equal(JSON.parse(client.cookies.getCookie('member')).accessToken, 'signup-access')
+  })
+}
+
 test('인증·계좌·회원 정보는 기능별 루트 경로로 요청한다', async () => {
   const client = setup()
   const requests = []

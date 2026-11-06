@@ -39,7 +39,11 @@ public class CustomSecurityConfig {
 	private static final Set<String> PUBLIC_PATHS = Set.of(
 		"/auth/login", "/auth/refresh", "/auth/logout",
 		"/auth/signup/agent", "/auth/csrf", "/auth/signup/user", "/api/health",
-		"/auth/identity-verification", "/auth/identity-verification/confirm");
+		"/auth/identity-verification", "/auth/identity-verification/confirm",
+		"/auth/social/naver/authorize", "/auth/social/naver/callback",
+		"/auth/social/naver/login", "/auth/social/naver/signup",
+		"/auth/social/kakao/authorize", "/auth/social/kakao/callback",
+		"/auth/social/kakao/login", "/auth/social/kakao/signup");
 
 	/** 사용자 조회와 비밀번호 검증을 Spring Security 인증 관리자에 연결한다. */
 	@Bean
