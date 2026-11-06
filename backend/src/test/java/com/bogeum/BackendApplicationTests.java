@@ -88,7 +88,7 @@ class BackendApplicationTests {
 			{"email":"signup@example.com","password":" password ","name":"가입자","phone":"01012345678",
 			 "agreements":{"privacyCollect":true,"thirdPartyProvide":true}}
 			""";
-		mockMvc.perform(csrfPost("/api/v1/auth/signup/user").contentType(MediaType.APPLICATION_JSON)
+		mockMvc.perform(csrfPost("/auth/signup/user").contentType(MediaType.APPLICATION_JSON)
 			.content(signupRequest))
 			.andExpect(status().isCreated())
 			.andExpect(jsonPath("$.userId").isNumber())
@@ -108,13 +108,13 @@ class BackendApplicationTests {
 				String.class, user.getUserId())));
 		assertEquals(2L, jdbcTemplate.queryForObject(
 			"SELECT COUNT(*) FROM user_consent WHERE agreed_at IS NOT NULL", Long.class));
-		mockMvc.perform(csrfPost("/api/v1/auth/signup/user").contentType(MediaType.APPLICATION_JSON)
+		mockMvc.perform(csrfPost("/auth/signup/user").contentType(MediaType.APPLICATION_JSON)
 			.content(signupRequest))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("EMAIL_ALREADY_EXISTS"));
 		assertDatabaseCounts(1, 2);
 
-		mockMvc.perform(csrfPost("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
+		mockMvc.perform(csrfPost("/auth/login").contentType(MediaType.APPLICATION_JSON)
 			.content("""
 				{"email":"signup@example.com","password":" password "}
 				"""))
@@ -127,7 +127,7 @@ class BackendApplicationTests {
 			.andExpect(jsonPath("$.passwordHash").doesNotExist());
 		assertEquals(LoginProvider.LOCAL, userRepository.findById(user.getUserId()).orElseThrow().getLastLoginProvider());
 
-		mockMvc.perform(csrfPost("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
+		mockMvc.perform(csrfPost("/auth/login").contentType(MediaType.APPLICATION_JSON)
 			.content("""
 				{"email":"signup@example.com","password":"wrong-password"}
 				"""))
@@ -159,7 +159,7 @@ class BackendApplicationTests {
 	@ValueSource(strings = {"ADMIN", "AGENT", "LANDLORD", "TENANT"})
 	@DisplayName("가입 요청에 역할을 임의로 추가해도 일반 사용자로만 저장한다")
 	void signupDoesNotAcceptAccountRole(String role) throws Exception {
-		mockMvc.perform(csrfPost("/api/v1/auth/signup/user").contentType(MediaType.APPLICATION_JSON)
+		mockMvc.perform(csrfPost("/auth/signup/user").contentType(MediaType.APPLICATION_JSON)
 			.content("""
 				{"email":"signup@example.com","password":"password","name":"가입자","phone":"01012345678",
 				 "role":"%s","agreements":{"privacyCollect":true,"thirdPartyProvide":true}}
@@ -206,14 +206,14 @@ class BackendApplicationTests {
 	void checksPasswordByteLimit(String character) throws Exception {
 		String password = character.repeat(character.equals("a") ? 72 : 24);
 		userService.signup("signup@example.com", password, "가입자", "01012345678", true, true);
-		mockMvc.perform(csrfPost("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
+		mockMvc.perform(csrfPost("/auth/login").contentType(MediaType.APPLICATION_JSON)
 			.content("{\"email\":\"signup@example.com\",\"password\":\"" + password + "\"}"))
 			.andExpect(status().isOk());
 		String oversizedPassword = password + character;
 		UserException exception = assertThrows(UserException.class, () -> userService.signup(
 			"other@example.com", oversizedPassword, "가입자", "01012345678", true, true));
 		assertEquals(ErrorCode.INVALID_SIGNUP, exception.getErrorCode());
-		mockMvc.perform(csrfPost("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON)
+		mockMvc.perform(csrfPost("/auth/login").contentType(MediaType.APPLICATION_JSON)
 			.content("{\"email\":\"signup@example.com\",\"password\":\"" + oversizedPassword + "\"}"))
 			.andExpect(status().isUnauthorized())
 			.andExpect(jsonPath("$.code").value("LOGIN_FAILED"));
@@ -237,7 +237,7 @@ class BackendApplicationTests {
 
 
 	private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder csrfPost(String path) throws Exception {
-		var result = mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/v1/auth/csrf"))
+		var result = mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/auth/csrf"))
 			.andExpect(status().isOk()).andReturn();
 		var data = new tools.jackson.databind.json.JsonMapper().readTree(result.getResponse().getContentAsString());
 		return post(path).cookie(result.getResponse().getCookie("BOGEUM_CSRF"))

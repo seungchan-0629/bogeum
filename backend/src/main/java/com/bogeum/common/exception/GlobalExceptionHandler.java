@@ -7,6 +7,7 @@ import com.bogeum.domain.property.PropertyException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
@@ -46,9 +47,9 @@ public class GlobalExceptionHandler {
 		return toResponse(exception.getErrorCode());
 	}
 
-	/** 잘못된 JSON·DTO와 숫자로 변환할 수 없는 조회 인자는 공통 400으로 반환한다. */
+	/** 잘못된 JSON과 DTO 검증 실패, 빠지거나 형식이 틀린 요청 파라미터는 비밀번호 원문 없이 400으로 반환한다. */
 	@ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class,
-		MethodArgumentTypeMismatchException.class})
+		MissingServletRequestParameterException.class, MethodArgumentTypeMismatchException.class})
 	public ResponseEntity<ErrorResponse> handleInvalidRequest(Exception exception) {
 		return toResponse(ErrorCode.INVALID_REQUEST);
 	}
