@@ -7,6 +7,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import com.bogeum.common.enums.BrokerageStatus;
+import com.bogeum.domain.property.PropertyException;
 import com.bogeum.domain.user.model.User;
 
 import jakarta.persistence.Column;
@@ -70,4 +71,18 @@ public class BrokerageRequest {
 	@CreationTimestamp
 	@Column(nullable = false, updatable = false)
 	private LocalDateTime createdAt;
+
+	/**
+	 * 배정된 중개사가 신청을 수락하고 매물을 맡는다 (PROPERTY_008).
+	 *
+	 * @throws PropertyException 이미 수락한 신청인 경우
+	 */
+	public void accept() {
+		if (brokerageStatus != BrokerageStatus.REQUESTED) {
+			throw PropertyException.alreadyAccepted();
+		}
+		brokerageStatus = BrokerageStatus.ACCEPTED;
+		acceptedAt = LocalDateTime.now();
+		property.assignAgent(agent);
+	}
 }

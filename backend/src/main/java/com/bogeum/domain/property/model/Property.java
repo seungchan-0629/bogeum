@@ -112,4 +112,9 @@ public class Property {
 	@UpdateTimestamp
 	@Column(nullable = false)
 	private LocalDateTime updatedAt;
+
+	// 중개를 수락한 중개사가 이 매물을 맡는다. 공개(ACTIVE)는 상세 정보를 올린 뒤다 (PROPERTY_008, PROPERTY_010)
+	public void assignAgent(User agent) {
+		this.agent = agent;
+	}
 }

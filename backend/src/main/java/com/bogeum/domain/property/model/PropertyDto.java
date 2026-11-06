@@ -1,4 +1,163 @@
 package com.bogeum.domain.property.model;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
+
+import org.springframework.data.domain.Page;
+
+import com.bogeum.common.enums.BrokerageStatus;
+import com.bogeum.common.enums.LeaseType;
+import com.bogeum.common.enums.PropertyStatus;
+import com.bogeum.domain.agent.model.Agent;
+
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.Size;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
+/**
+ * 매물 기능의 요청·응답 DTO.
+ */
 public class PropertyDto {
+
+	/** 임대인의 매물 중개 신청. agentId가 없으면 서버가 중개사를 배정한다 (PROPERTY_002) */
+	@Getter
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class BrokerageRequest {
+
+		@NotNull(message = "임대 형식을 선택해 주세요.")
+		private LeaseType leaseType;
+
+		// 보증금 또는 전세금(원)
+		@NotNull(message = "보증금을 입력해 주세요.")
+		@PositiveOrZero(message = "보증금은 0원 이상으로 입력해 주세요.")
+		private BigDecimal deposit;
+
+		// 전세는 비워 두거나 0
+		@PositiveOrZero(message = "월세는 0원 이상으로 입력해 주세요.")
+		private BigDecimal monthlyRent;
+
+		@NotBlank(message = "주소를 입력해 주세요.")
+		@Size(max = 255, message = "주소는 255자 이하로 입력해 주세요.")
+		private String roadAddress;
+
+		@Size(max = 100, message = "상세 주소는 100자 이하로 입력해 주세요.")
+		private String detailAddress;
+
+		// 희망 중개사의 프로필 ID. 로그인 응답의 agentId와 같은 값이다
+		private Long agentId;
+	}
+
+	/** 저장된 중개 신청과 배정된 중개사 정보. */
+	@Getter
+	@Builder
+	public static class BrokerageResponse {
+
+		private Long brokerageRequestId;
+		private Long propertyId;
+		private Long agentId;
+		private String officeName;
+		private Boolean isDesignated;
+		private BrokerageStatus brokerageStatus;
+		private LocalDateTime createdAt;
+
+		// 같은 이름의 요청 DTO와 구분하려고 엔티티는 전체 경로로 쓴다
+		public static BrokerageResponse from(com.bogeum.domain.property.model.BrokerageRequest request, Agent agent) {
+			return BrokerageResponse.builder()
+				.brokerageRequestId(request.getBrokerageRequestId())
+				.propertyId(request.getProperty().getPropertyId())
+				.agentId(agent.getAgentProfileId())
+				.officeName(agent.getOfficeName())
+				.isDesignated(request.getIsDesignated())
+				.brokerageStatus(request.getBrokerageStatus())
+				.createdAt(request.getCreatedAt())
+				.build();
+		}
+	}
+
+	/** 중개사에게 온 중개 신청 목록의 한 줄 (PROPERTY_012) */
+	@Getter
+	@Builder
+	public static class BrokerageItemResponse {
+
+		private Long brokerageRequestId;
+		private Long propertyId;
+		private LeaseType leaseType;
+		private BigDecimal deposit;
+		private BigDecimal monthlyRent;
+		private String roadAddress;
+		private String detailAddress;
+		private String landlordName;
+		private Boolean isDesignated;
+		private BrokerageStatus brokerageStatus;
+		// 내 계약 관리 화면이 진행 단계를 계산하는 기준이다
+		private PropertyStatus propertyStatus;
+		private LocalDateTime createdAt;
+		private LocalDateTime acceptedAt;
+
+		public static BrokerageItemResponse from(com.bogeum.domain.property.model.BrokerageRequest request) {
+			Property property = request.getProperty();
+			return BrokerageItemResponse.builder()
+				.brokerageRequestId(request.getBrokerageRequestId())
+				.propertyId(property.getPropertyId())
+				.leaseType(property.getLeaseType())
+				.deposit(property.getDeposit())
+				.monthlyRent(property.getMonthlyRent())
+				.roadAddress(property.getRoadAddress())
+				.detailAddress(property.getDetailAddress())
+				.landlordName(request.getLandlord().getName())
+				.isDesignated(request.getIsDesignated())
+				.brokerageStatus(request.getBrokerageStatus())
+				.propertyStatus(property.getPropertyStatus())
+				.createdAt(request.getCreatedAt())
+				.acceptedAt(request.getAcceptedAt())
+				.build();
+		}
+	}
+
+	/** 중개 신청 목록과 페이지 정보. page는 화면의 페이지 번호와 같이 1부터 센다 (PROPERTY_012) */
+	@Getter
+	@Builder
+	public static class BrokerageListResponse {
+
+		private List<BrokerageItemResponse> requests;
+		private int page;
+		private int totalPages;
+		private long totalElements;
+
+		public static BrokerageListResponse from(Page<com.bogeum.domain.property.model.BrokerageRequest> requests) {
+			return BrokerageListResponse.builder()
+				.requests(requests.map(BrokerageItemResponse::from).getContent())
+				.page(requests.getNumber() + 1)
+				.totalPages(requests.getTotalPages())
+				.totalElements(requests.getTotalElements())
+				.build();
+		}
+	}
+
+	/** 수락된 중개 신청. 채팅방(CHAT_002)이 생기면 chatRoomId를 더한다 (PROPERTY_008) */
+	@Getter
+	@Builder
+	public static class AcceptResponse {
+
+		private Long brokerageRequestId;
+		private Long propertyId;
+		private BrokerageStatus brokerageStatus;
+		private LocalDateTime acceptedAt;
+
+		public static AcceptResponse from(com.bogeum.domain.property.model.BrokerageRequest request) {
+			return AcceptResponse.builder()
+				.brokerageRequestId(request.getBrokerageRequestId())
+				.propertyId(request.getProperty().getPropertyId())
+				.brokerageStatus(request.getBrokerageStatus())
+				.acceptedAt(request.getAcceptedAt())
+				.build();
+		}
+	}
 }

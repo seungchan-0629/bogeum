@@ -3,6 +3,8 @@ package com.bogeum.config;
 import com.bogeum.domain.agent.AgentService;
 import com.bogeum.domain.user.model.UserDto.LoginUser;
 import org.springframework.security.authorization.AuthorizationDecision;
+import org.springframework.security.authorization.AuthorizationManager;
+import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
 
 import java.util.Set;
 
@@ -10,6 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -64,6 +67,14 @@ public class CustomSecurityConfig {
 			.secure(cookieSecure).sameSite("Lax"));
 		var publicRequests = new OrRequestMatcher(PUBLIC_PATHS.stream()
 			.map(path -> PathPatternRequestMatcher.withDefaults().matcher(path)).toArray(RequestMatcher[]::new));
+		// 관리자가 승인한 중개사만 중개 업무를 할 수 있다 (AGENT_002)
+		AuthorizationManager<RequestAuthorizationContext> approvedAgent = (authentication, context) -> {
+			var current = authentication.get();
+			boolean allowed = current.getPrincipal() instanceof LoginUser principal
+				&& current.getAuthorities().stream().anyMatch(authority -> authority.getAuthority().equals("ROLE_AGENT"))
+				&& agentService.isApproved(principal.getUserId());
+			return new AuthorizationDecision(allowed);
+		};
 
 		http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 			// HttpOnly Refresh 쿠키를 사용하므로 CSRF를 끄지 않는다.
@@ -77,14 +88,12 @@ public class CustomSecurityConfig {
 				.requestMatchers(publicRequests).permitAll()
 				.requestMatchers("/error").permitAll()
 				.requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+				// 중개 신청은 일반 사용자가 하고, 중개사가 받아서 관리한다 (PROPERTY_002, PROPERTY_008)
+				.requestMatchers(HttpMethod.POST, "/property/brokerage-requests").hasRole("USER")
+				.requestMatchers(HttpMethod.GET, "/property/brokerage-requests/received").access(approvedAgent)
+				.requestMatchers(HttpMethod.POST, "/property/brokerage-requests/*/accept").access(approvedAgent)
 				.requestMatchers("/api/v1/agents/me", "/api/v1/agents/me/demo-approval", "/api/v1/agents/me/documents", "/api/v1/agents/me/documents/**").hasRole("AGENT")
-				.requestMatchers("/api/v1/agents/**").access((authentication, context) -> {
-					var current = authentication.get();
-					boolean allowed = current.getPrincipal() instanceof LoginUser principal
-						&& current.getAuthorities().stream().anyMatch(authority -> authority.getAuthority().equals("ROLE_AGENT"))
-						&& agentService.isApproved(principal.getUserId());
-					return new AuthorizationDecision(allowed);
-				})
+				.requestMatchers("/api/v1/agents/**").access(approvedAgent)
 				.anyRequest().authenticated())
 			.exceptionHandling(errors -> errors
 				.authenticationEntryPoint(authenticationEntryPoint)
