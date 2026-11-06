@@ -793,7 +793,8 @@ class AuthIntegrationTests {
 			.andExpect(jsonPath("$.images[0].asRequestImageId").value(first.getAsRequestImageId().intValue()))
 			.andExpect(jsonPath("$.images[1].asRequestImageId").value(second.getAsRequestImageId().intValue()))
 			.andExpect(jsonPath("$.images[0].createdAt").value("2026-11-01T10:00:00"))
-			.andExpect(jsonPath("$..fileKey").doesNotExist()).andExpect(jsonPath("$..url").doesNotExist())
+			// test 프로필은 S3 저장소가 없어서 조회 주소 없이 사진 정보만 준다.
+			.andExpect(jsonPath("$..fileKey").doesNotExist()).andExpect(jsonPath("$.images[0].url").isEmpty())
 			.andExpect(jsonPath("$..email").doesNotExist()).andExpect(jsonPath("$..phone").doesNotExist())
 			.andExpect(jsonPath("$..passwordHash").doesNotExist()).andReturn();
 		assertThat(result.getResponse().getContentAsString()).doesNotContain("private/as/", "passwordHash", "email", "phone");
