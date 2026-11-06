@@ -40,8 +40,8 @@ import com.bogeum.utils.JwtUtil;
 @EnableJpaRepositories(basePackages = "com.bogeum.domain", considerNestedRepositories = true)
 public class CustomSecurityConfig {
 	private static final Set<String> PUBLIC_PATHS = Set.of(
-		"/api/v1/auth/login", "/api/v1/auth/refresh", "/api/v1/auth/logout",
-		"/api/v1/auth/signup/agent", "/api/v1/auth/csrf", "/api/v1/auth/signup/user", "/api/health");
+		"/auth/login", "/auth/refresh", "/auth/logout",
+		"/auth/signup/agent", "/auth/csrf", "/auth/signup/user", "/api/health");
 
 	/** 사용자 조회와 비밀번호 검증을 Spring Security 인증 관리자에 연결한다. */
 	@Bean

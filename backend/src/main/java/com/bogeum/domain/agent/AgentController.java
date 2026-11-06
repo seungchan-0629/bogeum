@@ -14,7 +14,7 @@ public class AgentController {
 	private final AgentService agentService;
 	private final org.springframework.core.env.Environment environment;
 
-	@PostMapping("/api/v1/auth/signup/agent")
+	@PostMapping("/auth/signup/agent")
 	@ResponseStatus(HttpStatus.CREATED)
 	public AgentDto.SignupResponse signup(@Valid @RequestBody AgentDto.SignupRequest request) {
 		return AgentDto.SignupResponse.from(agentService.signup(request.getEmail(), request.getPassword(),

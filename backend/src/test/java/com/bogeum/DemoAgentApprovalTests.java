@@ -54,7 +54,7 @@ class DemoAgentApprovalTests {
 		assertThat(saved.getReviewedBy()).isNull();
 		assertThat(repository.findById(other.getAgentProfileId()).orElseThrow().getApprovalStatus()).isEqualTo(ApprovalStatus.PENDING);
 		mvc.perform(get("/api/v1/agents/auth-check").header("Authorization", authorization)).andExpect(status().isOk());
-		mvc.perform(get("/api/v1/auth/me").header("Authorization", authorization))
+		mvc.perform(get("/auth/me").header("Authorization", authorization))
 			.andExpect(status().isOk()).andExpect(jsonPath("$.approvalStatus").value("APPROVED"));
 		mvc.perform(csrfPost().header("Authorization", authorization)).andExpect(status().isOk());
 		assertThat(repository.findById(agent.getAgentProfileId()).orElseThrow().getReviewedAt()).isEqualTo(saved.getReviewedAt());
@@ -90,7 +90,7 @@ class DemoAgentApprovalTests {
 	}
 
 	private MockHttpServletRequestBuilder csrfPost() throws Exception {
-		var response = mvc.perform(get("/api/v1/auth/csrf")).andReturn().getResponse();
+		var response = mvc.perform(get("/auth/csrf")).andReturn().getResponse();
 		var csrf = mapper.readTree(response.getContentAsString());
 		return post(PATH).cookie(response.getCookie("BOGEUM_CSRF"))
 			.header(csrf.get("headerName").asText(), csrf.get("token").asText());
