@@ -363,7 +363,7 @@ class AfterSalesResponseIntegrationTests {
 
 	private MockHttpServletRequestBuilder csrfWrite(String path, String operation, boolean valid) throws Exception {
 		// 실제 발급받은 쿠키·마스킹 헤더를 사용해 CSRF 필터를 우회하지 않는다.
-		var response = mvc.perform(get("/api/v1/auth/csrf")).andExpect(status().isOk()).andReturn().getResponse();
+		var response = mvc.perform(get("/auth/csrf")).andExpect(status().isOk()).andReturn().getResponse();
 		var csrf = mapper.readTree(response.getContentAsString());
 		return write(path, operation).cookie(response.getCookie("BOGEUM_CSRF"))
 			.header(csrf.get("headerName").asText(), valid ? csrf.get("token").asText() : "invalid");

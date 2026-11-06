@@ -186,12 +186,14 @@ class AfterSalesServiceTest {
 	}
 
 	@Test
-	void readsDetailWithOnlyImageMetadataWithoutStorage() {
+	void readsDetailWithReadUrlFromStorage() {
 		var request = receivedRequest();
 		when(requests.findByAsRequestIdAndProperty_Landlord_UserId(10L, 7L)).thenReturn(Optional.of(request));
 		when(images.findAllByAsRequest_AsRequestIdOrderByCreatedAtAscAsRequestImageIdAsc(10L)).thenReturn(List.of(
 			AfterSalesRequestImage.builder().asRequestImageId(20L).asRequest(request).fileKey("private/as/photo.jpg")
 				.createdAt(request.getCreatedAt()).build()));
+		when(provider.getIfAvailable()).thenReturn(storage);
+		when(storage.createReadUrl("private/as/photo.jpg")).thenReturn("https://example.com/photo.jpg?signature");
 
 		var response = service.readAfterSalesRequest(7L, 10L);
 
@@ -202,8 +204,26 @@ class AfterSalesServiceTest {
 		assertEquals(AsStatus.CHECKING, response.getAsStatus());
 		assertEquals(request.getUpdatedAt(), response.getUpdatedAt());
 		assertEquals(20L, response.getImages().get(0).getAsRequestImageId());
+		assertEquals("https://example.com/photo.jpg?signature", response.getImages().get(0).getUrl());
 		assertEquals(request.getCreatedAt(), response.getImages().get(0).getCreatedAt());
-		verifyNoInteractions(contracts, provider, processor, storage);
+		verify(storage, never()).write(any(), any());
+		verify(storage, never()).delete(any());
+		verifyNoInteractions(contracts, processor);
+	}
+
+	@Test
+	void readsDetailWithoutUrlWhenStorageIsUnavailable() {
+		var request = receivedRequest();
+		when(requests.findByAsRequestIdAndProperty_Landlord_UserId(10L, 7L)).thenReturn(Optional.of(request));
+		when(images.findAllByAsRequest_AsRequestIdOrderByCreatedAtAscAsRequestImageIdAsc(10L)).thenReturn(List.of(
+			AfterSalesRequestImage.builder().asRequestImageId(20L).asRequest(request).fileKey("private/as/photo.jpg")
+				.createdAt(request.getCreatedAt()).build()));
+
+		var response = service.readAfterSalesRequest(7L, 10L);
+
+		assertEquals(20L, response.getImages().get(0).getAsRequestImageId());
+		assertNull(response.getImages().get(0).getUrl());
+		verifyNoInteractions(storage);
 	}
 
 	@Test

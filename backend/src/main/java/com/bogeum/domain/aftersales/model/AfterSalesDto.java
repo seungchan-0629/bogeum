@@ -136,20 +136,21 @@ public class AfterSalesDto {
 		}
 	}
 
-	/** 사진 파일의 존재·열람 가능 여부를 보장하지 않는 DB 메타데이터다. 저장 키는 노출하지 않는다. */
+	/** 저장 키 대신 일정 시간만 열리는 조회 주소를 준다. 저장소가 없으면 url은 null이다. */
 	@Getter
 	@Builder
 	public static class ImageResponse {
 		private Long asRequestImageId;
+		private String url;
 		private LocalDateTime createdAt;
 
-		public static ImageResponse from(AfterSalesRequestImage image) {
-			return ImageResponse.builder().asRequestImageId(image.getAsRequestImageId())
+		public static ImageResponse from(AfterSalesRequestImage image, String url) {
+			return ImageResponse.builder().asRequestImageId(image.getAsRequestImageId()).url(url)
 				.createdAt(image.getCreatedAt()).build();
 		}
 	}
 
-	/** 소유 권한을 확인한 접수 상세와 사진 메타데이터만 반환한다 (AS_002). */
+	/** 소유 권한을 확인한 접수 상세와 사진 조회 주소를 반환한다 (AS_002). */
 	@Getter
 	@Builder
 	public static class DetailResponse {
@@ -165,14 +166,14 @@ public class AfterSalesDto {
 		private List<ImageResponse> images;
 		private List<CommentResponse> comments;
 
-		public static DetailResponse from(AfterSalesRequest request, List<AfterSalesRequestImage> images,
+		public static DetailResponse from(AfterSalesRequest request, List<ImageResponse> images,
 				List<AfterSalesComment> comments) {
 			return DetailResponse.builder().asRequestId(request.getAsRequestId())
 				.propertyId(request.getProperty().getPropertyId())
 				.roadAddress(request.getProperty().getRoadAddress()).detailAddress(request.getProperty().getDetailAddress())
 				.tenantName(request.getTenant().getName()).content(request.getContent())
 				.asStatus(request.getAsStatus()).createdAt(request.getCreatedAt()).updatedAt(request.getUpdatedAt())
-				.images(images.stream().map(ImageResponse::from).toList())
+				.images(images)
 				.comments(comments.stream().map(CommentResponse::from).toList()).build();
 		}
 	}

@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Configuration;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 // spring.cloud.aws.s3.enabled=true일 때만 만든다. (test 프로필은 S3 설정이 없어 생성하지 않는다)
@@ -28,6 +29,15 @@ public class S3Config {
 	@Bean
 	public AwsBasicCredentials awsCredentials() {
 		return AwsBasicCredentials.create(accessKey, secretKey);
+	}
+
+	// 파일 업로드·삭제
+	@Bean
+	public S3Client s3Client() {
+		return S3Client.builder()
+			.region(Region.of(region))
+			.credentialsProvider(StaticCredentialsProvider.create(awsCredentials()))
+			.build();
 	}
 
 	// Presigned URL(유효시간이 있는 임시 주소) 발급

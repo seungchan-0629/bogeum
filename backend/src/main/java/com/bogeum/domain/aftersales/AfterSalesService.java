@@ -141,9 +141,12 @@ public class AfterSalesService {
 	public AfterSalesDto.DetailResponse readAfterSalesRequest(Long userId, Long asRequestId) {
 		var request = afterSalesRepository.findByAsRequestIdAndProperty_Landlord_UserId(asRequestId, userId)
 			.orElseThrow(AfterSalesException::requestNotFound);
-		// 권한을 확인한 뒤 DB 메타데이터만 읽는다. 파일 저장소나 URL 생성은 호출하지 않는다.
-		return AfterSalesDto.DetailResponse.from(request,
-			imageRepository.findAllByAsRequest_AsRequestIdOrderByCreatedAtAscAsRequestImageIdAsc(asRequestId),
+		var images = imageRepository.findAllByAsRequest_AsRequestIdOrderByCreatedAtAscAsRequestImageIdAsc(asRequestId);
+		// 권한을 확인한 뒤에만 조회 주소를 만든다. 저장소가 없으면 사진 정보만 주고 상세 조회는 막지 않는다.
+		var storage = images.isEmpty() ? null : storageProvider.getIfAvailable();
+		var imageResponses = images.stream().map(image -> AfterSalesDto.ImageResponse.from(image,
+			storage == null ? null : storage.createReadUrl(image.getFileKey()))).toList();
+		return AfterSalesDto.DetailResponse.from(request, imageResponses,
 			commentRepository.findAllByAsRequest_AsRequestIdOrderByCreatedAtAscAsCommentIdAsc(asRequestId));
 	}
 

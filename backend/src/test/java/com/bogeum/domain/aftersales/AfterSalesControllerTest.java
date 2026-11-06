@@ -112,7 +112,8 @@ class AfterSalesControllerTest {
 		var image = AfterSalesRequestImage.builder().asRequestImageId(20L).asRequest(request)
 			.fileKey("private/as/photo.jpg").createdAt(request.getCreatedAt()).build();
 		when(service.readAfterSalesRequest(7L, 10L))
-			.thenReturn(AfterSalesDto.DetailResponse.from(request, List.of(image), List.of()));
+			.thenReturn(AfterSalesDto.DetailResponse.from(request,
+				List.of(AfterSalesDto.ImageResponse.from(image, "https://example.com/photo.jpg?signature")), List.of()));
 
 		mvc.perform(get("/as-requests/10").param("landlordId", "999")).andExpect(status().isOk())
 			.andExpect(jsonPath("$.asRequestId").value(10)).andExpect(jsonPath("$.propertyId").value(3))
@@ -123,7 +124,8 @@ class AfterSalesControllerTest {
 			.andExpect(jsonPath("$.updatedAt").value("2026-11-06T10:00:00"))
 			.andExpect(jsonPath("$.images[0].asRequestImageId").value(20))
 			.andExpect(jsonPath("$.images[0].createdAt").value("2026-11-06T10:00:00"))
-			.andExpect(jsonPath("$..fileKey").doesNotExist()).andExpect(jsonPath("$..url").doesNotExist())
+			.andExpect(jsonPath("$.images[0].url").value("https://example.com/photo.jpg?signature"))
+			.andExpect(jsonPath("$..fileKey").doesNotExist())
 			.andExpect(jsonPath("$..email").doesNotExist()).andExpect(jsonPath("$..phone").doesNotExist())
 			.andExpect(jsonPath("$..passwordHash").doesNotExist()).andExpect(jsonPath("$.tenant").doesNotExist())
 			.andExpect(jsonPath("$.property").doesNotExist());
