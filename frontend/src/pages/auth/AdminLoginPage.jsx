@@ -2,17 +2,20 @@
 // 누가: 관리자. 회원가입·소셜 로그인 없이 운영팀이 발급한 계정으로만 로그인한다
 // 요구사항: USER_001 (관리자 로그인)
 // API: POST /auth/login (BE-001) — 일반 로그인과 같은 API. 응답의 role이 ADMIN이 아니면 막는다
-import { useNavigate } from 'react-router'
+import { Navigate, useNavigate } from 'react-router'
 import Logo from '../../components/common/Logo.jsx'
 import { Field, TextInput } from '../../components/common/FormControls.jsx'
 import { login, logout } from '../../utils/jwtUtil.js'
 import { useState } from 'react'
+import { useAuthStore } from '../../stores/authStore.js'
 
 function AdminLoginPage() {
   const navigate = useNavigate()
 
   const [error, setError] = useState('')
   const [pending, setPending] = useState(false)
+  const user = useAuthStore((state) => state.user)
+  if (user?.role === 'ADMIN') return <Navigate to="/admin" replace />
   const handleSubmit = async (event) => {
     event.preventDefault()
     const form = new FormData(event.currentTarget)

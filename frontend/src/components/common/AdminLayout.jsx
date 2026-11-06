@@ -11,11 +11,15 @@ import ForbiddenPage from '../../pages/error/ForbiddenPage.jsx'
 import { useAuthStore } from '../../stores/authStore.js'
 import { logout } from '../../utils/jwtUtil.js'
 import { ROLES } from '../../constants/auth.js'
+import { useLocation } from 'react-router'
+
+const FINANCE_ADMIN_PATHS = new Set(['/admin/openbanking'])
 
 const ADMIN_MENU = [
   { label: '매물 관리', to: '/admin/properties' },
   { label: '중개사 관리', to: '/admin/agents' },
   { label: '월세 관리', to: '/admin/rent' },
+  { label: '기업용 OOB 토큰', to: '/admin/openbanking' },
   { label: '위험 사용자', to: '/admin/risk-users' },
   { label: '위험 매물', to: '/admin/risk-properties' },
   { label: '신고 대화', to: '/admin/chats' },
@@ -25,9 +29,15 @@ const ADMIN_MENU = [
 function AdminLayout() {
   const user = useAuthStore((state) => state.user)
   const navigate = useNavigate()
+  const { pathname } = useLocation()
+
+  // 기존 메뉴와 라우트를 보존하고 현재 제공하는 관리자 기능만 표시한다.
+  const visibleMenu = ADMIN_MENU.filter((item) => FINANCE_ADMIN_PATHS.has(item.to))
+  const isFinancePage = FINANCE_ADMIN_PATHS.has(pathname)
 
   if (!user) return <Navigate to="/admin/login" replace />
   if (user.role !== ROLES.ADMIN) return <ForbiddenPage allowedRoles={[ROLES.ADMIN]} />
+  if (pathname !== '/admin' && !isFinancePage) return <Navigate to="/admin/openbanking" replace />
 
   const handleLogout = async () => {
     try {
@@ -48,7 +58,7 @@ function AdminLayout() {
           <p className="mt-1.5 text-xs text-blue-300">관리자</p>
         </div>
         <nav aria-label="관리자 메뉴" className="flex flex-wrap gap-1 md:flex-col">
-          {ADMIN_MENU.map((item) => (
+          {visibleMenu.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -67,7 +77,7 @@ function AdminLayout() {
       <main className="flex min-w-0 grow flex-col gap-5 px-6 py-7 md:px-8">
         <Outlet />
       </main>
-      <ChatbotLauncher role={ROLES.ADMIN} />
+      {!isFinancePage && pathname !== '/admin' && <ChatbotLauncher role={ROLES.ADMIN} />}
     </div>
   )
 }

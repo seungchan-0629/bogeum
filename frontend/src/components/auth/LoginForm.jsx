@@ -60,7 +60,7 @@ function LoginForm() {
       // 최근 사용 안내를 저장하지 못해도 인증 성공 흐름은 계속 진행한다.
       console.warn('최근 로그인 수단을 저장하지 못했습니다.')
     }
-    navigate(user.role === 'AGENT'
+    navigate(user.role === 'ADMIN' ? '/admin' : user.role === 'AGENT'
       ? (user.approvalStatus === 'APPROVED' ? '/agent/requests' : '/agent/pending')
       : '/')
   }
