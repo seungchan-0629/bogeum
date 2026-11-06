@@ -42,3 +42,16 @@ solapi:
   api-key: ${SOLAPI_API_KEY}
   api-secret: ${SOLAPI_API_SECRET}
   sender-number: ${SOLAPI_SENDER_NUMBER}
+
+  # Client ID / Client Secret은 backend/.env 또는 실행 환경 변수에 입력한다.
+naver:
+  client-id: ${NAVER_CLIENT_ID:}
+  client-secret: ${NAVER_CLIENT_SECRET:}
+  redirect-uri: ${NAVER_REDIRECT_URI:http://localhost:8080/auth/social/naver/callback}
+  frontend-url: ${NAVER_FRONTEND_URL:http://localhost:5173}
+
+kakao:
+  client-id: ${KAKAO_CLIENT_ID:}
+  client-secret: ${KAKAO_CLIENT_SECRET:}
+  redirect-uri: ${KAKAO_REDIRECT_URI:http://localhost:8080/auth/social/kakao/callback}
+  frontend-url: ${KAKAO_FRONTEND_URL:http://localhost:5173}
