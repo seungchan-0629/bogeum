@@ -99,9 +99,9 @@ public class User {
 		this.identityVerifiedAt = verifiedAt;
 	}
 
-	/** 일반 로그인 검증에 성공한 경우에만 최근 로그인 수단을 변경한다. */
-	public void recordLocalLogin() {
-		this.lastLoginProvider = LoginProvider.LOCAL;
+	/** 로그인 검증에 성공한 경우에만 실제 사용한 로그인 수단을 기록한다. */
+	public void recordLogin(LoginProvider provider) {
+		this.lastLoginProvider = provider;
 	}
 
 	/** 검증된 전화번호와 서버에서 만든 비밀번호 해시만 반영한다. null은 변경하지 않는다. */

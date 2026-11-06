@@ -1,12 +1,12 @@
 // USER_001, USER_005, USER_018 (아이디·비밀번호 로그인), USER_007 (최근 로그인 수단 안내), USER_008 (소셜 로그인)
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import clsx from 'clsx'
 import { LAST_LOGIN_TYPE_KEY, LOGIN_TYPES, LOGIN_TYPE_LABELS } from '../../constants/auth.js'
-import { login } from '../../utils/jwtUtil.js'
+import { login, loginNaver, loginKakao, loginGoogle, publicApi } from '../../utils/jwtUtil.js'
 import DevLoginPanel from './DevLoginPanel.jsx'
 
 const loginSchema = z.object({
@@ -19,6 +19,12 @@ const SOCIAL_BUTTONS = [
   { type: LOGIN_TYPES.KAKAO, className: 'bg-[#fee500] text-[#191919] hover:bg-[#f5dc00]' },
   { type: LOGIN_TYPES.GOOGLE, className: 'border border-gray-300 bg-white text-gray-900 hover:bg-gray-50' },
 ]
+
+const SOCIAL_AUTH = {
+  [LOGIN_TYPES.NAVER]: { slug: 'naver', login: loginNaver },
+  [LOGIN_TYPES.KAKAO]: { slug: 'kakao', login: loginKakao },
+  [LOGIN_TYPES.GOOGLE]: { slug: 'google', login: loginGoogle },
+}
 
 function readLastLoginType() {
   try {
@@ -36,7 +42,13 @@ function RecentBadge() {
 
 function LoginForm() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const callbackProvider = Object.keys(SOCIAL_AUTH).find((type) => searchParams.has(SOCIAL_AUTH[type].slug))
   const [lastLoginType] = useState(readLastLoginType)
+  const [pendingProvider, setPendingProvider] = useState(
+    callbackProvider && searchParams.get(SOCIAL_AUTH[callbackProvider].slug) === 'complete' ? callbackProvider : null,
+  )
+  const socialHandled = useRef(false)
   const {
     register,
     handleSubmit,
@@ -44,16 +56,7 @@ function LoginForm() {
     formState: { errors, isSubmitting },
   } = useForm({ resolver: zodResolver(loginSchema) })
 
-  // 검증된 입력을 실제 API로 보낸다. 비밀번호는 콘솔이나 브라우저 저장소에 기록하지 않는다.
-  const onSubmit = async ({ email, password }) => {
-    let user
-    try {
-      user = await login(email, password)
-    } catch (error) {
-      setError('root', { message: error.response?.data?.message || '서버에 연결할 수 없습니다.' })
-      return
-    }
-
+  const finishLogin = useCallback((user) => {
     try {
       localStorage.setItem(LAST_LOGIN_TYPE_KEY, user.lastLoginProvider)
     } catch {
@@ -63,12 +66,55 @@ function LoginForm() {
     navigate(user.role === 'AGENT'
       ? (user.approvalStatus === 'APPROVED' ? '/agent/requests' : '/agent/pending')
       : '/')
+  }, [navigate])
+
+  useEffect(() => {
+    if (!callbackProvider || socialHandled.current) return
+    const provider = SOCIAL_AUTH[callbackProvider]
+    const label = LOGIN_TYPE_LABELS[callbackProvider]
+    const result = searchParams.get(provider.slug)
+    // StrictMode에서도 일회용 인증 결과를 중복 소비하지 않는다.
+    socialHandled.current = true
+    if (result !== 'complete') {
+      setError('root', { message: `${label} 인증이 취소되었거나 만료되었습니다. 다시 시도해 주세요.` })
+      return
+    }
+    provider.login()
+      .then((data) => {
+        if (data.isNewUser) {
+          navigate('/signup', {
+            replace: true,
+            state: { socialSignup: { provider: callbackProvider, name: data.name, email: data.email } },
+          })
+        } else {
+          finishLogin(data.authentication.user)
+        }
+      })
+      .catch((error) => setError('root', { message: error.response?.data?.message || `${label} 로그인을 완료하지 못했습니다.` }))
+      .finally(() => setPendingProvider(null))
+  }, [callbackProvider, searchParams, setError, finishLogin, navigate])
+
+  // 검증된 입력을 실제 API로 보낸다. 비밀번호는 콘솔이나 브라우저 저장소에 기록하지 않는다.
+  const onSubmit = async ({ email, password }) => {
+    try {
+      finishLogin(await login(email, password))
+    } catch (error) {
+      setError('root', { message: error.response?.data?.message || '서버에 연결할 수 없습니다.' })
+    }
   }
 
-  // TODO: 소셜 로그인 (BE-005) 연결
-  // - 각 제공자의 로그인 창으로 이동 → 돌아온 authorizationCode로 POST /auth/social/{provider} 호출
-  // - 응답의 isNewUser가 true면 동의 항목 화면으로 이동 (USER_004, USER_017)
-  const handleSocialLogin = () => {}
+  const handleSocialLogin = async (type) => {
+    const provider = SOCIAL_AUTH[type]
+    if (!provider || pendingProvider) return
+    setPendingProvider(type)
+    try {
+      const { data } = await publicApi.post(`/auth/social/${provider.slug}/authorize`)
+      window.location.assign(data.authorizationUrl)
+    } catch (error) {
+      setError('root', { message: error.response?.data?.message || `${LOGIN_TYPE_LABELS[type]} 로그인 화면을 열지 못했습니다.` })
+      setPendingProvider(null)
+    }
+  }
 
   return (
     <div className="flex flex-col gap-8">
@@ -122,7 +168,7 @@ function LoginForm() {
         {errors.root && <p role="alert" className="text-sm text-red-600">{errors.root.message}</p>}
         <button
           type="submit"
-          disabled={isSubmitting}
+          disabled={isSubmitting || Boolean(pendingProvider)}
           className="mt-2 flex h-12 items-center justify-center gap-2 rounded-xl bg-blue-600 text-base font-bold text-white hover:bg-blue-700 disabled:opacity-60"
         >
           로그인
@@ -141,12 +187,14 @@ function LoginForm() {
             key={type}
             type="button"
             onClick={() => handleSocialLogin(type)}
-            className={clsx('flex h-12 items-center justify-center gap-2 rounded-xl text-[15px] font-bold', className)}
+            disabled={!SOCIAL_AUTH[type] || Boolean(pendingProvider) || isSubmitting}
+            className={clsx('flex h-12 items-center justify-center gap-2 rounded-xl text-[15px] font-bold disabled:opacity-60', className)}
           >
-            {LOGIN_TYPE_LABELS[type]}로 로그인
+            {LOGIN_TYPE_LABELS[type]}로 로그인{!SOCIAL_AUTH[type] && ' (준비 중)'}
             {lastLoginType === type && <RecentBadge />}
           </button>
         ))}
+        {pendingProvider && <p role="status" className="text-sm text-gray-600">{LOGIN_TYPE_LABELS[pendingProvider]} 로그인을 진행하고 있어요.</p>}
       </div>
 
       <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm text-gray-600">
