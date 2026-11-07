@@ -9,6 +9,12 @@ export async function createBrokerageRequest(request) {
   return data
 }
 
+// PROPERTY_012 나에게 온 중개 신청 목록. status(REQUESTED·ACCEPTED)별로 한 페이지 5개씩, page는 1부터
+export async function getReceivedBrokerageRequests(status, page = 1, signal) {
+  const { data } = await api.get('/property/brokerage-requests/received', { ...PROPERTY_CONFIG, params: { status, page }, signal })
+  return data
+}
+
 // PROPERTY_008 중개 신청 수락. 승인된 중개사가 본인에게 온 신청만 수락할 수 있다
 export async function acceptBrokerageRequest(brokerageRequestId) {
   const { data } = await api.post(`/property/brokerage-requests/${brokerageRequestId}/accept`, null, PROPERTY_CONFIG)
