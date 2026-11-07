@@ -28,7 +28,13 @@ public class GlobalExceptionHandler {
 	/** multipart 파싱 단계의 용량 초과도 현재 사진 오류 정책에 따라 400으로 반환한다. */
 	@ExceptionHandler(MaxUploadSizeExceededException.class)
 	public ResponseEntity<ErrorResponse> handleUploadLimit(Exception exception) {
-		return toResponse(ErrorCode.AS_INVALID_IMAGE);
+		return toResponse(ErrorCode.INVALID_IMAGE);
+	}
+
+	/** 공통 사진 검사에서 거절한 사진을 400으로 반환한다. */
+	@ExceptionHandler(ImageException.class)
+	public ResponseEntity<ErrorResponse> handleImageException(ImageException exception) {
+		return toResponse(exception.getErrorCode());
 	}
 
 	@ExceptionHandler(AgentException.class)
