@@ -131,9 +131,7 @@ public class Property {
 	 */
 	public void updateDetails(PropertyType propertyType, BigDecimal areaPyeong, Integer roomCount, Integer floor,
 			Integer totalFloor, Integer householdCount, Integer parkingCount, String nearbySubwayStation) {
-		if (propertyStatus != PropertyStatus.REQUESTED) {
-			throw PropertyException.notEditable();
-		}
+		validateEditable();
 		if (floor != null && totalFloor != null && floor > totalFloor) {
 			throw PropertyException.invalidFloor();
 		}
@@ -145,5 +143,16 @@ public class Property {
 		this.householdCount = householdCount;
 		this.parkingCount = parkingCount;
 		this.nearbySubwayStation = nearbySubwayStation;
+	}
+
+	/**
+	 * 상세 정보와 사진은 공개 전(REQUESTED)에만 바꿀 수 있다. 공개 이후의 수정은 아직 정하지 않았다 (PROPERTY_010).
+	 *
+	 * @throws PropertyException 이미 공개 등으로 신청 상태가 아닌 매물인 경우
+	 */
+	public void validateEditable() {
+		if (propertyStatus != PropertyStatus.REQUESTED) {
+			throw PropertyException.notEditable();
+		}
 	}
 }
