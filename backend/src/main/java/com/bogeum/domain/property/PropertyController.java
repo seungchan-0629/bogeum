@@ -1,8 +1,11 @@
 package com.bogeum.domain.property;
 
+import java.util.List;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.bogeum.common.enums.BrokerageStatus;
 import com.bogeum.domain.property.model.PropertyDto;
@@ -23,6 +26,16 @@ public class PropertyController {
 	public PropertyDto.BrokerageResponse createBrokerageRequest(@AuthenticationPrincipal LoginUser loginUser,
 			@Valid @RequestBody PropertyDto.BrokerageRequest request) {
 		return propertyService.createBrokerageRequest(loginUser.getUserId(), request);
+	}
+
+	// 승인된 중개사가 맡은 매물에 건물·방 사진을 추가한다 (PROPERTY_010)
+	// 사진이 없는 요청도 서비스가 사진 오류(INVALID_IMAGE)로 거절하도록 필수로 두지 않는다
+	@PostMapping(value = "/{propertyId}/images", consumes = "multipart/form-data")
+	@ResponseStatus(HttpStatus.CREATED)
+	public List<PropertyDto.ImageResponse> createPropertyImages(@AuthenticationPrincipal LoginUser loginUser,
+			@PathVariable("propertyId") Long propertyId,
+			@RequestPart(value = "images", required = false) List<MultipartFile> images) {
+		return propertyService.createPropertyImages(loginUser.getUserId(), propertyId, images);
 	}
 
 	// 승인된 중개사가 본인에게 온 중개 신청을 '새 신청'(REQUESTED)·'수락한 신청'(ACCEPTED)으로 나눠 본다 (PROPERTY_012)
