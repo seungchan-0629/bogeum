@@ -117,6 +117,22 @@ public class PropertyService {
 		return PropertyDto.AcceptResponse.from(brokerageRequest);
 	}
 
+	/**
+	 * 중개사가 맡은 매물의 상세 정보를 임시 저장한다. 공개(ACTIVE) 전환은 따로 한다 (PROPERTY_010).
+	 *
+	 * @throws PropertyException 없거나 맡지 않은 매물, 공개 전이 아닌 매물, 층이 전체 층보다 큰 경우
+	 */
+	@Transactional
+	public PropertyDto.DetailSaveResponse updatePropertyDetail(Long agentUserId, Long propertyId,
+			PropertyDto.DetailRequest request) {
+		Property property = propertyRepository.findByPropertyIdAndAgent_UserId(propertyId, agentUserId)
+			.orElseThrow(PropertyException::propertyNotFound);
+		property.updateDetails(request.getPropertyType(), request.getAreaPyeong(), request.getRoomCount(),
+			request.getFloor(), request.getTotalFloor(), request.getHouseholdCount(), request.getParkingCount(),
+			trimToNull(request.getNearbySubwayStation()));
+		return PropertyDto.DetailSaveResponse.from(property);
+	}
+
 	/** 전세는 월세 없이 전세금만, 월세는 월세 금액이 있어야 한다. 저장할 월세 금액을 반환한다. */
 	private BigDecimal validateLeasePrice(LeaseType leaseType, BigDecimal deposit, BigDecimal monthlyRent) {
 		BigDecimal rent = monthlyRent == null ? BigDecimal.ZERO : monthlyRent;
@@ -162,5 +178,10 @@ public class PropertyService {
 
 	private String regionPrefix(String sido) {
 		return sido.length() <= 2 ? sido : sido.substring(0, 2);
+	}
+
+	// 공백만 보낸 칸은 비운 것으로 저장한다
+	private String trimToNull(String value) {
+		return value == null || value.isBlank() ? null : value.trim();
 	}
 }
