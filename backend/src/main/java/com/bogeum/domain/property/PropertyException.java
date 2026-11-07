@@ -15,4 +15,5 @@ public class PropertyException extends RuntimeException {
 	public static PropertyException noAgentAvailable() { return new PropertyException(ErrorCode.NO_BROKERAGE_AGENT); }
 	public static PropertyException brokerageRequestNotFound() { return new PropertyException(ErrorCode.BROKERAGE_REQUEST_NOT_FOUND); }
 	public static PropertyException alreadyAccepted() { return new PropertyException(ErrorCode.BROKERAGE_ALREADY_ACCEPTED); }
+	public static PropertyException propertyNotFound() { return new PropertyException(ErrorCode.PROPERTY_NOT_FOUND); }
 }
