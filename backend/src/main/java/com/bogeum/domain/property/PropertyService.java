@@ -1,7 +1,9 @@
 package com.bogeum.domain.property;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.springframework.beans.factory.ObjectProvider;
@@ -10,6 +12,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.bogeum.common.enums.ApprovalStatus;
 import com.bogeum.common.enums.BrokerageStatus;
@@ -22,15 +27,20 @@ import com.bogeum.domain.property.model.PropertyDto;
 import com.bogeum.domain.property.model.PropertyImage;
 import com.bogeum.domain.user.UserService;
 import com.bogeum.domain.user.model.User;
+import com.bogeum.utils.ImageProcessor;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class PropertyService {
 
 	// 중개 신청 목록 한 페이지의 개수 (PROPERTY_012)
 	private static final int PAGE_SIZE = 5;
+	// 매물 하나에 올릴 수 있는 사진 수. AS 사진 상한과 같다 (PROPERTY_010)
+	private static final int MAX_IMAGE_COUNT = 10;
 
 	private final UserService userService;
 	private final AgentRepository agentRepository;
@@ -38,6 +48,7 @@ public class PropertyService {
 	private final BrokerageRequestRepository brokerageRequestRepository;
 	private final PropertyImageRepository propertyImageRepository;
 	private final ObjectProvider<PropertyImageStorage> storageProvider;
+	private final ImageProcessor imageProcessor;
 
 	/**
 	 * 매물을 만들고 중개사에게 중개를 신청한다 (PROPERTY_002).
@@ -67,6 +78,61 @@ public class PropertyService {
 			.isDesignated(isDesignated)
 			.build());
 		return PropertyDto.BrokerageResponse.from(brokerageRequest, agent);
+	}
+
+	/**
+	 * 중개사가 맡은 공개 전 매물에 사진을 추가한다. 기존 사진 뒤에 순서대로 붙는다 (PROPERTY_010).
+	 * 모든 사진을 먼저 검사·변환해서, 하나라도 잘못되면 저장소에 아무것도 올리지 않는다.
+	 *
+	 * @throws PropertyException 없거나 맡지 않은 매물, 공개 전이 아닌 매물, 사진이 없거나 상한을 넘는 경우, 저장 실패
+	 * @throws com.bogeum.common.exception.ImageException 형식·용량·픽셀 제한을 벗어난 사진이 있는 경우
+	 */
+	@Transactional
+	public List<PropertyDto.ImageResponse> createPropertyImages(Long agentUserId, Long propertyId,
+			List<MultipartFile> images) {
+		Property property = propertyRepository.findForUpdateByPropertyIdAndAgent_UserId(propertyId, agentUserId)
+			.orElseThrow(PropertyException::propertyNotFound);
+		property.validateEditable();
+		List<MultipartFile> files = images == null ? List.of() : images;
+		List<PropertyImage> savedImages = propertyImageRepository
+			.findAllByProperty_PropertyIdOrderBySortOrderAscPropertyImageIdAsc(propertyId);
+		if (files.isEmpty() || savedImages.size() + files.size() > MAX_IMAGE_COUNT) {
+			throw PropertyException.invalidImage();
+		}
+		PropertyImageStorage storage = storageProvider.getIfAvailable();
+		// 저장소 없이 사진 추가를 성공으로 처리하지 않는다
+		if (storage == null) {
+			throw PropertyException.storageUnavailable();
+		}
+		List<byte[]> jpegs = files.stream().map(imageProcessor::process).toList();
+
+		List<String> keys = new ArrayList<>();
+		// 롤백되거나 커밋되지 않으면 이번 요청에서 올린 파일을 지운다. 외부 저장소와 DB의 원자성까지 보장하지는 않는다
+		TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+			@Override
+			public void afterCompletion(int status) {
+				if (status != STATUS_COMMITTED) {
+					deleteImages(storage, keys);
+				}
+			}
+		});
+		int sortOrder = savedImages.isEmpty() ? 0 : savedImages.get(savedImages.size() - 1).getSortOrder() + 1;
+		List<PropertyDto.ImageResponse> responses = new ArrayList<>();
+		for (byte[] jpeg : jpegs) {
+			String key = "property-images/" + propertyId + "/" + UUID.randomUUID() + ".jpg";
+			// 저장 도중 일부만 기록된 경우도 지울 수 있도록 쓰기 전에 키를 등록한다
+			keys.add(key);
+			try {
+				storage.write(key, jpeg);
+			} catch (RuntimeException exception) {
+				log.error("매물 사진 저장 실패: key={}", key, exception);
+				throw PropertyException.storageUnavailable();
+			}
+			PropertyImage image = propertyImageRepository.save(PropertyImage.builder()
+				.property(property).fileKey(key).sortOrder(sortOrder++).build());
+			responses.add(PropertyDto.ImageResponse.from(image, storage.createReadUrl(key)));
+		}
+		return responses;
 	}
 
 	/**
@@ -178,6 +244,17 @@ public class PropertyService {
 
 	private String regionPrefix(String sido) {
 		return sido.length() <= 2 ? sido : sido.substring(0, 2);
+	}
+
+	/** 정리 실패는 로그로 남기고 다음 키를 계속 지운다. */
+	private void deleteImages(PropertyImageStorage storage, List<String> keys) {
+		for (String key : keys) {
+			try {
+				storage.delete(key);
+			} catch (RuntimeException exception) {
+				log.error("롤백된 매물 사진 정리 실패: key={}", key, exception);
+			}
+		}
 	}
 
 	// 공백만 보낸 칸은 비운 것으로 저장한다
