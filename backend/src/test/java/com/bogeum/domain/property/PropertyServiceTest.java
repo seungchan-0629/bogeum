@@ -313,11 +313,83 @@ class PropertyServiceTest {
 		verify(propertyImageRepository, never()).findAllByProperty_PropertyIdOrderBySortOrderAscPropertyImageIdAsc(any());
 	}
 
-	private void givenAssignedProperty() {
+	@Test
+	@DisplayName("상세 정보를 임시 저장하면 신청 조건과 공개 상태는 그대로 두고 상세 정보만 바꾼다")
+	void savesPropertyDetail() {
+		Property property = givenAssignedProperty();
+
+		var response = propertyService.updatePropertyDetail(101L, 20L, new PropertyDto.DetailRequest(
+			PropertyType.VILLA, new BigDecimal("17.32"), 3, 3, 5, 19, 10, "  대방역, 신대방역 "));
+
+		assertEquals(PropertyType.VILLA, property.getPropertyType());
+		assertEquals(new BigDecimal("17.32"), property.getAreaPyeong());
+		assertEquals(3, property.getRoomCount());
+		assertEquals(3, property.getFloor());
+		assertEquals(5, property.getTotalFloor());
+		assertEquals(19, property.getHouseholdCount());
+		assertEquals(10, property.getParkingCount());
+		assertEquals("대방역, 신대방역", property.getNearbySubwayStation());
+		assertEquals(LeaseType.MONTHLY, property.getLeaseType());
+		assertEquals(MAPO_ADDRESS, property.getRoadAddress());
+		assertEquals(PropertyStatus.REQUESTED, response.getPropertyStatus());
+		assertEquals(20L, response.getPropertyId());
+	}
+
+	@Test
+	@DisplayName("임시 저장은 빈 값도 받아서 비운 채로 저장하고, 공백만 보낸 지하철역은 비운다")
+	void savesEmptyPropertyDetail() {
+		Property property = givenAssignedProperty();
+
+		propertyService.updatePropertyDetail(101L, 20L, new PropertyDto.DetailRequest(
+			null, null, null, null, null, null, null, "   "));
+
+		assertNull(property.getPropertyType());
+		assertNull(property.getRoomCount());
+		assertNull(property.getNearbySubwayStation());
+	}
+
+	@Test
+	@DisplayName("층이 전체 층보다 크면 저장하지 않고 거절한다")
+	void rejectsFloorAboveTotalFloor() {
+		Property property = givenAssignedProperty();
+
+		var exception = assertThrows(PropertyException.class, () -> propertyService.updatePropertyDetail(101L, 20L,
+			new PropertyDto.DetailRequest(null, null, null, 6, 5, null, null, null)));
+
+		assertEquals(ErrorCode.INVALID_PROPERTY_FLOOR, exception.getErrorCode());
+		assertNull(property.getFloor());
+	}
+
+	@Test
+	@DisplayName("공개 전(REQUESTED)이 아닌 매물은 상세 정보를 저장할 수 없다")
+	void rejectsSavingPublishedProperty() {
 		when(propertyRepository.findByPropertyIdAndAgent_UserId(20L, 101L)).thenReturn(Optional.of(Property.builder()
+			.propertyId(20L).landlord(landlord).propertyStatus(PropertyStatus.ACTIVE).build()));
+
+		var exception = assertThrows(PropertyException.class, () -> propertyService.updatePropertyDetail(101L, 20L,
+			new PropertyDto.DetailRequest(PropertyType.VILLA, null, null, null, null, null, null, null)));
+
+		assertEquals(ErrorCode.PROPERTY_NOT_EDITABLE, exception.getErrorCode());
+	}
+
+	@Test
+	@DisplayName("없거나 다른 중개사가 맡은 매물은 상세 정보를 저장할 수 없다")
+	void rejectsSavingOthersProperty() {
+		when(propertyRepository.findByPropertyIdAndAgent_UserId(20L, 999L)).thenReturn(Optional.empty());
+
+		var exception = assertThrows(PropertyException.class, () -> propertyService.updatePropertyDetail(999L, 20L,
+			new PropertyDto.DetailRequest(PropertyType.VILLA, null, null, null, null, null, null, null)));
+
+		assertEquals(ErrorCode.PROPERTY_NOT_FOUND, exception.getErrorCode());
+	}
+
+	private Property givenAssignedProperty() {
+		Property property = Property.builder()
 			.propertyId(20L).landlord(landlord).agent(User.builder().userId(101L).build())
 			.leaseType(LeaseType.MONTHLY).deposit(BigDecimal.valueOf(10_000_000)).monthlyRent(BigDecimal.valueOf(700_000))
-			.roadAddress(MAPO_ADDRESS).detailAddress("302호").propertyType(PropertyType.OFFICETEL).build()));
+			.roadAddress(MAPO_ADDRESS).detailAddress("302호").propertyType(PropertyType.OFFICETEL).build();
+		when(propertyRepository.findByPropertyIdAndAgent_UserId(20L, 101L)).thenReturn(Optional.of(property));
+		return property;
 	}
 
 	private static PropertyImage image(Long propertyImageId, int sortOrder, String fileKey) {

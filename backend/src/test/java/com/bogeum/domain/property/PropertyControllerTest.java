@@ -1,11 +1,13 @@
 package com.bogeum.domain.property;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -17,6 +19,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -33,6 +36,8 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import com.bogeum.common.enums.BrokerageStatus;
 import com.bogeum.common.enums.LeaseType;
+import com.bogeum.common.enums.PropertyStatus;
+import com.bogeum.common.enums.PropertyType;
 import com.bogeum.common.enums.Role;
 import com.bogeum.domain.property.model.PropertyDto;
 import com.bogeum.domain.user.model.User;
@@ -155,6 +160,63 @@ class PropertyControllerTest {
 			.andExpect(jsonPath("$.leaseType").value("MONTHLY"))
 			.andExpect(jsonPath("$.images[0].propertyImageId").value(1))
 			.andExpect(jsonPath("$.images[0].url").value("https://s3/a"));
+	}
+
+	@Test
+	@DisplayName("매물 상세 저장은 로그인 중개사·매물 기준으로 요청값을 넘기고 저장 결과를 반환한다")
+	void savesPropertyDetail() throws Exception {
+		var request = ArgumentCaptor.forClass(PropertyDto.DetailRequest.class);
+		when(propertyService.updatePropertyDetail(eq(1L), eq(20L), request.capture())).thenReturn(
+			PropertyDto.DetailSaveResponse.builder().propertyId(20L).propertyStatus(PropertyStatus.REQUESTED).build());
+
+		mockMvc.perform(put("/property/20/details").contentType(MediaType.APPLICATION_JSON).content("""
+				{"propertyType":"VILLA","areaPyeong":17.32,"roomCount":3,"floor":-1,"totalFloor":5,
+				 "householdCount":19,"parkingCount":0,"nearbySubwayStation":"대방역"}
+				"""))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.propertyId").value(20))
+			.andExpect(jsonPath("$.propertyStatus").value("REQUESTED"));
+		assertEquals(PropertyType.VILLA, request.getValue().getPropertyType());
+		assertEquals(-1, request.getValue().getFloor());
+		assertEquals(5, request.getValue().getTotalFloor());
+	}
+
+	@Test
+	@DisplayName("매물 상세 저장은 모든 칸이 비어 있어도 받는다 (임시 저장)")
+	void savesEmptyPropertyDetail() throws Exception {
+		when(propertyService.updatePropertyDetail(eq(1L), eq(20L), any(PropertyDto.DetailRequest.class))).thenReturn(
+			PropertyDto.DetailSaveResponse.builder().propertyId(20L).propertyStatus(PropertyStatus.REQUESTED).build());
+
+		mockMvc.perform(put("/property/20/details").contentType(MediaType.APPLICATION_JSON).content("{}"))
+			.andExpect(status().isOk());
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {
+		"{\"propertyType\":\"ONE_ROOM\"}",
+		"{\"areaPyeong\":0}",
+		"{\"areaPyeong\":10.123}",
+		"{\"roomCount\":0}",
+		"{\"totalFloor\":0}",
+		"{\"householdCount\":0}",
+		"{\"parkingCount\":-1}"
+	})
+	@DisplayName("없는 매물 종류·범위를 벗어난 숫자는 서비스 호출 전에 400으로 거절한다")
+	void rejectsInvalidPropertyDetail(String body) throws Exception {
+		mockMvc.perform(put("/property/20/details").contentType(MediaType.APPLICATION_JSON).content(body))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+		verifyNoInteractions(propertyService);
+	}
+
+	@Test
+	@DisplayName("주변 지하철역이 100자를 넘으면 서비스 호출 전에 400으로 거절한다")
+	void rejectsTooLongSubwayStation() throws Exception {
+		mockMvc.perform(put("/property/20/details").contentType(MediaType.APPLICATION_JSON)
+				.content("{\"nearbySubwayStation\":\"" + "역".repeat(101) + "\"}"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+		verifyNoInteractions(propertyService);
 	}
 
 	@ParameterizedTest
