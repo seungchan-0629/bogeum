@@ -16,4 +16,6 @@ public class PropertyException extends RuntimeException {
 	public static PropertyException brokerageRequestNotFound() { return new PropertyException(ErrorCode.BROKERAGE_REQUEST_NOT_FOUND); }
 	public static PropertyException alreadyAccepted() { return new PropertyException(ErrorCode.BROKERAGE_ALREADY_ACCEPTED); }
 	public static PropertyException propertyNotFound() { return new PropertyException(ErrorCode.PROPERTY_NOT_FOUND); }
+	public static PropertyException notEditable() { return new PropertyException(ErrorCode.PROPERTY_NOT_EDITABLE); }
+	public static PropertyException invalidFloor() { return new PropertyException(ErrorCode.INVALID_PROPERTY_FLOOR); }
 }
