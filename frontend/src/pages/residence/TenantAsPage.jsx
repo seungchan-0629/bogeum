@@ -16,7 +16,7 @@ const SAMPLE_AS_REQUESTS = [
   { asId: 1, title: '화장실 천장 누수', status: 'IN_PROGRESS', createdAt: '10.22', comments: [{ author: '임대인', date: '10.23', content: '수요일 오전에 수리 기사님이 방문할 예정이에요.' }] },
   { asId: 2, title: '보일러 온수 약함', status: 'CHECKING', createdAt: '10.20', comments: [] },
   { asId: 3, title: '창문 방충망 찢어짐', status: 'RECEIVED', createdAt: '10.21', comments: [] },
-  { asId: 4, title: '현관 도어락 고장', status: 'DONE', createdAt: '09.30', comments: [] },
+  { asId: 4, title: '현관 도어락 고장', status: 'COMPLETED', createdAt: '09.30', comments: [] },
 ]
 
 function TenantAsPage() {
