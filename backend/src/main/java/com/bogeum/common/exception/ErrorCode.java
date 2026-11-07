@@ -23,6 +23,7 @@ public enum ErrorCode {
 	NO_BROKERAGE_AGENT(HttpStatus.CONFLICT, "지금은 중개를 맡을 수 있는 중개사가 없습니다."),
 	BROKERAGE_REQUEST_NOT_FOUND(HttpStatus.NOT_FOUND, "중개 신청을 찾을 수 없습니다."),
 	BROKERAGE_ALREADY_ACCEPTED(HttpStatus.CONFLICT, "이미 수락한 중개 신청입니다."),
+	PROPERTY_NOT_FOUND(HttpStatus.NOT_FOUND, "매물을 찾을 수 없습니다."),
 	INVALID_PROFILE(HttpStatus.BAD_REQUEST, "전화번호 또는 새 비밀번호와 확인값을 확인해 주세요. 비밀번호는 UTF-8 기준 72바이트까지 가능합니다."),
 	CURRENT_PASSWORD_MISMATCH(HttpStatus.BAD_REQUEST, "현재 비밀번호를 확인해 주세요."),
 	INVALID_SIGNUP(HttpStatus.BAD_REQUEST, "가입 정보와 필수 동의를 확인해 주세요."),
