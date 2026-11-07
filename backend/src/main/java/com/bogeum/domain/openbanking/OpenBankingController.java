@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -138,5 +139,18 @@ public class OpenBankingController {
 	private LocalDate parseBankTranDate(String bankTranDate) {
 		return bankTranDate == null || bankTranDate.isBlank() ? null
 			: LocalDate.parse(bankTranDate, DateTimeFormatter.BASIC_ISO_DATE);
+	}
+
+	// 관리자 코드
+	@PostMapping("/admin/institution-token")
+	@PreAuthorize("hasRole('ADMIN')")
+	public InstitutionTokenResponse issueManagedInstitutionToken() {
+		return openBankingService.issueManagedInstitutionToken();
+	}
+
+	@GetMapping("/admin/institution-token")
+	@PreAuthorize("hasRole('ADMIN')")
+	public InstitutionTokenResponse getInstitutionTokenStatus() {
+		return openBankingService.getInstitutionTokenStatus();
 	}
 }

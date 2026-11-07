@@ -103,6 +103,9 @@ public class CustomSecurityConfig {
 				.requestMatchers(HttpMethod.PATCH, "/as-requests/*/status").hasRole("USER")
 				.requestMatchers("/api/v1/agents/me", "/api/v1/agents/me/demo-approval", "/api/v1/agents/me/documents", "/api/v1/agents/me/documents/**").hasRole("AGENT")
 				.requestMatchers("/api/v1/agents/**").access(approvedAgent)
+				// 관리자 코드
+				.requestMatchers(HttpMethod.POST, "/openbanking/tokens/institution", "/openbanking/remittances",
+					"/openbanking/accounts/*/withdrawals", "/openbanking/transfers/results").hasRole("ADMIN")
 				.anyRequest().authenticated())
 			.exceptionHandling(errors -> errors
 				.authenticationEntryPoint(authenticationEntryPoint)

@@ -3,6 +3,7 @@ package com.bogeum.common.exception;
 import com.bogeum.domain.agent.AgentException;
 import com.bogeum.domain.aftersales.AfterSalesException;
 import com.bogeum.domain.property.PropertyException;
+import com.bogeum.domain.openbanking.OpenBankingException;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -56,5 +57,11 @@ public class GlobalExceptionHandler {
 
 	private ResponseEntity<ErrorResponse> toResponse(ErrorCode errorCode) {
 		return ResponseEntity.status(errorCode.getHttpStatus()).body(new ErrorResponse(errorCode));
+	}
+
+	// 관리자 코드
+	@ExceptionHandler(OpenBankingException.class)
+	public ResponseEntity<ErrorResponse> handleOpenBankingException(OpenBankingException exception) {
+		return toResponse(exception.getErrorCode());
 	}
 }

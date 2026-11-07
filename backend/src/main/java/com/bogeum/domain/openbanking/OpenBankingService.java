@@ -2,8 +2,10 @@ package com.bogeum.domain.openbanking;
 
 import com.bogeum.domain.openbanking.FakeKFTC.StateStore;
 import com.bogeum.domain.openbanking.model.OpenBanking;
+import com.bogeum.domain.openbanking.model.InstitutionToken;
 import com.bogeum.domain.openbanking.model.OpenBankingDTO.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
@@ -12,6 +14,7 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.util.UriComponentsBuilder;
 import tools.jackson.databind.JsonNode;
 
@@ -445,4 +448,32 @@ public class OpenBankingService
             throw new IllegalArgumentException(name + "이(가) 필요합니다.");
         }
     }
+
+	// 관리자 코드
+	private final InstitutionTokenRepository institutionTokenRepository;
+	@Value("${openbanking.client-id:}")
+	private String institutionClientId;
+	@Value("${openbanking.client-secret:}")
+	private String institutionClientSecret;
+
+	@Transactional
+	public InstitutionTokenResponse issueManagedInstitutionToken() {
+		if (institutionClientId.isBlank() || institutionClientSecret.isBlank()) {
+			throw OpenBankingException.notConfigured();
+		}
+		try {
+			var response = issueInstitutionToken(
+				new InstitutionTokenReq(institutionClientId, institutionClientSecret, "oob", "client_credentials"));
+			InstitutionToken token = institutionTokenRepository.findById(1L).orElseGet(InstitutionToken::new);
+			token.renew(response.getAccessToken(), response.getClientUseCode(), response.getExpiresIn());
+			return InstitutionTokenResponse.from(institutionTokenRepository.saveAndFlush(token));
+		} catch (RestClientException exception) {
+			throw OpenBankingException.unavailable();
+		}
+	}
+
+	@Transactional(readOnly = true)
+	public InstitutionTokenResponse getInstitutionTokenStatus() {
+		return InstitutionTokenResponse.from(institutionTokenRepository.findById(1L).orElse(null));
+	}
 }

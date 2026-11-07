@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:http'
 import { fileURLToPath } from 'node:url'
 
@@ -7,10 +7,35 @@ const REDIRECT_URI = 'http://localhost:5173/mypage/openbanking/callback'
 const page = readFileSync(new URL('./authorize.html', import.meta.url), 'utf8')
 export const BANKS = ['국민은행', '신한은행', '우리은행', '하나은행', '농협은행', '카카오뱅크', '토스뱅크']
 
-// 계좌 등록 흐름만 흉내 내는 로컬 서버다. 실제 은행 인증이나 이체는 하지 않는다.
-export function createFakeKftcServer() {
+// 계좌 등록·토큰·잔액·이체를 흉내 내는 로컬 서버다. 실제 금융기관에는 연결하지 않는다.
+export function createFakeKftcServer({ statePath = null } = {}) {
+  const saved = statePath && existsSync(statePath) ? JSON.parse(readFileSync(statePath, 'utf8')) : {}
   const codes = new Map()
-  const tokens = new Map()
+  const tokens = new Map(saved.tokens ?? [])
+  const refreshTokens = new Map(saved.refreshTokens ?? [])
+  const accounts = new Map(saved.accounts ?? [])
+  const transfers = new Map(saved.transfers ?? [])
+  let institutionBalance = saved.institutionBalance ?? 100000000
+  const save = () => {
+    if (!statePath) return
+    const temporaryPath = `${statePath}.tmp`
+    writeFileSync(temporaryPath, JSON.stringify({
+      tokens: [...tokens], refreshTokens: [...refreshTokens], accounts: [...accounts],
+      transfers: [...transfers], institutionBalance,
+    }), 'utf8')
+    renameSync(temporaryPath, statePath)
+  }
+  const issueUserToken = (authorization) => {
+    const accessToken = randomUUID()
+    const refreshToken = randomUUID()
+    tokens.set(accessToken, { ...authorization, expiresAt: Date.now() + 3600000 })
+    refreshTokens.set(refreshToken, authorization)
+    save()
+    return {
+      access_token: accessToken, token_type: 'Bearer', expires_in: 3600,
+      refresh_token: refreshToken, scope: authorization.scope, user_seq_no: authorization.userSeqNo,
+    }
+  }
 
   return createServer(async (request, response) => {
     const url = new URL(request.url, 'http://localhost:8090')
@@ -56,6 +81,15 @@ export function createFakeKftcServer() {
               return send(400, { message: '은행, 계좌번호(숫자 10~16자리), 예금주와 동의를 확인해 주세요.' })
             }
             const identity = createHash('sha256').update(`${bankName}:${accountNumber}`).digest('hex')
+            const fintechUseNum = BigInt(`0x${identity}`).toString().slice(0, 24)
+            if (!accounts.has(fintechUseNum)) {
+              accounts.set(fintechUseNum, {
+                bankName, holderName, accountNumberMasked: `${'*'.repeat(accountNumber.length - 4)}${accountNumber.slice(-4)}`,
+                balance: accountNumber.endsWith('0000') ? 0 : 10000000,
+                bankError: accountNumber.endsWith('9999'),
+              })
+              save()
+            }
             const code = randomUUID()
             codes.set(code, {
               clientId: params.get('client_id'),
@@ -66,7 +100,8 @@ export function createFakeKftcServer() {
                 bank_name: bankName,
                 account_holder_name: holderName,
                 account_num_masked: `${'*'.repeat(accountNumber.length - 4)}${accountNumber.slice(-4)}`,
-                fintech_use_num: BigInt(`0x${identity}`).toString().slice(0, 24),
+                fintech_use_num: fintechUseNum,
+                transfer_agree_yn: 'Y', account_state: '01',
               },
               expiresAt: Date.now() + 10 * 60 * 1000,
             })
@@ -77,6 +112,24 @@ export function createFakeKftcServer() {
         }
 
         if (url.pathname === '/oauth/2.0/token') {
+          if (params.get('grant_type') === 'client_credentials') {
+            if (params.get('client_id') !== 'bogeum' || params.get('client_secret') !== 'mock-secret'
+              || params.get('scope') !== 'oob') return send(400, { error: 'invalid_client' })
+            const accessToken = randomUUID()
+            tokens.set(accessToken, { scope: 'oob', expiresAt: Date.now() + 86400000 })
+            save()
+            return send(200, {
+              access_token: accessToken, token_type: 'Bearer', expires_in: 86400,
+              scope: 'oob', client_use_code: 'M000000000',
+            })
+          }
+          if (params.get('grant_type') === 'refresh_token') {
+            const previous = refreshTokens.get(params.get('refresh_token'))
+            if (!previous || params.get('client_id') !== previous.clientId
+              || params.get('client_secret') !== 'mock-secret') return send(400, { error: 'invalid_grant' })
+            refreshTokens.delete(params.get('refresh_token'))
+            return send(200, issueUserToken(previous))
+          }
           const authorization = codes.get(params.get('code'))
           if (params.get('grant_type') !== 'authorization_code' || !authorization
             || authorization.expiresAt <= Date.now() || params.get('redirect_uri') !== REDIRECT_URI
@@ -84,16 +137,91 @@ export function createFakeKftcServer() {
             return send(400, { error: 'invalid_grant' })
           }
           codes.delete(params.get('code'))
-          const accessToken = randomUUID()
-          tokens.set(accessToken, { ...authorization, expiresAt: Date.now() + 3600000 })
-          return send(200, {
-            access_token: accessToken, token_type: 'Bearer', expires_in: 3600,
-            refresh_token: randomUUID(), scope: authorization.scope, user_seq_no: authorization.userSeqNo,
-          })
+          return send(200, issueUserToken(authorization))
+        }
+
+        // 로컬 시뮬레이터의 잔액·은행 오류를 바꿔 실패 건을 재처리할 수 있다.
+        if (url.pathname === '/mock/accounts') {
+          const data = JSON.parse(body)
+          const account = accounts.get(data.fintechUseNum)
+          if (!account || !Number.isSafeInteger(data.balance) || data.balance < 0
+            || typeof data.bankError !== 'boolean') return send(400, { message: '가상계좌, 잔액, 오류 여부를 확인해 주세요.' })
+          account.balance = data.balance
+          account.bankError = data.bankError
+          save()
+          return send(200, { ...account, fintechUseNum: data.fintechUseNum })
+        }
+
+        if (url.pathname.startsWith('/v2.0/transfer/')) {
+          const authorization = tokens.get(request.headers.authorization?.replace(/^Bearer /, ''))
+          if (!authorization || authorization.expiresAt <= Date.now()) {
+            return send(200, { rsp_code: 'O0003', rsp_message: '토큰이 만료되었거나 유효하지 않습니다.' })
+          }
+          const data = JSON.parse(body)
+          const isWithdrawal = url.pathname === '/v2.0/transfer/withdraw/fin_num'
+          const isRemittance = url.pathname === '/v2.0/transfer/deposit/fin_num'
+          const isResult = url.pathname === '/v2.0/transfer/result'
+          if (!isWithdrawal && !isRemittance && !isResult) return send(404, { message: '지원하지 않는 이체 경로입니다.' })
+          if (isWithdrawal ? !authorization.scope.split(' ').includes('transfer') : authorization.scope !== 'oob') {
+            return send(200, { rsp_code: 'O0004', rsp_message: '이체 권한이 없는 토큰입니다.' })
+          }
+          if (isResult) {
+            if (!['1', '2'].includes(data.check_type) || !Array.isArray(data.req_list)
+              || data.req_list.length < 1 || data.req_list.length > 25
+              || String(data.req_list.length) !== data.req_cnt) return send(400, { message: '조회 요청을 확인해 주세요.' })
+            const results = data.req_list.map((item) => {
+              const result = transfers.get(item.org_bank_tran_id)
+              return result && result.check_type === data.check_type && result.bank_tran_date === item.org_bank_tran_date
+                && result.tran_amt === item.org_tran_amt
+                ? { ...result, tran_no: item.tran_no }
+                : { tran_no: item.tran_no, bank_rsp_code: '404', bank_rsp_message: '원거래가 없습니다. 다시 요청할 수 있습니다.' }
+            })
+            return send(200, { rsp_code: 'A0000', rsp_message: '성공', res_cnt: String(results.length), res_list: results })
+          }
+          if (isRemittance && (data.req_cnt !== '1' || data.req_list?.length !== 1
+            || data.wd_pass_phrase !== 'mock-passphrase')) return send(400, { message: '송금 요청을 확인해 주세요.' })
+          const item = isWithdrawal ? data : data.req_list[0]
+          const amount = Number(item.tran_amt)
+          if (!/^[A-Z0-9]{20}$/.test(item.bank_tran_id ?? '') || !/^\d+$/.test(item.tran_amt ?? '')
+            || !/^\d{14}$/.test(data.tran_dtime ?? '')
+            || !Number.isSafeInteger(amount) || amount <= 0 || data.cntr_account_num !== '000000000001') {
+            return send(400, { message: '거래 번호, 금액, 약정 계좌를 확인해 주세요.' })
+          }
+          const checkType = isWithdrawal ? '1' : '2'
+          const previous = transfers.get(item.bank_tran_id)
+          const formatResult = (result) => isWithdrawal
+            ? { rsp_code: 'A0000', rsp_message: '성공', ...result }
+            : { rsp_code: 'A0000', rsp_message: '성공', res_list: [result] }
+          if (previous) {
+            if (previous.check_type !== checkType || previous.tran_amt !== item.tran_amt
+              || previous.fintech_use_num !== item.fintech_use_num) return send(400, { message: '동일 거래 번호의 요청 내용이 다릅니다.' })
+            return send(200, formatResult(previous))
+          }
+          if (isWithdrawal && authorization.account?.fintech_use_num !== item.fintech_use_num) {
+            return send(200, { rsp_code: 'O0004', rsp_message: '토큰과 출금 계좌가 다릅니다.' })
+          }
+          const account = accounts.get(item.fintech_use_num)
+          let bankCode = '000'
+          let bankMessage = '정상 처리되었습니다.'
+          if (!account) [bankCode, bankMessage] = ['301', '등록되지 않은 계좌입니다.']
+          else if (account.bankError) [bankCode, bankMessage] = ['500', '은행 처리 오류입니다.']
+          else if ((isWithdrawal ? account.balance : institutionBalance) < amount) [bankCode, bankMessage] = ['101', '잔액이 부족합니다.']
+          if (bankCode === '000') {
+            account.balance += isWithdrawal ? -amount : amount
+            institutionBalance += isWithdrawal ? amount : -amount
+          }
+          const result = {
+            bank_tran_id: item.bank_tran_id, bank_tran_date: data.tran_dtime.slice(0, 8),
+            bank_rsp_code: bankCode, bank_rsp_message: bankMessage, bank_code_tran: '097',
+            tran_amt: item.tran_amt, check_type: checkType, fintech_use_num: item.fintech_use_num,
+          }
+          transfers.set(item.bank_tran_id, result)
+          save()
+          return send(200, formatResult(result))
         }
       }
 
-      if (request.method === 'GET' && url.pathname === '/v2.0/user/me') {
+      if (request.method === 'GET' && ['/v2.0/user/me', '/v2.0/account/list'].includes(url.pathname)) {
         const authorization = tokens.get(request.headers.authorization?.replace(/^Bearer /, ''))
         if (!authorization || authorization.expiresAt <= Date.now()
           || url.searchParams.get('user_seq_no') !== authorization.userSeqNo) {
@@ -104,7 +232,10 @@ export function createFakeKftcServer() {
           user_seq_no: authorization.userSeqNo, res_list: [authorization.account],
         })
       }
-      send(404, { message: '계좌 등록용 가상 서버에서 지원하지 않는 경로입니다.' })
+      if (request.method === 'GET' && url.pathname === '/mock/accounts') {
+        return send(200, { institutionBalance, accounts: [...accounts].map(([fintechUseNum, account]) => ({ fintechUseNum, ...account })) })
+      }
+      send(404, { message: '가상금결원에서 지원하지 않는 경로입니다.' })
     } catch (error) {
       console.error('가상 금결원 요청 처리 실패:', error.message)
       if (!response.headersSent) send(500, { message: '요청을 처리하지 못했습니다.' })
@@ -114,7 +245,7 @@ export function createFakeKftcServer() {
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  createFakeKftcServer().listen(8090, '127.0.0.1', () => {
+  createFakeKftcServer({ statePath: fileURLToPath(new URL('./.state.json', import.meta.url)) }).listen(8090, '127.0.0.1', () => {
     console.log('가상 금결원: http://localhost:8090 (종료: Ctrl+C)')
   })
 }
