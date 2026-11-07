@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -18,6 +19,7 @@ import com.bogeum.domain.agent.model.Agent;
 import com.bogeum.domain.property.model.BrokerageRequest;
 import com.bogeum.domain.property.model.Property;
 import com.bogeum.domain.property.model.PropertyDto;
+import com.bogeum.domain.property.model.PropertyImage;
 import com.bogeum.domain.user.UserService;
 import com.bogeum.domain.user.model.User;
 
@@ -34,6 +36,8 @@ public class PropertyService {
 	private final AgentRepository agentRepository;
 	private final PropertyRepository propertyRepository;
 	private final BrokerageRequestRepository brokerageRequestRepository;
+	private final PropertyImageRepository propertyImageRepository;
+	private final ObjectProvider<PropertyImageStorage> storageProvider;
 
 	/**
 	 * 매물을 만들고 중개사에게 중개를 신청한다 (PROPERTY_002).
@@ -77,6 +81,26 @@ public class PropertyService {
 		Pageable pageable = PageRequest.of(Math.max(page, 1) - 1, PAGE_SIZE, Sort.by(Sort.Direction.DESC, sortProperty));
 		return PropertyDto.BrokerageListResponse.from(
 			brokerageRequestRepository.findAllByAgent_UserIdAndBrokerageStatus(agentUserId, status, pageable));
+	}
+
+	/**
+	 * 중개사가 맡은 매물의 신청 조건·상세 정보·사진을 조회한다 (PROPERTY_010).
+	 * 저장소가 없으면 사진 정보만 주고 조회 자체는 막지 않는다.
+	 *
+	 * @throws PropertyException 없거나 본인이 맡은 매물이 아닌 경우
+	 */
+	@Transactional(readOnly = true)
+	public PropertyDto.DetailResponse readPropertyDetail(Long agentUserId, Long propertyId) {
+		Property property = propertyRepository.findByPropertyIdAndAgent_UserId(propertyId, agentUserId)
+			.orElseThrow(PropertyException::propertyNotFound);
+		List<PropertyImage> images = propertyImageRepository
+			.findAllByProperty_PropertyIdOrderBySortOrderAscPropertyImageIdAsc(propertyId);
+		PropertyImageStorage storage = images.isEmpty() ? null : storageProvider.getIfAvailable();
+		List<PropertyDto.ImageResponse> imageResponses = images.stream()
+			.map(image -> PropertyDto.ImageResponse.from(image,
+				storage == null ? null : storage.createReadUrl(image.getFileKey())))
+			.toList();
+		return PropertyDto.DetailResponse.from(property, imageResponses);
 	}
 
 	/**
