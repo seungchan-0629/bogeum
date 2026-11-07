@@ -14,7 +14,8 @@ public enum ErrorCode {
 	// AS 최초 접수의 계약 검증·사진 처리·저장소 연결 실패 (AS_001)
 	AS_CONTRACT_NOT_FOUND(HttpStatus.NOT_FOUND, "계약을 찾을 수 없습니다."),
 	AS_OUTSIDE_CONTRACT(HttpStatus.BAD_REQUEST, "계약 시작일부터 종료일까지 AS를 접수할 수 있습니다."),
-	AS_INVALID_IMAGE(HttpStatus.BAD_REQUEST, "사진의 형식, 크기와 개수를 확인해 주세요."),
+	// AS 사진과 매물 사진이 같은 검사 기준을 쓴다 (AS_001, PROPERTY_010)
+	INVALID_IMAGE(HttpStatus.BAD_REQUEST, "사진의 형식, 크기와 개수를 확인해 주세요."),
 	AS_STORAGE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "사진을 저장할 수 없습니다. 잠시 후 다시 시도해 주세요."),
 	AGENT_NOT_FOUND(HttpStatus.NOT_FOUND, "중개사 정보를 찾을 수 없습니다."),
 	INVALID_REQUEST(HttpStatus.BAD_REQUEST, "요청값을 확인해 주세요."),
@@ -25,8 +26,9 @@ public enum ErrorCode {
 	BROKERAGE_ALREADY_ACCEPTED(HttpStatus.CONFLICT, "이미 수락한 중개 신청입니다."),
 	PROPERTY_NOT_FOUND(HttpStatus.NOT_FOUND, "매물을 찾을 수 없습니다."),
 	// 공개 이후의 수정은 아직 정하지 않아 공개 전 매물만 저장한다 (PROPERTY_010)
-	PROPERTY_NOT_EDITABLE(HttpStatus.CONFLICT, "공개 전인 매물만 상세 정보를 저장할 수 있습니다."),
+	PROPERTY_NOT_EDITABLE(HttpStatus.CONFLICT, "공개 전인 매물만 상세 정보와 사진을 바꿀 수 있습니다."),
 	INVALID_PROPERTY_FLOOR(HttpStatus.BAD_REQUEST, "층은 전체 층보다 클 수 없습니다."),
+	PROPERTY_STORAGE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "사진을 저장할 수 없습니다. 잠시 후 다시 시도해 주세요."),
 	INVALID_PROFILE(HttpStatus.BAD_REQUEST, "전화번호 또는 새 비밀번호와 확인값을 확인해 주세요. 비밀번호는 UTF-8 기준 72바이트까지 가능합니다."),
 	CURRENT_PASSWORD_MISMATCH(HttpStatus.BAD_REQUEST, "현재 비밀번호를 확인해 주세요."),
 	INVALID_SIGNUP(HttpStatus.BAD_REQUEST, "가입 정보와 필수 동의를 확인해 주세요."),
