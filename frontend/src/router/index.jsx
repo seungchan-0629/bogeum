@@ -52,6 +52,7 @@ import AgentPendingPage from '../pages/auth/AgentPendingPage.jsx'
 import AdminPropertyPage from '../pages/property/admin/AdminPropertyPage.jsx'
 import AdminAgentPage from '../pages/agent/admin/AdminAgentPage.jsx'
 import AdminRentPage from '../pages/rent/admin/AdminRentPage.jsx'
+import AdminOpenBankingPage from '../pages/openbanking/admin/AdminOpenBankingPage.jsx'
 import AdminRiskUserPage from '../pages/risk/admin/AdminRiskUserPage.jsx'
 import AdminRiskPropertyPage from '../pages/risk/admin/AdminRiskPropertyPage.jsx'
 import AdminReportedChatPage from '../pages/chat/admin/AdminReportedChatPage.jsx'
@@ -160,10 +161,11 @@ export const router = createBrowserRouter([
         path: '/admin',
         element: <AdminLayout />,
         children: [
-          { index: true, element: <Navigate to="/admin/properties" replace /> },
+          { index: true, element: <Navigate to="/admin/openbanking" replace /> },
           { path: 'properties', element: <AdminPropertyPage /> },
           { path: 'agents', element: <AdminAgentPage /> },
           { path: 'rent', element: <AdminRentPage /> },
+          { path: 'openbanking', element: <AdminOpenBankingPage /> },
           { path: 'risk-users', element: <AdminRiskUserPage /> },
           { path: 'risk-properties', element: <AdminRiskPropertyPage /> },
           { path: 'chats', element: <AdminReportedChatPage /> },
