@@ -33,6 +33,13 @@ public class PropertyController {
 		return propertyService.readBrokerageRequests(loginUser.getUserId(), status, page);
 	}
 
+	// 승인된 중개사가 맡은 매물의 정보 올리기 화면 첫 값을 본다 (PROPERTY_010)
+	@GetMapping("/{propertyId}/details")
+	public PropertyDto.DetailResponse readPropertyDetail(@AuthenticationPrincipal LoginUser loginUser,
+			@PathVariable("propertyId") Long propertyId) {
+		return propertyService.readPropertyDetail(loginUser.getUserId(), propertyId);
+	}
+
 	// 승인된 중개사가 본인에게 온 중개 신청을 수락한다 (PROPERTY_008)
 	@PostMapping("/brokerage-requests/{brokerageRequestId}/accept")
 	public PropertyDto.AcceptResponse acceptBrokerageRequest(@AuthenticationPrincipal LoginUser loginUser,
