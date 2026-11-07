@@ -46,4 +46,11 @@ public class PropertyController {
 			@PathVariable("brokerageRequestId") Long brokerageRequestId) {
 		return propertyService.acceptBrokerageRequest(loginUser.getUserId(), brokerageRequestId);
 	}
+
+	// 승인된 중개사가 맡은 매물의 상세 정보를 임시 저장한다 (PROPERTY_010)
+	@PutMapping("/{propertyId}/details")
+	public PropertyDto.DetailSaveResponse updatePropertyDetail(@AuthenticationPrincipal LoginUser loginUser,
+			@PathVariable("propertyId") Long propertyId, @Valid @RequestBody PropertyDto.DetailRequest request) {
+		return propertyService.updatePropertyDetail(loginUser.getUserId(), propertyId, request);
+	}
 }
