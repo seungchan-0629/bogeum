@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -26,12 +27,14 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import com.bogeum.common.enums.BrokerageStatus;
@@ -101,6 +104,34 @@ class PropertyControllerTest {
 			.andExpect(jsonPath("$.agentId").value(3))
 			.andExpect(jsonPath("$.isDesignated").value(true))
 			.andExpect(jsonPath("$.brokerageStatus").value("REQUESTED"));
+	}
+
+	@Test
+	@DisplayName("사진 추가는 로그인 중개사·매물 기준으로 multipart 사진을 넘기고 201과 추가한 사진을 반환한다")
+	void createsPropertyImages() throws Exception {
+		@SuppressWarnings("unchecked")
+		ArgumentCaptor<List<MultipartFile>> images = ArgumentCaptor.forClass(List.class);
+		when(propertyService.createPropertyImages(eq(1L), eq(20L), images.capture())).thenReturn(List.of(
+			PropertyDto.ImageResponse.builder().propertyImageId(5L).sortOrder(2).url("https://s3/a").build()));
+
+		mockMvc.perform(multipart("/property/20/images")
+				.file(new MockMultipartFile("images", "a.png", "image/png", new byte[]{1}))
+				.file(new MockMultipartFile("images", "b.png", "image/png", new byte[]{2})))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$[0].propertyImageId").value(5))
+			.andExpect(jsonPath("$[0].sortOrder").value(2))
+			.andExpect(jsonPath("$[0].url").value("https://s3/a"));
+		assertEquals(2, images.getValue().size());
+	}
+
+	@Test
+	@DisplayName("사진 파트가 없어도 서비스에 넘겨 사진 오류로 판단하게 한다")
+	void passesMissingImagesToService() throws Exception {
+		when(propertyService.createPropertyImages(1L, 20L, null)).thenThrow(PropertyException.invalidImage());
+
+		mockMvc.perform(multipart("/property/20/images"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("INVALID_IMAGE"));
 	}
 
 	@Test

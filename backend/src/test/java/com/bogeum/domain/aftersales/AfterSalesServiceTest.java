@@ -35,6 +35,7 @@ import com.bogeum.domain.contract.ContractRepository;
 import com.bogeum.domain.contract.model.Contract;
 import com.bogeum.domain.property.model.Property;
 import com.bogeum.domain.user.model.User;
+import com.bogeum.utils.ImageProcessor;
 
 /** 접수 규칙과 임대인 조회의 DTO·권한 분기를 DB 없이 확인한다. 실제 DB 조건은 통합 테스트에서 검증한다. */
 class AfterSalesServiceTest {
@@ -42,7 +43,7 @@ class AfterSalesServiceTest {
 	private final ContractRepository contracts = mock(ContractRepository.class);
 	private final AfterSalesRequestImageRepository images = mock(AfterSalesRequestImageRepository.class);
 	private final AfterSalesCommentRepository comments = mock(AfterSalesCommentRepository.class);
-	private final AfterSalesImageProcessor processor = mock(AfterSalesImageProcessor.class);
+	private final ImageProcessor processor = mock(ImageProcessor.class);
 	@SuppressWarnings("unchecked")
 	private final ObjectProvider<AfterSalesImageStorage> provider = mock(ObjectProvider.class);
 	private final AfterSalesImageStorage storage = mock(AfterSalesImageStorage.class);

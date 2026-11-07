@@ -8,14 +8,18 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.RepeatedTest;
@@ -28,6 +32,10 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.bogeum.common.enums.ApprovalStatus;
 import com.bogeum.common.enums.BrokerageStatus;
@@ -35,6 +43,7 @@ import com.bogeum.common.enums.LeaseType;
 import com.bogeum.common.enums.PropertyStatus;
 import com.bogeum.common.enums.PropertyType;
 import com.bogeum.common.exception.ErrorCode;
+import com.bogeum.common.exception.ImageException;
 import com.bogeum.domain.agent.AgentRepository;
 import com.bogeum.domain.agent.model.Agent;
 import com.bogeum.domain.property.model.BrokerageRequest;
@@ -43,6 +52,7 @@ import com.bogeum.domain.property.model.PropertyDto;
 import com.bogeum.domain.property.model.PropertyImage;
 import com.bogeum.domain.user.UserService;
 import com.bogeum.domain.user.model.User;
+import com.bogeum.utils.ImageProcessor;
 
 /** 중개사 배정과 가격 규칙을 DB 없이 확인한다. */
 @ExtendWith(MockitoExtension.class)
@@ -64,6 +74,8 @@ class PropertyServiceTest {
 	private ObjectProvider<PropertyImageStorage> storageProvider;
 	@Mock
 	private PropertyImageStorage storage;
+	@Mock
+	private ImageProcessor imageProcessor;
 
 	private PropertyService propertyService;
 	private final User landlord = User.builder().userId(1L).name("박임대").build();
@@ -71,7 +83,148 @@ class PropertyServiceTest {
 	@BeforeEach
 	void setUp() {
 		propertyService = new PropertyService(userService, agentRepository, propertyRepository, brokerageRequestRepository,
-			propertyImageRepository, storageProvider);
+			propertyImageRepository, storageProvider, imageProcessor);
+	}
+
+	@AfterEach
+	void clearSynchronization() {
+		if (TransactionSynchronizationManager.isSynchronizationActive()) {
+			TransactionSynchronizationManager.clearSynchronization();
+		}
+	}
+
+	@Test
+	@DisplayName("사진을 추가하면 기존 사진 뒤 순서로 매물별 키에 저장하고 조회 주소를 붙여 돌려준다")
+	void addsImagesAfterExistingImages() {
+		Property property = givenAssignedPropertyForUpdate(PropertyStatus.REQUESTED);
+		givenSavedImages(List.of(image(1L, 0, "property-images/20/a.jpg"), image(2L, 1, "property-images/20/b.jpg")));
+		when(storageProvider.getIfAvailable()).thenReturn(storage);
+		when(imageProcessor.process(any())).thenReturn(new byte[]{1});
+		when(propertyImageRepository.save(any(PropertyImage.class))).thenAnswer(invocation -> invocation.getArgument(0));
+		when(storage.createReadUrl(any())).thenAnswer(invocation -> "https://s3/" + invocation.getArgument(0));
+		// 프록시 없는 단위 테스트라 트랜잭션 동기화를 직접 연다
+		TransactionSynchronizationManager.initSynchronization();
+
+		var response = propertyService.createPropertyImages(101L, 20L, List.of(photo(), photo()));
+
+		var saved = ArgumentCaptor.forClass(PropertyImage.class);
+		verify(propertyImageRepository, times(2)).save(saved.capture());
+		assertEquals(List.of(2, 3), saved.getAllValues().stream().map(PropertyImage::getSortOrder).toList());
+		assertTrue(saved.getAllValues().stream().allMatch(image -> image.getProperty() == property
+			&& image.getFileKey().startsWith("property-images/20/") && image.getFileKey().endsWith(".jpg")));
+		verify(storage, times(2)).write(any(), any());
+		assertEquals(List.of(2, 3), response.stream().map(PropertyDto.ImageResponse::getSortOrder).toList());
+		assertEquals("https://s3/" + saved.getAllValues().get(0).getFileKey(), response.get(0).getUrl());
+	}
+
+	@Test
+	@DisplayName("사진이 없거나 기존 사진과 합쳐 10장을 넘으면 저장소에 올리지 않고 거절한다")
+	void rejectsNoImagesOrOverLimit() {
+		givenAssignedPropertyForUpdate(PropertyStatus.REQUESTED);
+		givenSavedImages(java.util.stream.IntStream.range(0, 9)
+			.mapToObj(index -> image((long) index, index, "property-images/20/" + index + ".jpg")).toList());
+
+		for (List<MultipartFile> images : java.util.Arrays.<List<MultipartFile>>asList(
+				null, List.of(), List.of(photo(), photo()))) {
+			var exception = assertThrows(PropertyException.class,
+				() -> propertyService.createPropertyImages(101L, 20L, images));
+			assertEquals(ErrorCode.INVALID_IMAGE, exception.getErrorCode());
+		}
+		verifyNoInteractions(imageProcessor, storage);
+	}
+
+	@Test
+	@DisplayName("저장소가 없으면 사진 추가를 성공으로 처리하지 않는다")
+	void rejectsImagesWithoutStorage() {
+		givenAssignedPropertyForUpdate(PropertyStatus.REQUESTED);
+		givenSavedImages(List.of());
+		when(storageProvider.getIfAvailable()).thenReturn(null);
+
+		var exception = assertThrows(PropertyException.class,
+			() -> propertyService.createPropertyImages(101L, 20L, List.of(photo())));
+
+		assertEquals(ErrorCode.PROPERTY_STORAGE_UNAVAILABLE, exception.getErrorCode());
+		verifyNoInteractions(imageProcessor);
+		verify(propertyImageRepository, never()).save(any());
+	}
+
+	@Test
+	@DisplayName("사진 하나라도 검사에 실패하면 저장소에 아무것도 올리지 않는다")
+	void uploadsNothingWhenAnyImageIsInvalid() {
+		givenAssignedPropertyForUpdate(PropertyStatus.REQUESTED);
+		givenSavedImages(List.of());
+		when(storageProvider.getIfAvailable()).thenReturn(storage);
+		when(imageProcessor.process(any())).thenReturn(new byte[]{1}).thenThrow(ImageException.invalidImage());
+
+		var exception = assertThrows(ImageException.class,
+			() -> propertyService.createPropertyImages(101L, 20L, List.of(photo(), photo())));
+
+		assertEquals(ErrorCode.INVALID_IMAGE, exception.getErrorCode());
+		verifyNoInteractions(storage);
+		verify(propertyImageRepository, never()).save(any());
+	}
+
+	@Test
+	@DisplayName("저장 중 실패하면 저장 오류로 응답하고, 롤백되면 이번에 올린 파일을 지운다")
+	void cleansUploadedImagesWhenStorageFails() {
+		givenAssignedPropertyForUpdate(PropertyStatus.REQUESTED);
+		givenSavedImages(List.of());
+		when(storageProvider.getIfAvailable()).thenReturn(storage);
+		when(imageProcessor.process(any())).thenReturn(new byte[]{1});
+		when(propertyImageRepository.save(any(PropertyImage.class))).thenAnswer(invocation -> invocation.getArgument(0));
+		when(storage.createReadUrl(any())).thenReturn("https://s3/a");
+		doNothing().doThrow(new IllegalStateException("storage failed")).when(storage).write(any(), any());
+		TransactionSynchronizationManager.initSynchronization();
+
+		var exception = assertThrows(PropertyException.class,
+			() -> propertyService.createPropertyImages(101L, 20L, List.of(photo(), photo())));
+		TransactionSynchronizationManager.getSynchronizations()
+			.forEach(sync -> sync.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
+
+		assertEquals(ErrorCode.PROPERTY_STORAGE_UNAVAILABLE, exception.getErrorCode());
+		var written = ArgumentCaptor.forClass(String.class);
+		verify(storage, times(2)).write(written.capture(), any());
+		written.getAllValues().forEach(key -> verify(storage).delete(key));
+	}
+
+	@Test
+	@DisplayName("공개 전이 아닌 매물에는 사진을 추가할 수 없다")
+	void rejectsImagesForPublishedProperty() {
+		givenAssignedPropertyForUpdate(PropertyStatus.ACTIVE);
+
+		var exception = assertThrows(PropertyException.class,
+			() -> propertyService.createPropertyImages(101L, 20L, List.of(photo())));
+
+		assertEquals(ErrorCode.PROPERTY_NOT_EDITABLE, exception.getErrorCode());
+		verifyNoInteractions(imageProcessor, storage);
+	}
+
+	@Test
+	@DisplayName("없거나 다른 중개사가 맡은 매물에는 사진을 추가할 수 없다")
+	void rejectsImagesForOthersProperty() {
+		when(propertyRepository.findForUpdateByPropertyIdAndAgent_UserId(20L, 999L)).thenReturn(Optional.empty());
+
+		var exception = assertThrows(PropertyException.class,
+			() -> propertyService.createPropertyImages(999L, 20L, List.of(photo())));
+
+		assertEquals(ErrorCode.PROPERTY_NOT_FOUND, exception.getErrorCode());
+		verifyNoInteractions(propertyImageRepository, imageProcessor, storage);
+	}
+
+	private Property givenAssignedPropertyForUpdate(PropertyStatus propertyStatus) {
+		Property property = Property.builder().propertyId(20L).landlord(landlord)
+			.agent(User.builder().userId(101L).build()).propertyStatus(propertyStatus).build();
+		when(propertyRepository.findForUpdateByPropertyIdAndAgent_UserId(20L, 101L)).thenReturn(Optional.of(property));
+		return property;
+	}
+
+	private void givenSavedImages(List<PropertyImage> images) {
+		when(propertyImageRepository.findAllByProperty_PropertyIdOrderBySortOrderAscPropertyImageIdAsc(20L))
+			.thenReturn(images);
+	}
+
+	private static MockMultipartFile photo() {
+		return new MockMultipartFile("images", "photo.png", "image/png", new byte[]{1});
 	}
 
 	@Test
