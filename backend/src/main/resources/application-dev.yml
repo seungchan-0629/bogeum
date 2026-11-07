@@ -18,6 +18,7 @@ spring:
       s3:
         enabled: true # false = S3 작동 X
         bucket: ${AWS_S3_BUCKET}
+        property-bucket: ${AWS_S3_PROPERTY_BUCKET}
       region:
         static: ${AWS_REGION}
   servlet:
