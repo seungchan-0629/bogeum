@@ -18,7 +18,7 @@ import java.time.LocalDateTime;
 api_tran_id(금융결제원이 주는 api 거래번호), 응답 코드랑 메세지, 은행쪽 응답 코드랑 메세지
 */
 @Entity
-//@Table(name = "openBankingTransfer")
+@Table(name = "openBankingTransfer")
 @Getter
 @Builder
 @NoArgsConstructor

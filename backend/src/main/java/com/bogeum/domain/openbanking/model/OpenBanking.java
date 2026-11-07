@@ -15,7 +15,7 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-//@Table(name = "openBanking")
+@Table(name = "openBanking")
 @Getter
 @Builder
 @NoArgsConstructor
