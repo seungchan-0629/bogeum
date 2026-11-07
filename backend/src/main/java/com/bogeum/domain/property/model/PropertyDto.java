@@ -9,6 +9,7 @@ import org.springframework.data.domain.Page;
 import com.bogeum.common.enums.BrokerageStatus;
 import com.bogeum.common.enums.LeaseType;
 import com.bogeum.common.enums.PropertyStatus;
+import com.bogeum.common.enums.PropertyType;
 import com.bogeum.domain.agent.model.Agent;
 
 import jakarta.validation.constraints.NotBlank;
@@ -137,6 +138,71 @@ public class PropertyDto {
 				.page(requests.getNumber() + 1)
 				.totalPages(requests.getTotalPages())
 				.totalElements(requests.getTotalElements())
+				.build();
+		}
+	}
+
+	/** 매물 사진 한 장. url은 저장소가 없으면 비어 있다 (PROPERTY_010) */
+	@Getter
+	@Builder
+	public static class ImageResponse {
+
+		private Long propertyImageId;
+		private Integer sortOrder;
+		private String url;
+
+		public static ImageResponse from(PropertyImage image, String url) {
+			return ImageResponse.builder()
+				.propertyImageId(image.getPropertyImageId())
+				.sortOrder(image.getSortOrder())
+				.url(url)
+				.build();
+		}
+	}
+
+	/**
+	 * 중개사의 매물 정보 올리기 화면 첫 값 (PROPERTY_010).
+	 * 거래 유형·가격·주소는 임대인이 신청한 값이라 화면에서 읽기 전용이다.
+	 */
+	@Getter
+	@Builder
+	public static class DetailResponse {
+
+		private Long propertyId;
+		private String landlordName;
+		private LeaseType leaseType;
+		private BigDecimal deposit;
+		private BigDecimal monthlyRent;
+		private String roadAddress;
+		private String detailAddress;
+		private PropertyType propertyType;
+		private BigDecimal areaPyeong;
+		private Integer roomCount;
+		private Integer floor;
+		private Integer householdCount;
+		private Integer parkingCount;
+		private String nearbySubwayStation;
+		private PropertyStatus propertyStatus;
+		private List<ImageResponse> images;
+
+		public static DetailResponse from(Property property, List<ImageResponse> images) {
+			return DetailResponse.builder()
+				.propertyId(property.getPropertyId())
+				.landlordName(property.getLandlord().getName())
+				.leaseType(property.getLeaseType())
+				.deposit(property.getDeposit())
+				.monthlyRent(property.getMonthlyRent())
+				.roadAddress(property.getRoadAddress())
+				.detailAddress(property.getDetailAddress())
+				.propertyType(property.getPropertyType())
+				.areaPyeong(property.getAreaPyeong())
+				.roomCount(property.getRoomCount())
+				.floor(property.getFloor())
+				.householdCount(property.getHouseholdCount())
+				.parkingCount(property.getParkingCount())
+				.nearbySubwayStation(property.getNearbySubwayStation())
+				.propertyStatus(property.getPropertyStatus())
+				.images(images)
 				.build();
 		}
 	}
