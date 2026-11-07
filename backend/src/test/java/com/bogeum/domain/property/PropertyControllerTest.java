@@ -32,6 +32,7 @@ import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import com.bogeum.common.enums.BrokerageStatus;
+import com.bogeum.common.enums.LeaseType;
 import com.bogeum.common.enums.Role;
 import com.bogeum.domain.property.model.PropertyDto;
 import com.bogeum.domain.user.model.User;
@@ -137,6 +138,23 @@ class PropertyControllerTest {
 		mockMvc.perform(get(URL + "/received").param("status", "REQUESTED"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.page").value(1));
+	}
+
+	@Test
+	@DisplayName("매물 상세는 로그인 중개사·매물 기준으로 조회하고 신청 조건과 사진을 반환한다")
+	void readsPropertyDetail() throws Exception {
+		when(propertyService.readPropertyDetail(1L, 20L)).thenReturn(PropertyDto.DetailResponse.builder()
+			.propertyId(20L).landlordName("박임대").leaseType(LeaseType.MONTHLY).roadAddress("서울특별시 마포구 월드컵로 61")
+			.images(List.of(PropertyDto.ImageResponse.builder().propertyImageId(1L).sortOrder(0).url("https://s3/a").build()))
+			.build());
+
+		mockMvc.perform(get("/property/20/details"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.propertyId").value(20))
+			.andExpect(jsonPath("$.landlordName").value("박임대"))
+			.andExpect(jsonPath("$.leaseType").value("MONTHLY"))
+			.andExpect(jsonPath("$.images[0].propertyImageId").value(1))
+			.andExpect(jsonPath("$.images[0].url").value("https://s3/a"));
 	}
 
 	@ParameterizedTest

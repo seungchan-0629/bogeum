@@ -24,6 +24,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -32,12 +33,14 @@ import com.bogeum.common.enums.ApprovalStatus;
 import com.bogeum.common.enums.BrokerageStatus;
 import com.bogeum.common.enums.LeaseType;
 import com.bogeum.common.enums.PropertyStatus;
+import com.bogeum.common.enums.PropertyType;
 import com.bogeum.common.exception.ErrorCode;
 import com.bogeum.domain.agent.AgentRepository;
 import com.bogeum.domain.agent.model.Agent;
 import com.bogeum.domain.property.model.BrokerageRequest;
 import com.bogeum.domain.property.model.Property;
 import com.bogeum.domain.property.model.PropertyDto;
+import com.bogeum.domain.property.model.PropertyImage;
 import com.bogeum.domain.user.UserService;
 import com.bogeum.domain.user.model.User;
 
@@ -55,13 +58,20 @@ class PropertyServiceTest {
 	private PropertyRepository propertyRepository;
 	@Mock
 	private BrokerageRequestRepository brokerageRequestRepository;
+	@Mock
+	private PropertyImageRepository propertyImageRepository;
+	@Mock
+	private ObjectProvider<PropertyImageStorage> storageProvider;
+	@Mock
+	private PropertyImageStorage storage;
 
 	private PropertyService propertyService;
-	private final User landlord = User.builder().userId(1L).build();
+	private final User landlord = User.builder().userId(1L).name("박임대").build();
 
 	@BeforeEach
 	void setUp() {
-		propertyService = new PropertyService(userService, agentRepository, propertyRepository, brokerageRequestRepository);
+		propertyService = new PropertyService(userService, agentRepository, propertyRepository, brokerageRequestRepository,
+			propertyImageRepository, storageProvider);
 	}
 
 	@Test
@@ -242,6 +252,76 @@ class PropertyServiceTest {
 
 		assertEquals(0, pageable.getValue().getPageNumber());
 		assertEquals(1, response.getPage());
+	}
+
+	@Test
+	@DisplayName("맡은 매물의 신청 조건·상세 정보와 대표 사진부터 조회 주소가 붙은 사진을 조회한다")
+	void readsPropertyDetailWithReadUrl() {
+		givenAssignedProperty();
+		when(propertyImageRepository.findAllByProperty_PropertyIdOrderBySortOrderAscPropertyImageIdAsc(20L))
+			.thenReturn(List.of(image(1L, 0, "property-images/20/a.jpg"), image(2L, 1, "property-images/20/b.jpg")));
+		when(storageProvider.getIfAvailable()).thenReturn(storage);
+		when(storage.createReadUrl("property-images/20/a.jpg")).thenReturn("https://s3/a");
+		when(storage.createReadUrl("property-images/20/b.jpg")).thenReturn("https://s3/b");
+
+		var response = propertyService.readPropertyDetail(101L, 20L);
+
+		assertEquals(20L, response.getPropertyId());
+		assertEquals("박임대", response.getLandlordName());
+		assertEquals(LeaseType.MONTHLY, response.getLeaseType());
+		assertEquals(PropertyType.OFFICETEL, response.getPropertyType());
+		assertEquals(PropertyStatus.REQUESTED, response.getPropertyStatus());
+		assertEquals(List.of(1L, 2L), response.getImages().stream().map(PropertyDto.ImageResponse::getPropertyImageId).toList());
+		assertEquals(List.of("https://s3/a", "https://s3/b"),
+			response.getImages().stream().map(PropertyDto.ImageResponse::getUrl).toList());
+	}
+
+	@Test
+	@DisplayName("저장소가 없으면 사진 조회 주소 없이 상세를 조회한다")
+	void readsPropertyDetailWithoutUrlWhenStorageIsUnavailable() {
+		givenAssignedProperty();
+		when(propertyImageRepository.findAllByProperty_PropertyIdOrderBySortOrderAscPropertyImageIdAsc(20L))
+			.thenReturn(List.of(image(1L, 0, "property-images/20/a.jpg")));
+		when(storageProvider.getIfAvailable()).thenReturn(null);
+
+		var response = propertyService.readPropertyDetail(101L, 20L);
+
+		assertNull(response.getImages().get(0).getUrl());
+	}
+
+	@Test
+	@DisplayName("사진이 없으면 저장소를 찾지 않고 빈 사진 목록을 준다")
+	void readsPropertyDetailWithoutImages() {
+		givenAssignedProperty();
+		when(propertyImageRepository.findAllByProperty_PropertyIdOrderBySortOrderAscPropertyImageIdAsc(20L))
+			.thenReturn(List.of());
+
+		var response = propertyService.readPropertyDetail(101L, 20L);
+
+		assertTrue(response.getImages().isEmpty());
+		verify(storageProvider, never()).getIfAvailable();
+	}
+
+	@Test
+	@DisplayName("없거나 다른 중개사가 맡은 매물은 조회할 수 없다")
+	void rejectsReadingOthersProperty() {
+		when(propertyRepository.findByPropertyIdAndAgent_UserId(20L, 999L)).thenReturn(Optional.empty());
+
+		var exception = assertThrows(PropertyException.class, () -> propertyService.readPropertyDetail(999L, 20L));
+
+		assertEquals(ErrorCode.PROPERTY_NOT_FOUND, exception.getErrorCode());
+		verify(propertyImageRepository, never()).findAllByProperty_PropertyIdOrderBySortOrderAscPropertyImageIdAsc(any());
+	}
+
+	private void givenAssignedProperty() {
+		when(propertyRepository.findByPropertyIdAndAgent_UserId(20L, 101L)).thenReturn(Optional.of(Property.builder()
+			.propertyId(20L).landlord(landlord).agent(User.builder().userId(101L).build())
+			.leaseType(LeaseType.MONTHLY).deposit(BigDecimal.valueOf(10_000_000)).monthlyRent(BigDecimal.valueOf(700_000))
+			.roadAddress(MAPO_ADDRESS).detailAddress("302호").propertyType(PropertyType.OFFICETEL).build()));
+	}
+
+	private static PropertyImage image(Long propertyImageId, int sortOrder, String fileKey) {
+		return PropertyImage.builder().propertyImageId(propertyImageId).sortOrder(sortOrder).fileKey(fileKey).build();
 	}
 
 	// 실제 조회 결과처럼 요청받은 페이지와 전체 개수로 Page를 만들어 돌려준다
