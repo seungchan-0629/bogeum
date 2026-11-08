@@ -199,6 +199,41 @@ public class PropertyService {
 		return PropertyDto.DetailSaveResponse.from(property);
 	}
 
+	/**
+	 * 중개사가 맡은 공개 전 매물의 사진 하나를 지운다 (PROPERTY_010).
+	 * DB에서 먼저 지우고, 커밋된 뒤에 저장소 파일을 지운다.
+	 *
+	 * @throws PropertyException 없거나 맡지 않은 매물, 공개 전이 아닌 매물, 그 매물의 사진이 아닌 경우, 저장소 없음
+	 */
+	@Transactional
+	public void deletePropertyImage(Long agentUserId, Long propertyId, Long propertyImageId) {
+		// 공개하기의 사진 수 확인과 겹치지 않도록 사진 추가처럼 매물 행을 잠근다
+		Property property = propertyRepository.findForUpdateByPropertyIdAndAgent_UserId(propertyId, agentUserId)
+			.orElseThrow(PropertyException::propertyNotFound);
+		property.validateEditable();
+		PropertyImage image = propertyImageRepository.findByPropertyImageIdAndProperty_PropertyId(propertyImageId, propertyId)
+			.orElseThrow(PropertyException::propertyImageNotFound);
+		PropertyImageStorage storage = storageProvider.getIfAvailable();
+		// 저장소 없이 지우면 파일이 남은 채 행만 사라지므로 성공으로 처리하지 않는다
+		if (storage == null) {
+			throw PropertyException.storageUnavailable();
+		}
+		propertyImageRepository.delete(image);
+
+		String key = image.getFileKey();
+		// 롤백되면 사진이 그대로 보여야 하므로 커밋된 뒤에만 파일을 지운다
+		TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+			@Override
+			public void afterCommit() {
+				try {
+					storage.delete(key);
+				} catch (RuntimeException exception) {
+					log.error("삭제한 매물 사진 정리 실패: key={}", key, exception);
+				}
+			}
+		});
+	}
+
 	/** 전세는 월세 없이 전세금만, 월세는 월세 금액이 있어야 한다. 저장할 월세 금액을 반환한다. */
 	private BigDecimal validateLeasePrice(LeaseType leaseType, BigDecimal deposit, BigDecimal monthlyRent) {
 		BigDecimal rent = monthlyRent == null ? BigDecimal.ZERO : monthlyRent;
