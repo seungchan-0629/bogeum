@@ -25,11 +25,12 @@ public enum ErrorCode {
 	BROKERAGE_REQUEST_NOT_FOUND(HttpStatus.NOT_FOUND, "중개 신청을 찾을 수 없습니다."),
 	BROKERAGE_ALREADY_ACCEPTED(HttpStatus.CONFLICT, "이미 수락한 중개 신청입니다."),
 	PROPERTY_NOT_FOUND(HttpStatus.NOT_FOUND, "매물을 찾을 수 없습니다."),
-	// 공개 이후의 수정은 아직 정하지 않아 공개 전 매물만 저장한다 (PROPERTY_010)
+	// 공개 이후에는 수정할 수 없어 공개 전 매물만 저장한다 (PROPERTY_010)
 	PROPERTY_NOT_EDITABLE(HttpStatus.CONFLICT, "공개 전인 매물만 상세 정보와 사진을 바꿀 수 있습니다."),
 	INVALID_PROPERTY_FLOOR(HttpStatus.BAD_REQUEST, "층은 전체 층보다 클 수 없습니다."),
 	PROPERTY_STORAGE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "사진을 저장할 수 없습니다. 잠시 후 다시 시도해 주세요."),
 	PROPERTY_IMAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "매물 사진을 찾을 수 없습니다."),
+	PROPERTY_NOT_PUBLISHABLE(HttpStatus.BAD_REQUEST, "매물 종류, 면적, 방 개수, 층, 전체 층과 사진 1장 이상이 있어야 공개할 수 있습니다."),
 	INVALID_PROFILE(HttpStatus.BAD_REQUEST, "전화번호 또는 새 비밀번호와 확인값을 확인해 주세요. 비밀번호는 UTF-8 기준 72바이트까지 가능합니다."),
 	CURRENT_PASSWORD_MISMATCH(HttpStatus.BAD_REQUEST, "현재 비밀번호를 확인해 주세요."),
 	INVALID_SIGNUP(HttpStatus.BAD_REQUEST, "가입 정보와 필수 동의를 확인해 주세요."),
