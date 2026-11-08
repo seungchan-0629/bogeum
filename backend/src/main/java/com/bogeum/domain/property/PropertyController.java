@@ -66,4 +66,12 @@ public class PropertyController {
 			@PathVariable("propertyId") Long propertyId, @Valid @RequestBody PropertyDto.DetailRequest request) {
 		return propertyService.updatePropertyDetail(loginUser.getUserId(), propertyId, request);
 	}
+
+	// 승인된 중개사가 맡은 공개 전 매물의 사진 하나를 지운다 (PROPERTY_010)
+	@DeleteMapping("/{propertyId}/images/{propertyImageId}")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	public void deletePropertyImage(@AuthenticationPrincipal LoginUser loginUser,
+			@PathVariable("propertyId") Long propertyId, @PathVariable("propertyImageId") Long propertyImageId) {
+		propertyService.deletePropertyImage(loginUser.getUserId(), propertyId, propertyImageId);
+	}
 }
