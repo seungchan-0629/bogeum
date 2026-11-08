@@ -200,6 +200,20 @@ public class PropertyService {
 	}
 
 	/**
+	 * 중개사가 맡은 매물을 공개(ACTIVE)한다. 필수 상세 정보와 사진 1장 이상이 있어야 한다 (PROPERTY_010).
+	 *
+	 * @throws PropertyException 없거나 맡지 않은 매물, 공개 전이 아닌 매물, 필수 정보나 사진이 없는 경우
+	 */
+	@Transactional
+	public PropertyDto.DetailSaveResponse publishProperty(Long agentUserId, Long propertyId) {
+		// 사진 삭제와 겹쳐 사진 없는 매물이 공개되지 않도록 매물 행을 잠근다
+		Property property = propertyRepository.findForUpdateByPropertyIdAndAgent_UserId(propertyId, agentUserId)
+			.orElseThrow(PropertyException::propertyNotFound);
+		property.publish(propertyImageRepository.existsByProperty_PropertyId(propertyId));
+		return PropertyDto.DetailSaveResponse.from(property);
+	}
+
+	/**
 	 * 중개사가 맡은 공개 전 매물의 사진 하나를 지운다 (PROPERTY_010).
 	 * DB에서 먼저 지우고, 커밋된 뒤에 저장소 파일을 지운다.
 	 *
