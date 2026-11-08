@@ -254,6 +254,28 @@ class PropertyControllerTest {
 	}
 
 	@Test
+	@DisplayName("매물 공개는 로그인 중개사·매물 기준으로 처리하고 공개 상태를 반환한다")
+	void publishesProperty() throws Exception {
+		when(propertyService.publishProperty(1L, 20L)).thenReturn(
+			PropertyDto.DetailSaveResponse.builder().propertyId(20L).propertyStatus(PropertyStatus.ACTIVE).build());
+
+		mockMvc.perform(post("/property/20/publish"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.propertyId").value(20))
+			.andExpect(jsonPath("$.propertyStatus").value("ACTIVE"));
+	}
+
+	@Test
+	@DisplayName("필수 정보나 사진이 없으면 400과 PROPERTY_NOT_PUBLISHABLE을 반환한다")
+	void rejectsPublishingIncompleteProperty() throws Exception {
+		when(propertyService.publishProperty(1L, 20L)).thenThrow(PropertyException.notPublishable());
+
+		mockMvc.perform(post("/property/20/publish"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("PROPERTY_NOT_PUBLISHABLE"));
+	}
+
+	@Test
 	@DisplayName("사진 삭제는 로그인 중개사·매물·사진 기준으로 처리하고 204를 반환한다")
 	void deletesPropertyImage() throws Exception {
 		mockMvc.perform(delete("/property/20/images/5"))

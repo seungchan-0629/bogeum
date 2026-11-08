@@ -538,6 +538,93 @@ class PropertyServiceTest {
 	}
 
 	@Test
+	@DisplayName("필수 상세 정보와 사진이 있으면 매물을 공개(ACTIVE)한다")
+	void publishesProperty() {
+		Property property = completeProperty().build();
+		when(propertyRepository.findForUpdateByPropertyIdAndAgent_UserId(20L, 101L)).thenReturn(Optional.of(property));
+		when(propertyImageRepository.existsByProperty_PropertyId(20L)).thenReturn(true);
+
+		var response = propertyService.publishProperty(101L, 20L);
+
+		assertEquals(PropertyStatus.ACTIVE, property.getPropertyStatus());
+		assertEquals(20L, response.getPropertyId());
+		assertEquals(PropertyStatus.ACTIVE, response.getPropertyStatus());
+	}
+
+	@Test
+	@DisplayName("세대수·주차 대수·지하철역은 비어 있어도 공개한다")
+	void publishesPropertyWithoutOptionalDetails() {
+		Property property = completeProperty().householdCount(null).parkingCount(null).nearbySubwayStation(null).build();
+		when(propertyRepository.findForUpdateByPropertyIdAndAgent_UserId(20L, 101L)).thenReturn(Optional.of(property));
+		when(propertyImageRepository.existsByProperty_PropertyId(20L)).thenReturn(true);
+
+		propertyService.publishProperty(101L, 20L);
+
+		assertEquals(PropertyStatus.ACTIVE, property.getPropertyStatus());
+	}
+
+	@Test
+	@DisplayName("필수 상세 정보가 하나라도 없으면 공개하지 않는다")
+	void rejectsPublishingWithoutRequiredDetails() {
+		for (Property property : List.of(
+				completeProperty().propertyType(null).build(),
+				completeProperty().areaPyeong(null).build(),
+				completeProperty().roomCount(null).build(),
+				completeProperty().floor(null).build(),
+				completeProperty().totalFloor(null).build())) {
+			when(propertyRepository.findForUpdateByPropertyIdAndAgent_UserId(20L, 101L)).thenReturn(Optional.of(property));
+			when(propertyImageRepository.existsByProperty_PropertyId(20L)).thenReturn(true);
+
+			var exception = assertThrows(PropertyException.class, () -> propertyService.publishProperty(101L, 20L));
+
+			assertEquals(ErrorCode.PROPERTY_NOT_PUBLISHABLE, exception.getErrorCode());
+			assertEquals(PropertyStatus.REQUESTED, property.getPropertyStatus());
+		}
+	}
+
+	@Test
+	@DisplayName("사진이 없으면 공개하지 않는다")
+	void rejectsPublishingWithoutImage() {
+		Property property = completeProperty().build();
+		when(propertyRepository.findForUpdateByPropertyIdAndAgent_UserId(20L, 101L)).thenReturn(Optional.of(property));
+		when(propertyImageRepository.existsByProperty_PropertyId(20L)).thenReturn(false);
+
+		var exception = assertThrows(PropertyException.class, () -> propertyService.publishProperty(101L, 20L));
+
+		assertEquals(ErrorCode.PROPERTY_NOT_PUBLISHABLE, exception.getErrorCode());
+		assertEquals(PropertyStatus.REQUESTED, property.getPropertyStatus());
+	}
+
+	@Test
+	@DisplayName("이미 공개됐거나 공개 전이 아닌 매물은 다시 공개할 수 없다")
+	void rejectsPublishingPublishedProperty() {
+		when(propertyRepository.findForUpdateByPropertyIdAndAgent_UserId(20L, 101L))
+			.thenReturn(Optional.of(completeProperty().propertyStatus(PropertyStatus.ACTIVE).build()));
+
+		var exception = assertThrows(PropertyException.class, () -> propertyService.publishProperty(101L, 20L));
+
+		assertEquals(ErrorCode.PROPERTY_NOT_EDITABLE, exception.getErrorCode());
+	}
+
+	@Test
+	@DisplayName("없거나 다른 중개사가 맡은 매물은 공개할 수 없다")
+	void rejectsPublishingOthersProperty() {
+		when(propertyRepository.findForUpdateByPropertyIdAndAgent_UserId(20L, 999L)).thenReturn(Optional.empty());
+
+		var exception = assertThrows(PropertyException.class, () -> propertyService.publishProperty(999L, 20L));
+
+		assertEquals(ErrorCode.PROPERTY_NOT_FOUND, exception.getErrorCode());
+		verifyNoInteractions(propertyImageRepository);
+	}
+
+	// 공개에 필요한 상세 정보를 모두 채운 공개 전 매물
+	private Property.PropertyBuilder completeProperty() {
+		return Property.builder().propertyId(20L).landlord(landlord).agent(User.builder().userId(101L).build())
+			.propertyType(PropertyType.VILLA).areaPyeong(BigDecimal.valueOf(17.32)).roomCount(3).floor(-1).totalFloor(5)
+			.householdCount(19).parkingCount(0).nearbySubwayStation("대방역");
+	}
+
+	@Test
 	@DisplayName("사진을 지우면 DB에서 먼저 지우고, 저장소 파일은 커밋된 뒤에만 지운다")
 	void deletesImageFileAfterCommit() {
 		givenAssignedPropertyForUpdate(PropertyStatus.REQUESTED);
