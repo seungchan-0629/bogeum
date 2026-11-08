@@ -29,6 +29,7 @@ public enum ErrorCode {
 	PROPERTY_NOT_EDITABLE(HttpStatus.CONFLICT, "공개 전인 매물만 상세 정보와 사진을 바꿀 수 있습니다."),
 	INVALID_PROPERTY_FLOOR(HttpStatus.BAD_REQUEST, "층은 전체 층보다 클 수 없습니다."),
 	PROPERTY_STORAGE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "사진을 저장할 수 없습니다. 잠시 후 다시 시도해 주세요."),
+	PROPERTY_IMAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "매물 사진을 찾을 수 없습니다."),
 	INVALID_PROFILE(HttpStatus.BAD_REQUEST, "전화번호 또는 새 비밀번호와 확인값을 확인해 주세요. 비밀번호는 UTF-8 기준 72바이트까지 가능합니다."),
 	CURRENT_PASSWORD_MISMATCH(HttpStatus.BAD_REQUEST, "현재 비밀번호를 확인해 주세요."),
 	INVALID_SIGNUP(HttpStatus.BAD_REQUEST, "가입 정보와 필수 동의를 확인해 주세요."),
