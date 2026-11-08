@@ -20,4 +20,5 @@ public class PropertyException extends RuntimeException {
 	public static PropertyException invalidFloor() { return new PropertyException(ErrorCode.INVALID_PROPERTY_FLOOR); }
 	public static PropertyException invalidImage() { return new PropertyException(ErrorCode.INVALID_IMAGE); }
 	public static PropertyException storageUnavailable() { return new PropertyException(ErrorCode.PROPERTY_STORAGE_UNAVAILABLE); }
+	public static PropertyException propertyImageNotFound() { return new PropertyException(ErrorCode.PROPERTY_IMAGE_NOT_FOUND); }
 }
