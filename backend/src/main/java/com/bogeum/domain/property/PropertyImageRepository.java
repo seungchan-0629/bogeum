@@ -14,4 +14,7 @@ public interface PropertyImageRepository extends JpaRepository<PropertyImage, Lo
 
 	// 다른 매물의 사진 번호로 지우지 못하도록 매물 조건을 함께 건다 (PROPERTY_010)
 	Optional<PropertyImage> findByPropertyImageIdAndProperty_PropertyId(Long propertyImageId, Long propertyId);
+
+	// 사진이 1장 이상 있어야 공개할 수 있다 (PROPERTY_010)
+	boolean existsByProperty_PropertyId(Long propertyId);
 }
