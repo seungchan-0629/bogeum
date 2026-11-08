@@ -3,8 +3,11 @@ package com.bogeum.domain.property;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -248,6 +251,24 @@ class PropertyControllerTest {
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
 		verifyNoInteractions(propertyService);
+	}
+
+	@Test
+	@DisplayName("사진 삭제는 로그인 중개사·매물·사진 기준으로 처리하고 204를 반환한다")
+	void deletesPropertyImage() throws Exception {
+		mockMvc.perform(delete("/property/20/images/5"))
+			.andExpect(status().isNoContent());
+		verify(propertyService).deletePropertyImage(1L, 20L, 5L);
+	}
+
+	@Test
+	@DisplayName("그 매물의 사진이 아니면 404와 PROPERTY_IMAGE_NOT_FOUND를 반환한다")
+	void rejectsDeletingMissingImage() throws Exception {
+		doThrow(PropertyException.propertyImageNotFound()).when(propertyService).deletePropertyImage(1L, 20L, 77L);
+
+		mockMvc.perform(delete("/property/20/images/77"))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.code").value("PROPERTY_IMAGE_NOT_FOUND"));
 	}
 
 	@ParameterizedTest

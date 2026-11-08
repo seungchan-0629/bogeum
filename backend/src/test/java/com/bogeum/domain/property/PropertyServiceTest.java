@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -534,6 +535,107 @@ class PropertyServiceTest {
 			new PropertyDto.DetailRequest(PropertyType.VILLA, null, null, null, null, null, null, null)));
 
 		assertEquals(ErrorCode.PROPERTY_NOT_FOUND, exception.getErrorCode());
+	}
+
+	@Test
+	@DisplayName("사진을 지우면 DB에서 먼저 지우고, 저장소 파일은 커밋된 뒤에만 지운다")
+	void deletesImageFileAfterCommit() {
+		givenAssignedPropertyForUpdate(PropertyStatus.REQUESTED);
+		PropertyImage image = givenImage(5L, "property-images/20/a.jpg");
+		when(storageProvider.getIfAvailable()).thenReturn(storage);
+		TransactionSynchronizationManager.initSynchronization();
+
+		propertyService.deletePropertyImage(101L, 20L, 5L);
+
+		verify(propertyImageRepository).delete(image);
+		verify(storage, never()).delete(any());
+		TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
+		verify(storage).delete("property-images/20/a.jpg");
+	}
+
+	@Test
+	@DisplayName("롤백되면 저장소 파일을 지우지 않는다")
+	void keepsImageFileWhenRolledBack() {
+		givenAssignedPropertyForUpdate(PropertyStatus.REQUESTED);
+		givenImage(5L, "property-images/20/a.jpg");
+		when(storageProvider.getIfAvailable()).thenReturn(storage);
+		TransactionSynchronizationManager.initSynchronization();
+
+		propertyService.deletePropertyImage(101L, 20L, 5L);
+		TransactionSynchronizationManager.getSynchronizations()
+			.forEach(sync -> sync.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
+
+		verifyNoInteractions(storage);
+	}
+
+	@Test
+	@DisplayName("커밋 뒤 저장소 파일 삭제에 실패해도 사진 삭제는 실패로 바꾸지 않는다")
+	void ignoresStorageFailureAfterCommit() {
+		givenAssignedPropertyForUpdate(PropertyStatus.REQUESTED);
+		givenImage(5L, "property-images/20/a.jpg");
+		when(storageProvider.getIfAvailable()).thenReturn(storage);
+		doThrow(new IllegalStateException("storage failed")).when(storage).delete(any());
+		TransactionSynchronizationManager.initSynchronization();
+
+		propertyService.deletePropertyImage(101L, 20L, 5L);
+
+		TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
+		verify(storage).delete("property-images/20/a.jpg");
+	}
+
+	@Test
+	@DisplayName("없거나 그 매물의 사진이 아니면 지우지 않고 거절한다")
+	void rejectsDeletingOtherPropertysImage() {
+		givenAssignedPropertyForUpdate(PropertyStatus.REQUESTED);
+		when(propertyImageRepository.findByPropertyImageIdAndProperty_PropertyId(77L, 20L)).thenReturn(Optional.empty());
+
+		var exception = assertThrows(PropertyException.class, () -> propertyService.deletePropertyImage(101L, 20L, 77L));
+
+		assertEquals(ErrorCode.PROPERTY_IMAGE_NOT_FOUND, exception.getErrorCode());
+		verify(propertyImageRepository, never()).delete(any());
+		verifyNoInteractions(storage);
+	}
+
+	@Test
+	@DisplayName("저장소가 없으면 파일이 남지 않도록 사진을 지우지 않는다")
+	void rejectsDeletingImageWithoutStorage() {
+		givenAssignedPropertyForUpdate(PropertyStatus.REQUESTED);
+		givenImage(5L, "property-images/20/a.jpg");
+		when(storageProvider.getIfAvailable()).thenReturn(null);
+
+		var exception = assertThrows(PropertyException.class, () -> propertyService.deletePropertyImage(101L, 20L, 5L));
+
+		assertEquals(ErrorCode.PROPERTY_STORAGE_UNAVAILABLE, exception.getErrorCode());
+		verify(propertyImageRepository, never()).delete(any());
+	}
+
+	@Test
+	@DisplayName("공개 전이 아닌 매물의 사진은 지울 수 없다")
+	void rejectsDeletingImageOfPublishedProperty() {
+		givenAssignedPropertyForUpdate(PropertyStatus.ACTIVE);
+
+		var exception = assertThrows(PropertyException.class, () -> propertyService.deletePropertyImage(101L, 20L, 5L));
+
+		assertEquals(ErrorCode.PROPERTY_NOT_EDITABLE, exception.getErrorCode());
+		verifyNoInteractions(propertyImageRepository, storage);
+	}
+
+	@Test
+	@DisplayName("없거나 다른 중개사가 맡은 매물의 사진은 지울 수 없다")
+	void rejectsDeletingImageOfOthersProperty() {
+		when(propertyRepository.findForUpdateByPropertyIdAndAgent_UserId(20L, 999L)).thenReturn(Optional.empty());
+
+		var exception = assertThrows(PropertyException.class, () -> propertyService.deletePropertyImage(999L, 20L, 5L));
+
+		assertEquals(ErrorCode.PROPERTY_NOT_FOUND, exception.getErrorCode());
+		verifyNoInteractions(propertyImageRepository, storage);
+	}
+
+	private PropertyImage givenImage(Long propertyImageId, String fileKey) {
+		PropertyImage image = image(propertyImageId, 0, fileKey);
+		when(propertyImageRepository.findByPropertyImageIdAndProperty_PropertyId(propertyImageId, 20L))
+			.thenReturn(Optional.of(image));
+		return image;
 	}
 
 	private Property givenAssignedProperty() {
