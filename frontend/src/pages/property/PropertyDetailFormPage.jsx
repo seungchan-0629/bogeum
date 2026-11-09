@@ -6,14 +6,17 @@
 // - 임시 저장: PUT /property/{propertyId}/details
 // - 사진: POST /property/{propertyId}/images, DELETE /property/{propertyId}/images/{propertyImageId}
 // - 공개: POST /property/{propertyId}/publish
+import { useForm } from 'react-hook-form'
 import { useNavigate, useParams } from 'react-router'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 import PageHeader from '../../components/common/PageHeader.jsx'
 import FileDropzone from '../../components/common/FileDropzone.jsx'
 import PhotoPlaceholder from '../../components/common/PhotoPlaceholder.jsx'
 import { Field, SelectInput, TextInput } from '../../components/common/FormControls.jsx'
 import { formatLeasePrice } from '../../utils/format.js'
-import { getPropertyDetail } from '../../api/property/index.js'
+import { getPropertyDetail, updatePropertyDetail } from '../../api/property/index.js'
 
 // 서버 enum(PropertyType)과 같은 값. 원룸·투룸은 방 개수로 나타낸다
 const PROPERTY_TYPE_OPTIONS = [
@@ -36,6 +39,32 @@ const DETAIL_FIELDS = [
   { id: 'parkingCount', label: '주차 대수' },
 ]
 
+// 임시 저장이라 모든 칸은 비워도 된다. 값이 있으면 서버(DetailRequest)와 같은 범위로 검사한다
+const integerText = (min, message) =>
+  z.string().trim().refine((value) => value === '' || (/^\d+$/.test(value) && Number(value) >= min), message)
+
+const detailSchema = z
+  .object({
+    propertyType: z.string(),
+    areaPyeong: z.string().trim().refine(
+      (value) => value === '' || (/^\d{1,5}(\.\d{1,2})?$/.test(value) && Number(value) > 0),
+      '면적은 0보다 크게, 소수 둘째 자리까지 입력해 주세요.',
+    ),
+    roomCount: integerText(1, '방 개수는 1 이상 숫자로 입력해 주세요.'),
+    floorLevel: z.enum(['ABOVE', 'BASEMENT']),
+    floorNumber: integerText(1, '층은 1 이상 숫자로 입력해 주세요.'),
+    totalFloor: integerText(1, '전체 층은 1 이상 숫자로 입력해 주세요.'),
+    householdCount: integerText(1, '세대 수는 1 이상 숫자로 입력해 주세요.'),
+    parkingCount: integerText(0, '주차 대수는 0 이상 숫자로 입력해 주세요.'),
+    nearbySubwayStation: z.string().trim().max(100, '주변 지하철역은 100자 이하로 입력해 주세요.'),
+  })
+  .superRefine((values, context) => {
+    // 서버도 같은 규칙으로 다시 검사한다 (INVALID_PROPERTY_FLOOR). 지하는 항상 전체 층보다 낮다
+    const isAboveTotal = values.floorLevel === 'ABOVE' && values.floorNumber !== '' && values.totalFloor !== ''
+      && Number(values.floorNumber) > Number(values.totalFloor)
+    if (isAboveTotal) context.addIssue({ code: 'custom', path: ['floorNumber'], message: '층은 전체 층보다 클 수 없어요.' })
+  })
+
 // 응답은 원 단위, formatLeasePrice는 만원 단위라서 바꿔서 넘긴다
 const toManwonPrice = (detail) => ({
   leaseType: detail.leaseType,
@@ -43,25 +72,45 @@ const toManwonPrice = (detail) => ({
   monthlyRent: detail.monthlyRent / 10000,
 })
 
-// 서버는 지하를 음수로 저장한다. -1 → 지하 1
-const splitFloor = (floor) => ({
-  level: floor < 0 ? 'BASEMENT' : 'ABOVE',
-  number: floor == null ? '' : Math.abs(floor),
+const toText = (value) => (value == null ? '' : String(value))
+
+// 서버는 지하를 음수로 저장한다. -1 → 지하 + '1'
+const toFormValues = (detail) => ({
+  propertyType: detail.propertyType ?? '',
+  areaPyeong: toText(detail.areaPyeong),
+  roomCount: toText(detail.roomCount),
+  floorLevel: detail.floor < 0 ? 'BASEMENT' : 'ABOVE',
+  floorNumber: detail.floor == null ? '' : String(Math.abs(detail.floor)),
+  totalFloor: toText(detail.totalFloor),
+  householdCount: toText(detail.householdCount),
+  parkingCount: toText(detail.parkingCount),
+  nearbySubwayStation: detail.nearbySubwayStation ?? '',
 })
 
+// PUT이라 빈 칸은 null로 보내 서버에서도 비운다
+const toNumber = (value) => (value === '' ? null : Number(value))
+
+const toRequest = (values) => ({
+  propertyType: values.propertyType || null,
+  areaPyeong: toNumber(values.areaPyeong),
+  roomCount: toNumber(values.roomCount),
+  floor: values.floorNumber === '' ? null : Number(values.floorNumber) * (values.floorLevel === 'BASEMENT' ? -1 : 1),
+  totalFloor: toNumber(values.totalFloor),
+  householdCount: toNumber(values.householdCount),
+  parkingCount: toNumber(values.parkingCount),
+  nearbySubwayStation: values.nearbySubwayStation || null,
+})
+
+function ErrorText({ error }) {
+  return error ? <p className="text-sm text-red-600">{error.message}</p> : null
+}
+
 function PropertyDetailFormPage() {
-  const navigate = useNavigate()
   const { propertyId } = useParams()
   const detailQuery = useQuery({
     queryKey: ['property-detail', propertyId],
     queryFn: ({ signal }) => getPropertyDetail(propertyId, signal),
   })
-
-  // TODO: [임시 저장]은 PUT /details, [매물 공개하기]는 저장 후 POST /publish로 연결한다
-  const handleSubmit = (event) => {
-    event.preventDefault()
-    navigate('/agent/contracts')
-  }
 
   if (detailQuery.isPending) {
     return <div className="page-container"><p role="status">매물 정보를 불러오고 있어요.</p></div>
@@ -72,12 +121,42 @@ function PropertyDetailFormPage() {
       : '매물 정보를 불러오지 못했어요.'
     return <div className="page-container"><p role="alert">{message}</p></div>
   }
+  return <PropertyDetailForm propertyId={propertyId} detail={detailQuery.data} />
+}
 
-  const detail = detailQuery.data
+// 조회가 끝난 뒤에 만들어서, 폼 첫 값을 조회 결과로 바로 채운다
+function PropertyDetailForm({ propertyId, detail }) {
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm({
+    resolver: zodResolver(detailSchema),
+    defaultValues: toFormValues(detail),
+  })
+
   const address = `${detail.roadAddress} ${detail.detailAddress ?? ''}`.trim()
-  const floor = splitFloor(detail.floor)
   // 공개된 매물은 상세 정보와 사진을 바꿀 수 없다 (서버도 409로 막는다)
   const isEditable = detail.propertyStatus === 'REQUESTED'
+
+  const handleSave = async (values) => {
+    try {
+      await updatePropertyDetail(propertyId, toRequest(values))
+    } catch (error) {
+      window.alert(error.response?.data?.message || '서버에 연결할 수 없습니다.')
+      return
+    }
+    await queryClient.invalidateQueries({ queryKey: ['property-detail', propertyId] })
+    window.alert('임시 저장했어요.')
+  }
+
+  // TODO: [매물 공개하기]는 저장 후 POST /publish로 연결한다
+  const handlePublish = (event) => {
+    event.preventDefault()
+    navigate('/agent/contracts')
+  }
 
   return (
     <div className="page-container">
@@ -85,7 +164,7 @@ function PropertyDetailFormPage() {
       {!isEditable && (
         <p role="status" className="rounded-xl bg-slate-100 px-4 py-3 text-gray-700">공개된 매물은 수정할 수 없어요.</p>
       )}
-      <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+      <form onSubmit={handlePublish} noValidate className="flex flex-col gap-5">
         <fieldset disabled={!isEditable} className="grid min-w-0 items-start gap-5 lg:grid-cols-2">
           <section aria-labelledby="detail-info-title" className="card flex flex-col gap-4">
             <h2 id="detail-info-title" className="text-lg font-bold">상세 정보</h2>
@@ -98,22 +177,25 @@ function PropertyDetailFormPage() {
             </dl>
             <div className="grid grid-cols-2 gap-3">
               <Field label="매물 종류" htmlFor="detail-type">
-                <SelectInput id="detail-type" options={PROPERTY_TYPE_OPTIONS} defaultValue={detail.propertyType ?? ''} />
+                <SelectInput id="detail-type" options={PROPERTY_TYPE_OPTIONS} {...register('propertyType')} />
               </Field>
               <Field label="층" htmlFor="detail-floor">
                 <div className="flex gap-2">
-                  <SelectInput aria-label="지상·지하" options={FLOOR_LEVEL_OPTIONS} defaultValue={floor.level} fullWidth={false} />
-                  <TextInput id="detail-floor" inputMode="numeric" defaultValue={floor.number} />
+                  <SelectInput aria-label="지상·지하" options={FLOOR_LEVEL_OPTIONS} fullWidth={false} {...register('floorLevel')} />
+                  <TextInput id="detail-floor" inputMode="numeric" {...register('floorNumber')} />
                 </div>
+                <ErrorText error={errors.floorNumber} />
               </Field>
               {DETAIL_FIELDS.map((field) => (
                 <Field key={field.id} label={field.label} htmlFor={`detail-${field.id}`}>
-                  <TextInput id={`detail-${field.id}`} inputMode={field.inputMode ?? 'numeric'} defaultValue={detail[field.id] ?? ''} />
+                  <TextInput id={`detail-${field.id}`} inputMode={field.inputMode ?? 'numeric'} {...register(field.id)} />
+                  <ErrorText error={errors[field.id]} />
                 </Field>
               ))}
             </div>
             <Field label="주변 지하철역" htmlFor="detail-subway" hint="여러 개면 쉼표로 구분해요.">
-              <TextInput id="detail-subway" placeholder="예: 역삼역, 강남역" defaultValue={detail.nearbySubwayStation ?? ''} />
+              <TextInput id="detail-subway" placeholder="예: 역삼역, 강남역" {...register('nearbySubwayStation')} />
+              <ErrorText error={errors.nearbySubwayStation} />
             </Field>
           </section>
           <section aria-labelledby="detail-photo-title" className="card flex flex-col gap-4">
@@ -137,7 +219,7 @@ function PropertyDetailFormPage() {
         </fieldset>
         {isEditable && (
           <div className="flex justify-end gap-2">
-            <button type="button" className="btn-secondary">임시 저장</button>
+            <button type="button" onClick={handleSubmit(handleSave)} disabled={isSubmitting} className="btn-secondary">임시 저장</button>
             <button type="submit" className="btn-primary">매물 공개하기</button>
           </div>
         )}
