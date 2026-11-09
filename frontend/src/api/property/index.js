@@ -9,6 +9,15 @@ export async function createBrokerageRequest(request) {
   return data
 }
 
+// PROPERTY_010 매물 사진 추가. 기존 사진 뒤에 붙고, 추가한 사진 목록(조회 주소 포함)을 돌려준다
+// 서버가 사진을 검사·변환해 올리느라 오래 걸릴 수 있어 기본 제한 시간(10초)보다 길게 기다린다
+export async function addPropertyImages(propertyId, files) {
+  const formData = new FormData()
+  files.forEach((file) => formData.append('images', file))
+  const { data } = await api.post(`/property/${propertyId}/images`, formData, { ...PROPERTY_CONFIG, timeout: 60000 })
+  return data
+}
+
 // PROPERTY_012 나에게 온 중개 신청 목록. status(REQUESTED·ACCEPTED)별로 한 페이지 5개씩, page는 1부터
 export async function getReceivedBrokerageRequests(status, page = 1, signal) {
   const { data } = await api.get('/property/brokerage-requests/received', { ...PROPERTY_CONFIG, params: { status, page }, signal })
