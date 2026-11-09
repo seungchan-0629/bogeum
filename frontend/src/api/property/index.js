@@ -15,6 +15,12 @@ export async function getReceivedBrokerageRequests(status, page = 1, signal) {
   return data
 }
 
+// PROPERTY_010 매물 정보 올리기 화면의 첫 값. 임대인이 신청한 조건, 상세 정보, 사진(조회 주소)을 함께 준다
+export async function getPropertyDetail(propertyId, signal) {
+  const { data } = await api.get(`/property/${propertyId}/details`, { ...PROPERTY_CONFIG, signal })
+  return data
+}
+
 // PROPERTY_008 중개 신청 수락. 승인된 중개사가 본인에게 온 신청만 수락할 수 있다
 export async function acceptBrokerageRequest(brokerageRequestId) {
   const { data } = await api.post(`/property/brokerage-requests/${brokerageRequestId}/accept`, null, PROPERTY_CONFIG)
