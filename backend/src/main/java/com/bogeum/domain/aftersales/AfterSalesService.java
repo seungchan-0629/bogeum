@@ -19,6 +19,7 @@ import com.bogeum.domain.aftersales.model.AfterSalesComment;
 import com.bogeum.domain.aftersales.model.AfterSalesRequest;
 import com.bogeum.domain.aftersales.model.AfterSalesRequestImage;
 import com.bogeum.domain.contract.ContractRepository;
+import com.bogeum.utils.ImageProcessor;
 import lombok.extern.slf4j.Slf4j;
 
 /** 계약 임차인의 접수와 매물 현 소유자의 조회·응답 규칙을 처리한다 (AS_001~003). */
@@ -32,13 +33,13 @@ public class AfterSalesService {
 	private final ContractRepository contractRepository;
 	private final AfterSalesRequestImageRepository imageRepository;
 	private final AfterSalesCommentRepository commentRepository;
-	private final AfterSalesImageProcessor imageProcessor;
+	private final ImageProcessor imageProcessor;
 	private final ObjectProvider<AfterSalesImageStorage> storageProvider;
 	private final int maxCount;
 
 	public AfterSalesService(AfterSalesRepository afterSalesRepository, ContractRepository contractRepository,
 			AfterSalesRequestImageRepository imageRepository, AfterSalesCommentRepository commentRepository,
-			AfterSalesImageProcessor imageProcessor,
+			ImageProcessor imageProcessor,
 			ObjectProvider<AfterSalesImageStorage> storageProvider, @Value("${as-image.max-count:10}") int maxCount) {
 		this.afterSalesRepository = afterSalesRepository;
 		this.contractRepository = contractRepository;

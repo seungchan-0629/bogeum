@@ -9,10 +9,13 @@ import org.springframework.data.domain.Page;
 import com.bogeum.common.enums.BrokerageStatus;
 import com.bogeum.common.enums.LeaseType;
 import com.bogeum.common.enums.PropertyStatus;
+import com.bogeum.common.enums.PropertyType;
 import com.bogeum.domain.agent.model.Agent;
 
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -137,6 +140,125 @@ public class PropertyDto {
 				.page(requests.getNumber() + 1)
 				.totalPages(requests.getTotalPages())
 				.totalElements(requests.getTotalElements())
+				.build();
+		}
+	}
+
+	/**
+	 * 중개사가 저장하는 매물 상세 정보 (PROPERTY_010).
+	 * 임시 저장이라 모두 선택값이고, 비워 보내면 비운 채로 저장한다.
+	 */
+	@Getter
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class DetailRequest {
+
+		private PropertyType propertyType;
+
+		// 평 수. 컬럼이 소수 둘째 자리까지라 그 이상은 받지 않는다
+		@Positive(message = "면적은 0보다 크게 입력해 주세요.")
+		@Digits(integer = 5, fraction = 2, message = "면적은 소수 둘째 자리까지 입력해 주세요.")
+		private BigDecimal areaPyeong;
+
+		@Positive(message = "방 개수는 1개 이상으로 입력해 주세요.")
+		private Integer roomCount;
+
+		// 지하층은 음수로 받는다
+		private Integer floor;
+
+		@Positive(message = "전체 층은 1층 이상으로 입력해 주세요.")
+		private Integer totalFloor;
+
+		@Positive(message = "세대 수는 1 이상으로 입력해 주세요.")
+		private Integer householdCount;
+
+		@PositiveOrZero(message = "주차 대수는 0 이상으로 입력해 주세요.")
+		private Integer parkingCount;
+
+		// 여러 역은 쉼표로 구분한다
+		@Size(max = 100, message = "주변 지하철역은 100자 이하로 입력해 주세요.")
+		private String nearbySubwayStation;
+	}
+
+	/** 상세 정보를 저장한 결과. 임시 저장이라 상태는 공개 전(REQUESTED) 그대로다 */
+	@Getter
+	@Builder
+	public static class DetailSaveResponse {
+
+		private Long propertyId;
+		private PropertyStatus propertyStatus;
+
+		public static DetailSaveResponse from(Property property) {
+			return DetailSaveResponse.builder()
+				.propertyId(property.getPropertyId())
+				.propertyStatus(property.getPropertyStatus())
+				.build();
+		}
+	}
+
+	/** 매물 사진 한 장. url은 저장소가 없으면 비어 있다 (PROPERTY_010) */
+	@Getter
+	@Builder
+	public static class ImageResponse {
+
+		private Long propertyImageId;
+		private Integer sortOrder;
+		private String url;
+
+		public static ImageResponse from(PropertyImage image, String url) {
+			return ImageResponse.builder()
+				.propertyImageId(image.getPropertyImageId())
+				.sortOrder(image.getSortOrder())
+				.url(url)
+				.build();
+		}
+	}
+
+	/**
+	 * 중개사의 매물 정보 올리기 화면 첫 값 (PROPERTY_010).
+	 * 거래 유형·가격·주소는 임대인이 신청한 값이라 화면에서 읽기 전용이다.
+	 */
+	@Getter
+	@Builder
+	public static class DetailResponse {
+
+		private Long propertyId;
+		private String landlordName;
+		private LeaseType leaseType;
+		private BigDecimal deposit;
+		private BigDecimal monthlyRent;
+		private String roadAddress;
+		private String detailAddress;
+		private PropertyType propertyType;
+		private BigDecimal areaPyeong;
+		private Integer roomCount;
+		private Integer floor;
+		private Integer totalFloor;
+		private Integer householdCount;
+		private Integer parkingCount;
+		private String nearbySubwayStation;
+		private PropertyStatus propertyStatus;
+		private List<ImageResponse> images;
+
+		public static DetailResponse from(Property property, List<ImageResponse> images) {
+			return DetailResponse.builder()
+				.propertyId(property.getPropertyId())
+				.landlordName(property.getLandlord().getName())
+				.leaseType(property.getLeaseType())
+				.deposit(property.getDeposit())
+				.monthlyRent(property.getMonthlyRent())
+				.roadAddress(property.getRoadAddress())
+				.detailAddress(property.getDetailAddress())
+				.propertyType(property.getPropertyType())
+				.areaPyeong(property.getAreaPyeong())
+				.roomCount(property.getRoomCount())
+				.floor(property.getFloor())
+				.totalFloor(property.getTotalFloor())
+				.householdCount(property.getHouseholdCount())
+				.parkingCount(property.getParkingCount())
+				.nearbySubwayStation(property.getNearbySubwayStation())
+				.propertyStatus(property.getPropertyStatus())
+				.images(images)
 				.build();
 		}
 	}

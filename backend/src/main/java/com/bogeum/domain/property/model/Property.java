@@ -11,6 +11,7 @@ import org.hibernate.type.SqlTypes;
 import com.bogeum.common.enums.LeaseType;
 import com.bogeum.common.enums.PropertyStatus;
 import com.bogeum.common.enums.PropertyType;
+import com.bogeum.domain.property.PropertyException;
 import com.bogeum.domain.user.model.User;
 
 import jakarta.persistence.Column;
@@ -91,6 +92,10 @@ public class Property {
 	@JdbcTypeCode(SqlTypes.SMALLINT)
 	private Integer floor;
 
+	// 건물 전체 층 수. 해당 층과 함께 보여 준다 (PROPERTY_010)
+	@JdbcTypeCode(SqlTypes.SMALLINT)
+	private Integer totalFloor;
+
 	@JdbcTypeCode(SqlTypes.SMALLINT)
 	private Integer roomCount;
 
@@ -116,5 +121,53 @@ public class Property {
 	// 중개를 수락한 중개사가 이 매물을 맡는다. 공개(ACTIVE)는 상세 정보를 올린 뒤다 (PROPERTY_008, PROPERTY_010)
 	public void assignAgent(User agent) {
 		this.agent = agent;
+	}
+
+	/**
+	 * 중개사가 상세 정보를 저장한다. 임시 저장이라 빈 값도 그대로 저장하고, 공개 상태는 바꾸지 않는다 (PROPERTY_010).
+	 * 거래 유형·가격·주소는 임대인이 신청한 값이라 바꾸지 않는다.
+	 *
+	 * @throws PropertyException 이미 공개 등으로 신청 상태가 아닌 매물이거나, 층이 전체 층보다 큰 경우
+	 */
+	public void updateDetails(PropertyType propertyType, BigDecimal areaPyeong, Integer roomCount, Integer floor,
+			Integer totalFloor, Integer householdCount, Integer parkingCount, String nearbySubwayStation) {
+		validateEditable();
+		if (floor != null && totalFloor != null && floor > totalFloor) {
+			throw PropertyException.invalidFloor();
+		}
+		this.propertyType = propertyType;
+		this.areaPyeong = areaPyeong;
+		this.roomCount = roomCount;
+		this.floor = floor;
+		this.totalFloor = totalFloor;
+		this.householdCount = householdCount;
+		this.parkingCount = parkingCount;
+		this.nearbySubwayStation = nearbySubwayStation;
+	}
+
+	/**
+	 * 필수 상세 정보와 사진이 갖춰진 매물을 공개한다. 공개 후에는 수정할 수 없다 (PROPERTY_010).
+	 * 세대수·주차 대수·지하철역은 없을 수 있는 정보라 필수로 두지 않는다.
+	 *
+	 * @throws PropertyException 공개 전이 아닌 매물이거나, 필수 정보나 사진이 없는 경우
+	 */
+	public void publish(boolean hasImage) {
+		validateEditable();
+		if (!hasImage || propertyType == null || areaPyeong == null || roomCount == null || floor == null
+				|| totalFloor == null) {
+			throw PropertyException.notPublishable();
+		}
+		this.propertyStatus = PropertyStatus.ACTIVE;
+	}
+
+	/**
+	 * 상세 정보와 사진은 공개 전(REQUESTED)에만 바꿀 수 있다. 공개 직전 화면에서 수정할 수 없다고 안내한다 (PROPERTY_010).
+	 *
+	 * @throws PropertyException 이미 공개 등으로 신청 상태가 아닌 매물인 경우
+	 */
+	public void validateEditable() {
+		if (propertyStatus != PropertyStatus.REQUESTED) {
+			throw PropertyException.notEditable();
+		}
 	}
 }

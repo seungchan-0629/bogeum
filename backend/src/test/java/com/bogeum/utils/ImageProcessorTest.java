@@ -1,4 +1,4 @@
-package com.bogeum.domain.aftersales;
+package com.bogeum.utils;
 
 import static org.junit.jupiter.api.Assertions.*;
 import java.awt.image.BufferedImage;
@@ -9,9 +9,11 @@ import javax.imageio.ImageIO;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
 
+import com.bogeum.common.exception.ImageException;
+
 /** 실제 이미지 바이트를 변환·재디코딩해 형식·크기·투명 배경 처리와 잘못된 파일 거절을 확인한다. */
-class AfterSalesImageProcessorTest {
-	private final AfterSalesImageProcessor processor = new AfterSalesImageProcessor(20971520, 40000000, 2048, 0.85f, Set.of("JPEG", "PNG"));
+class ImageProcessorTest {
+	private final ImageProcessor processor = new ImageProcessor(20971520, 40000000, 2048, 0.85f, Set.of("JPEG", "PNG"));
 
 	@Test
 	void decodesActualContentResizesAndCompositesTransparency() throws Exception {
@@ -31,7 +33,7 @@ class AfterSalesImageProcessorTest {
 	@Test
 	void rejectsFakeEmptyAndOversizeImages() {
 		for (byte[] bytes : new byte[][]{new byte[0], "not an image".getBytes(), new byte[20971521]}) {
-			assertThrows(AfterSalesException.class, () -> processor.process(new MockMultipartFile("images", "fake.jpg", "image/jpeg", bytes)));
+			assertThrows(ImageException.class, () -> processor.process(new MockMultipartFile("images", "fake.jpg", "image/jpeg", bytes)));
 		}
 	}
 
@@ -39,10 +41,10 @@ class AfterSalesImageProcessorTest {
 	void rejectsUnsupportedContentAndPixelLimit() throws Exception {
 		var bytes = new ByteArrayOutputStream();
 		ImageIO.write(new BufferedImage(10, 10, BufferedImage.TYPE_INT_RGB), "GIF", bytes);
-		assertThrows(AfterSalesException.class, () -> processor.process(new MockMultipartFile("images", bytes.toByteArray())));
-		var smallLimit = new AfterSalesImageProcessor(10000, 50, 2048, 0.85f, Set.of("PNG"));
+		assertThrows(ImageException.class, () -> processor.process(new MockMultipartFile("images", bytes.toByteArray())));
+		var smallLimit = new ImageProcessor(10000, 50, 2048, 0.85f, Set.of("PNG"));
 		var png = new ByteArrayOutputStream();
 		ImageIO.write(new BufferedImage(10, 10, BufferedImage.TYPE_INT_RGB), "PNG", png);
-		assertThrows(AfterSalesException.class, () -> smallLimit.process(new MockMultipartFile("images", png.toByteArray())));
+		assertThrows(ImageException.class, () -> smallLimit.process(new MockMultipartFile("images", png.toByteArray())));
 	}
 }

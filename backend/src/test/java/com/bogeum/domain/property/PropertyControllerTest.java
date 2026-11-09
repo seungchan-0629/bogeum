@@ -1,11 +1,17 @@
 package com.bogeum.domain.property;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -17,21 +23,27 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import com.bogeum.common.enums.BrokerageStatus;
+import com.bogeum.common.enums.LeaseType;
+import com.bogeum.common.enums.PropertyStatus;
+import com.bogeum.common.enums.PropertyType;
 import com.bogeum.common.enums.Role;
 import com.bogeum.domain.property.model.PropertyDto;
 import com.bogeum.domain.user.model.User;
@@ -98,6 +110,34 @@ class PropertyControllerTest {
 	}
 
 	@Test
+	@DisplayName("사진 추가는 로그인 중개사·매물 기준으로 multipart 사진을 넘기고 201과 추가한 사진을 반환한다")
+	void createsPropertyImages() throws Exception {
+		@SuppressWarnings("unchecked")
+		ArgumentCaptor<List<MultipartFile>> images = ArgumentCaptor.forClass(List.class);
+		when(propertyService.createPropertyImages(eq(1L), eq(20L), images.capture())).thenReturn(List.of(
+			PropertyDto.ImageResponse.builder().propertyImageId(5L).sortOrder(2).url("https://s3/a").build()));
+
+		mockMvc.perform(multipart("/property/20/images")
+				.file(new MockMultipartFile("images", "a.png", "image/png", new byte[]{1}))
+				.file(new MockMultipartFile("images", "b.png", "image/png", new byte[]{2})))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$[0].propertyImageId").value(5))
+			.andExpect(jsonPath("$[0].sortOrder").value(2))
+			.andExpect(jsonPath("$[0].url").value("https://s3/a"));
+		assertEquals(2, images.getValue().size());
+	}
+
+	@Test
+	@DisplayName("사진 파트가 없어도 서비스에 넘겨 사진 오류로 판단하게 한다")
+	void passesMissingImagesToService() throws Exception {
+		when(propertyService.createPropertyImages(1L, 20L, null)).thenThrow(PropertyException.invalidImage());
+
+		mockMvc.perform(multipart("/property/20/images"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("INVALID_IMAGE"));
+	}
+
+	@Test
 	@DisplayName("중개 신청 수락은 로그인 중개사 기준으로 처리하고 수락 결과를 반환한다")
 	void acceptsBrokerageRequest() throws Exception {
 		when(propertyService.acceptBrokerageRequest(1L, 10L)).thenReturn(PropertyDto.AcceptResponse.builder()
@@ -137,6 +177,120 @@ class PropertyControllerTest {
 		mockMvc.perform(get(URL + "/received").param("status", "REQUESTED"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.page").value(1));
+	}
+
+	@Test
+	@DisplayName("매물 상세는 로그인 중개사·매물 기준으로 조회하고 신청 조건과 사진을 반환한다")
+	void readsPropertyDetail() throws Exception {
+		when(propertyService.readPropertyDetail(1L, 20L)).thenReturn(PropertyDto.DetailResponse.builder()
+			.propertyId(20L).landlordName("박임대").leaseType(LeaseType.MONTHLY).roadAddress("서울특별시 마포구 월드컵로 61")
+			.images(List.of(PropertyDto.ImageResponse.builder().propertyImageId(1L).sortOrder(0).url("https://s3/a").build()))
+			.build());
+
+		mockMvc.perform(get("/property/20/details"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.propertyId").value(20))
+			.andExpect(jsonPath("$.landlordName").value("박임대"))
+			.andExpect(jsonPath("$.leaseType").value("MONTHLY"))
+			.andExpect(jsonPath("$.images[0].propertyImageId").value(1))
+			.andExpect(jsonPath("$.images[0].url").value("https://s3/a"));
+	}
+
+	@Test
+	@DisplayName("매물 상세 저장은 로그인 중개사·매물 기준으로 요청값을 넘기고 저장 결과를 반환한다")
+	void savesPropertyDetail() throws Exception {
+		var request = ArgumentCaptor.forClass(PropertyDto.DetailRequest.class);
+		when(propertyService.updatePropertyDetail(eq(1L), eq(20L), request.capture())).thenReturn(
+			PropertyDto.DetailSaveResponse.builder().propertyId(20L).propertyStatus(PropertyStatus.REQUESTED).build());
+
+		mockMvc.perform(put("/property/20/details").contentType(MediaType.APPLICATION_JSON).content("""
+				{"propertyType":"VILLA","areaPyeong":17.32,"roomCount":3,"floor":-1,"totalFloor":5,
+				 "householdCount":19,"parkingCount":0,"nearbySubwayStation":"대방역"}
+				"""))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.propertyId").value(20))
+			.andExpect(jsonPath("$.propertyStatus").value("REQUESTED"));
+		assertEquals(PropertyType.VILLA, request.getValue().getPropertyType());
+		assertEquals(-1, request.getValue().getFloor());
+		assertEquals(5, request.getValue().getTotalFloor());
+	}
+
+	@Test
+	@DisplayName("매물 상세 저장은 모든 칸이 비어 있어도 받는다 (임시 저장)")
+	void savesEmptyPropertyDetail() throws Exception {
+		when(propertyService.updatePropertyDetail(eq(1L), eq(20L), any(PropertyDto.DetailRequest.class))).thenReturn(
+			PropertyDto.DetailSaveResponse.builder().propertyId(20L).propertyStatus(PropertyStatus.REQUESTED).build());
+
+		mockMvc.perform(put("/property/20/details").contentType(MediaType.APPLICATION_JSON).content("{}"))
+			.andExpect(status().isOk());
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {
+		"{\"propertyType\":\"ONE_ROOM\"}",
+		"{\"areaPyeong\":0}",
+		"{\"areaPyeong\":10.123}",
+		"{\"roomCount\":0}",
+		"{\"totalFloor\":0}",
+		"{\"householdCount\":0}",
+		"{\"parkingCount\":-1}"
+	})
+	@DisplayName("없는 매물 종류·범위를 벗어난 숫자는 서비스 호출 전에 400으로 거절한다")
+	void rejectsInvalidPropertyDetail(String body) throws Exception {
+		mockMvc.perform(put("/property/20/details").contentType(MediaType.APPLICATION_JSON).content(body))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+		verifyNoInteractions(propertyService);
+	}
+
+	@Test
+	@DisplayName("주변 지하철역이 100자를 넘으면 서비스 호출 전에 400으로 거절한다")
+	void rejectsTooLongSubwayStation() throws Exception {
+		mockMvc.perform(put("/property/20/details").contentType(MediaType.APPLICATION_JSON)
+				.content("{\"nearbySubwayStation\":\"" + "역".repeat(101) + "\"}"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+		verifyNoInteractions(propertyService);
+	}
+
+	@Test
+	@DisplayName("매물 공개는 로그인 중개사·매물 기준으로 처리하고 공개 상태를 반환한다")
+	void publishesProperty() throws Exception {
+		when(propertyService.publishProperty(1L, 20L)).thenReturn(
+			PropertyDto.DetailSaveResponse.builder().propertyId(20L).propertyStatus(PropertyStatus.ACTIVE).build());
+
+		mockMvc.perform(post("/property/20/publish"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.propertyId").value(20))
+			.andExpect(jsonPath("$.propertyStatus").value("ACTIVE"));
+	}
+
+	@Test
+	@DisplayName("필수 정보나 사진이 없으면 400과 PROPERTY_NOT_PUBLISHABLE을 반환한다")
+	void rejectsPublishingIncompleteProperty() throws Exception {
+		when(propertyService.publishProperty(1L, 20L)).thenThrow(PropertyException.notPublishable());
+
+		mockMvc.perform(post("/property/20/publish"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("PROPERTY_NOT_PUBLISHABLE"));
+	}
+
+	@Test
+	@DisplayName("사진 삭제는 로그인 중개사·매물·사진 기준으로 처리하고 204를 반환한다")
+	void deletesPropertyImage() throws Exception {
+		mockMvc.perform(delete("/property/20/images/5"))
+			.andExpect(status().isNoContent());
+		verify(propertyService).deletePropertyImage(1L, 20L, 5L);
+	}
+
+	@Test
+	@DisplayName("그 매물의 사진이 아니면 404와 PROPERTY_IMAGE_NOT_FOUND를 반환한다")
+	void rejectsDeletingMissingImage() throws Exception {
+		doThrow(PropertyException.propertyImageNotFound()).when(propertyService).deletePropertyImage(1L, 20L, 77L);
+
+		mockMvc.perform(delete("/property/20/images/77"))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.code").value("PROPERTY_IMAGE_NOT_FOUND"));
 	}
 
 	@ParameterizedTest

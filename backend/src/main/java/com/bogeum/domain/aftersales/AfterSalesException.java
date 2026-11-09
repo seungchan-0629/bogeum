@@ -19,6 +19,6 @@ public class AfterSalesException extends RuntimeException {
 	public static AfterSalesException alreadyCompleted() { return new AfterSalesException(ErrorCode.AS_ALREADY_COMPLETED); }
 	public static AfterSalesException forbidden() { return new AfterSalesException(ErrorCode.ACCESS_DENIED); }
 	public static AfterSalesException outsideContract() { return new AfterSalesException(ErrorCode.AS_OUTSIDE_CONTRACT); }
-	public static AfterSalesException invalidImage() { return new AfterSalesException(ErrorCode.AS_INVALID_IMAGE); }
+	public static AfterSalesException invalidImage() { return new AfterSalesException(ErrorCode.INVALID_IMAGE); }
 	public static AfterSalesException storageUnavailable() { return new AfterSalesException(ErrorCode.AS_STORAGE_UNAVAILABLE); }
 }
