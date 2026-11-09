@@ -4,7 +4,7 @@ export const AS_STATUS = {
   RECEIVED: { label: '접수 완료', tone: 'gray' },
   CHECKING: { label: '확인중', tone: 'amber' },
   IN_PROGRESS: { label: '처리중', tone: 'blue' },
-  DONE: { label: '처리 완료', tone: 'green' },
+  COMPLETED: { label: '처리 완료', tone: 'green' },
 }
 
 // 클레임 사유 (CLAIM_001). 계약상 역할(CONTRACT_ROLES)마다 고를 수 있는 사유가 다르다

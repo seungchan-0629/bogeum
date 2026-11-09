@@ -9,7 +9,7 @@ const SAMPLE_SUMMARY_BY_ROLE = {
   TENANT: [
     // RENT_005: GET /api/v1/tenants/me/rent-payments?size=1 (BE-054) 의 가장 최근 payments[0]
     { label: '최근 월세 납부', value: '10회차', detail: '납부 완료 · 65만원', to: '/my-home/rent' },
-    // AS_002: GET /api/v1/as-requests?status= (BE-070) 중 처리 완료(DONE)가 아닌 건 수
+    // AS_002: GET /api/v1/as-requests?status= (BE-070) 중 처리 완료(COMPLETED)가 아닌 건 수
     { label: '진행 중인 AS', value: '1건', detail: '처리중', to: '/my-home/as' },
   ],
   LANDLORD: [

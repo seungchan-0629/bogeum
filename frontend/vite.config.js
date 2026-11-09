@@ -18,6 +18,8 @@ export default defineConfig({
       '/api': backendProxy,
       // 매물 API(/property/...). 끝의 /가 있어야 화면 주소 /properties/...가 백엔드로 넘어가지 않는다
       '/property/': backendProxy,
+      // AS API(/as-requests/...). 화면 주소 /care/as와 겹치지 않는다
+      '/as-requests': backendProxy,
       '/auth': backendProxy,
       '/users': backendProxy,
       '/openbanking': backendProxy,
