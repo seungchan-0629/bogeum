@@ -53,7 +53,13 @@ public enum ErrorCode {
 	ACCESS_TOKEN_INVALID(HttpStatus.UNAUTHORIZED, "올바르지 않은 인증 정보입니다."),
 	REFRESH_TOKEN_INVALID(HttpStatus.UNAUTHORIZED, "다시 로그인해 주세요."),
 	ACCESS_DENIED(HttpStatus.FORBIDDEN, "접근 권한이 없습니다."),
-	CSRF_INVALID(HttpStatus.FORBIDDEN, "요청 확인 정보가 만료되었습니다. 새로고침해 주세요.");
+	CSRF_INVALID(HttpStatus.FORBIDDEN, "요청 확인 정보가 만료되었습니다. 새로고침해 주세요."),
+
+	// 관리자 코드
+	OPENBANKING_NOT_CONFIGURED(HttpStatus.SERVICE_UNAVAILABLE, "오픈뱅킹 기관 인증 정보가 설정되지 않았습니다."),
+	OPENBANKING_UNAVAILABLE(HttpStatus.BAD_GATEWAY, "가상금결원에 연결할 수 없습니다. 서버 실행 상태를 확인해 주세요."),
+	OPENBANKING_REQUEST_FAILED(HttpStatus.BAD_GATEWAY, "금결원 요청이 거절되었습니다. 인증 정보와 서버 상태를 확인해 주세요.");
+
 	private final HttpStatus httpStatus;
 	private final String message;
 }
