@@ -3,6 +3,7 @@ package com.bogeum.domain.openbanking;
 import com.bogeum.domain.openbanking.FakeKFTC.StateStore;
 import com.bogeum.domain.openbanking.model.OpenBanking;
 import com.bogeum.domain.openbanking.model.OpenBankingDTO.*;
+import com.bogeum.domain.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -33,6 +34,7 @@ public class OpenBankingService
 {
     private final OpenBankingRepository openBankingRepository;
     private final OpenBankingTransferRepository openBankingTransferRepository;
+	private final UserRepository userRepository;
     private final StateStore stateStore;
     private final RestClient restClient = RestClient.create("http://localhost:8090");
 
@@ -105,11 +107,11 @@ public class OpenBankingService
         }
 
         // 8. 재등록은 기존 계좌 ID를 유지해 계좌 정보와 토큰을 갱신한다.
-		Long openBankingId = openBankingRepository.findByUserId(userId)
+		Long openBankingId = openBankingRepository.findByUser_UserId(userId)
 			.map(OpenBanking::getOpenBankingId).orElse(null);
         OpenBanking openBanking = OpenBanking.builder()
 			.openBankingId(openBankingId)
-                .userId(userId)
+			.user(userRepository.getReferenceById(userId))
                 .userSeqNo(userSeqNo)
                 .fintechNum(fintechUseNum)
 				.bankName(accounts.get(0).path("bank_name").asText(""))
@@ -130,7 +132,7 @@ public class OpenBankingService
 	/** 마이페이지에 표시할 본인의 등록 계좌를 DB에서 조회한다. */
 	@Transactional(readOnly = true)
 	public Optional<OpenBanking> findAccountByUserId(Long userId) {
-		return openBankingRepository.findByUserId(userId);
+		return openBankingRepository.findByUser_UserId(userId);
 	}
 
     // 등록계좌조회: DB 계좌, 조회조건, 갱신에 필요한 앱 인증정보와 scope를 받는다.
@@ -300,7 +302,7 @@ public class OpenBankingService
         if (scope.isBlank()) scope = request.getScope();
         // 기존 ID와 계좌정보를 유지해 새 토큰만 DB에 반영한다. 전달받은 엔티티는 변경하지 않는다.
         openBankingRepository.saveAndFlush(OpenBanking.builder()
-                .openBankingId(account.getOpenBankingId()).userId(account.getUserId())
+				.openBankingId(account.getOpenBankingId()).user(account.getUser())
                 .userSeqNo(account.getUserSeqNo()).fintechNum(account.getFintechNum())
 				.bankName(account.getBankName()).accountNumberMasked(account.getAccountNumberMasked())
                 .accessToken(response.path("access_token").asText("")).refreshToken(refreshToken)

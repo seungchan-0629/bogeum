@@ -131,7 +131,7 @@ class OpenBankingAccountIntegrationTest {
 
 	private OpenBanking createAccount(User user, String bankName, String accountNumberMasked) {
 		return openBankingRepository.saveAndFlush(OpenBanking.builder()
-			.userId(user.getUserId()).userSeqNo("user-seq-" + user.getUserId())
+			.user(user).userSeqNo("user-seq-" + user.getUserId())
 			.fintechNum("fintech-" + user.getUserId())
 			.bankName(bankName).accountNumberMasked(accountNumberMasked)
 			.accessToken("expired-openbanking-access-token").refreshToken("openbanking-refresh-token")
