@@ -21,6 +21,12 @@ export async function getPropertyDetail(propertyId, signal) {
   return data
 }
 
+// PROPERTY_010 매물 상세 정보 임시 저장. 모든 칸을 함께 보내며 null로 보낸 칸은 비운다. 공개 상태는 그대로다
+export async function updatePropertyDetail(propertyId, request) {
+  const { data } = await api.put(`/property/${propertyId}/details`, request, PROPERTY_CONFIG)
+  return data
+}
+
 // PROPERTY_008 중개 신청 수락. 승인된 중개사가 본인에게 온 신청만 수락할 수 있다
 export async function acceptBrokerageRequest(brokerageRequestId) {
   const { data } = await api.post(`/property/brokerage-requests/${brokerageRequestId}/accept`, null, PROPERTY_CONFIG)
