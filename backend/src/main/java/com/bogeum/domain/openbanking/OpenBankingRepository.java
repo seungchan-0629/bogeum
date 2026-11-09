@@ -7,5 +7,5 @@ import java.util.Optional;
 
 public interface OpenBankingRepository extends JpaRepository<OpenBanking,Long>
 {
-	Optional<OpenBanking> findByUserId(Long userId);
+	Optional<OpenBanking> findByUser_UserId(Long userId);
 }
