@@ -6,6 +6,7 @@
 // - 임시 저장: PUT /property/{propertyId}/details
 // - 사진: POST /property/{propertyId}/images, DELETE /property/{propertyId}/images/{propertyImageId}
 // - 공개: POST /property/{propertyId}/publish
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useNavigate, useParams } from 'react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -16,7 +17,10 @@ import FileDropzone from '../../components/common/FileDropzone.jsx'
 import PhotoPlaceholder from '../../components/common/PhotoPlaceholder.jsx'
 import { Field, SelectInput, TextInput } from '../../components/common/FormControls.jsx'
 import { formatLeasePrice } from '../../utils/format.js'
-import { getPropertyDetail, updatePropertyDetail } from '../../api/property/index.js'
+import { addPropertyImages, getPropertyDetail, updatePropertyDetail } from '../../api/property/index.js'
+
+// 서버의 매물당 사진 상한과 같다
+const MAX_IMAGE_COUNT = 10
 
 // 서버 enum(PropertyType)과 같은 값. 원룸·투룸은 방 개수로 나타낸다
 const PROPERTY_TYPE_OPTIONS = [
@@ -136,6 +140,8 @@ function PropertyDetailForm({ propertyId, detail }) {
     resolver: zodResolver(detailSchema),
     defaultValues: toFormValues(detail),
   })
+  const [isUploading, setIsUploading] = useState(false)
+  const [dropzoneKey, setDropzoneKey] = useState(0)
 
   const address = `${detail.roadAddress} ${detail.detailAddress ?? ''}`.trim()
   // 공개된 매물은 상세 정보와 사진을 바꿀 수 없다 (서버도 409로 막는다)
@@ -150,6 +156,28 @@ function PropertyDetailForm({ propertyId, detail }) {
     }
     await queryClient.invalidateQueries({ queryKey: ['property-detail', propertyId] })
     window.alert('임시 저장했어요.')
+  }
+
+  // 고르면 바로 올린다. 다른 칸을 입력하는 동안 올라가서 저장·공개할 때 사진을 기다리지 않는다
+  const handleImagesChange = async (files) => {
+    if (files.length === 0) return
+    const remainingCount = MAX_IMAGE_COUNT - detail.images.length
+    if (files.length > remainingCount) {
+      window.alert(`사진은 ${MAX_IMAGE_COUNT}장까지 올릴 수 있어요. 지금은 ${remainingCount}장 더 올릴 수 있어요.`)
+      setDropzoneKey((key) => key + 1)
+      return
+    }
+    setIsUploading(true)
+    try {
+      await addPropertyImages(propertyId, files)
+      await queryClient.invalidateQueries({ queryKey: ['property-detail', propertyId] })
+    } catch (error) {
+      window.alert(error.response?.data?.message || '서버에 연결할 수 없습니다.')
+    } finally {
+      setIsUploading(false)
+      // 올린 파일 이름 목록을 비우고, 같은 파일을 다시 골라도 올라가도록 칸을 새로 만든다
+      setDropzoneKey((key) => key + 1)
+    }
   }
 
   // TODO: [매물 공개하기]는 저장 후 POST /publish로 연결한다
@@ -214,7 +242,19 @@ function PropertyDetailForm({ propertyId, detail }) {
                 ))}
               </ul>
             )}
-            {isEditable && <FileDropzone title="건물·방 사진을 올려주세요" hint="첫 사진이 대표 사진이 돼요" multiple />}
+            {isEditable && isUploading && <p role="status" className="text-sm text-gray-600">사진을 올리고 있어요.</p>}
+            {isEditable && !isUploading && detail.images.length < MAX_IMAGE_COUNT && (
+              <FileDropzone
+                key={dropzoneKey}
+                title="건물·방 사진을 올려주세요"
+                hint={`첫 사진이 대표 사진이 돼요 · 최대 ${MAX_IMAGE_COUNT}장 (${detail.images.length}/${MAX_IMAGE_COUNT})`}
+                multiple
+                onChange={handleImagesChange}
+              />
+            )}
+            {isEditable && detail.images.length >= MAX_IMAGE_COUNT && (
+              <p className="text-sm text-gray-600">사진을 {MAX_IMAGE_COUNT}장 모두 올렸어요. 바꾸려면 사진을 지운 뒤 올려 주세요.</p>
+            )}
           </section>
         </fieldset>
         {isEditable && (
