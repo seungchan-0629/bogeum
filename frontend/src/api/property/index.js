@@ -36,6 +36,12 @@ export async function updatePropertyDetail(propertyId, request) {
   return data
 }
 
+// PROPERTY_010 매물 공개(ACTIVE). 필수 상세 정보와 사진 1장 이상이 있어야 하고, 공개 후에는 수정할 수 없다
+export async function publishProperty(propertyId) {
+  const { data } = await api.post(`/property/${propertyId}/publish`, null, PROPERTY_CONFIG)
+  return data
+}
+
 // PROPERTY_008 중개 신청 수락. 승인된 중개사가 본인에게 온 신청만 수락할 수 있다
 export async function acceptBrokerageRequest(brokerageRequestId) {
   const { data } = await api.post(`/property/brokerage-requests/${brokerageRequestId}/accept`, null, PROPERTY_CONFIG)
