@@ -16,7 +16,11 @@ const STEPS = ['중개 수락', '매물 공개', '계약 완료']
 // 매물 상태(PropertyStatus)별 진행 단계(1~3). 공개 전(REQUESTED)은 임시 저장 여부와 관계없이 1단계다
 const STEP_BY_STATUS = { REQUESTED: 1, ACTIVE: 2, CONTRACTED: 3 }
 // 관리자가 숨겼거나 삭제된 매물은 진행할 일이 없어 단계와 버튼 대신 표시만 한다
-const CLOSED_STATUS_LABELS = { HIDDEN: '관리자 숨김', DELETED: '삭제됨' }
+// 숨김은 다시 보일 수 있어 주황색, 삭제는 더 이상 진행할 수 없는 매물이라 빨간색으로 구분한다
+const CLOSED_STATUSES = {
+  HIDDEN: { label: '관리자 숨김', tone: 'amber' },
+  DELETED: { label: '삭제됨', tone: 'red' },
+}
 
 // "2026-11-06T19:47:48" → "11.06"
 const formatDate = (dateTime) => dateTime.slice(5, 10).replace('-', '.')
@@ -85,7 +89,7 @@ function AgentContractListPage() {
         <ul className="flex flex-col gap-3">
           {requests.map((request) => {
             const title = `${request.roadAddress} ${request.detailAddress ?? ''}`.trim()
-            const closedLabel = CLOSED_STATUS_LABELS[request.propertyStatus]
+            const closedStatus = CLOSED_STATUSES[request.propertyStatus]
             const step = STEP_BY_STATUS[request.propertyStatus]
             return (
               <li key={request.brokerageRequestId} className="card flex flex-col gap-4">
@@ -93,7 +97,7 @@ function AgentContractListPage() {
                   <div className="flex flex-col">
                     <span className="flex items-center gap-2">
                       <strong className="text-[17px]">{title}</strong>
-                      {closedLabel && <StatusBadge tone="gray">{closedLabel}</StatusBadge>}
+                      {closedStatus && <StatusBadge tone={closedStatus.tone}>{closedStatus.label}</StatusBadge>}
                     </span>
                     <span className="text-sm text-gray-600">{formatLeasePrice(toManwonPrice(request))}</span>
                     <span className="text-sm text-gray-500">
