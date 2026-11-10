@@ -41,3 +41,8 @@ export async function acceptBrokerageRequest(brokerageRequestId) {
   const { data } = await api.post(`/property/brokerage-requests/${brokerageRequestId}/accept`, null, PROPERTY_CONFIG)
   return data
 }
+
+// PROPERTY_010 매물 사진 하나 삭제. 성공하면 본문 없이 204를 준다
+export async function deletePropertyImage(propertyId, propertyImageId) {
+  await api.delete(`/property/${propertyId}/images/${propertyImageId}`, PROPERTY_CONFIG)
+}
