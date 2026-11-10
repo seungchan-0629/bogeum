@@ -17,7 +17,8 @@ import FileDropzone from '../../components/common/FileDropzone.jsx'
 import PhotoPlaceholder from '../../components/common/PhotoPlaceholder.jsx'
 import { Field, SelectInput, TextInput } from '../../components/common/FormControls.jsx'
 import { formatLeasePrice } from '../../utils/format.js'
-import { addPropertyImages, getPropertyDetail, updatePropertyDetail } from '../../api/property/index.js'
+import Icon from '../../components/common/Icon.jsx'
+import { addPropertyImages, deletePropertyImage, getPropertyDetail, updatePropertyDetail } from '../../api/property/index.js'
 
 // 서버의 매물당 사진 상한과 같다
 const MAX_IMAGE_COUNT = 10
@@ -142,6 +143,7 @@ function PropertyDetailForm({ propertyId, detail }) {
   })
   const [isUploading, setIsUploading] = useState(false)
   const [dropzoneKey, setDropzoneKey] = useState(0)
+  const [deletingImageId, setDeletingImageId] = useState(null)
 
   const address = `${detail.roadAddress} ${detail.detailAddress ?? ''}`.trim()
   // 공개된 매물은 상세 정보와 사진을 바꿀 수 없다 (서버도 409로 막는다)
@@ -177,6 +179,19 @@ function PropertyDetailForm({ propertyId, detail }) {
       setIsUploading(false)
       // 올린 파일 이름 목록을 비우고, 같은 파일을 다시 골라도 올라가도록 칸을 새로 만든다
       setDropzoneKey((key) => key + 1)
+    }
+  }
+
+  // 공개 전에는 지우고 다시 올릴 수 있다. 대표 사진을 지우면 다음 사진이 대표가 된다
+  const handleImageDelete = async (propertyImageId) => {
+    setDeletingImageId(propertyImageId)
+    try {
+      await deletePropertyImage(propertyId, propertyImageId)
+      await queryClient.invalidateQueries({ queryKey: ['property-detail', propertyId] })
+    } catch (error) {
+      window.alert(error.response?.data?.message || '서버에 연결할 수 없습니다.')
+    } finally {
+      setDeletingImageId(null)
     }
   }
 
@@ -237,6 +252,17 @@ function PropertyDetailForm({ propertyId, detail }) {
                       : <PhotoPlaceholder className="aspect-square w-full" />}
                     {index === 0 && (
                       <span className="absolute left-1.5 top-1.5 rounded-md bg-slate-900/70 px-1.5 py-0.5 text-xs text-white">대표</span>
+                    )}
+                    {isEditable && (
+                      <button
+                        type="button"
+                        aria-label={`매물 사진 ${index + 1} 삭제`}
+                        onClick={() => handleImageDelete(image.propertyImageId)}
+                        disabled={deletingImageId !== null}
+                        className="absolute right-1.5 top-1.5 flex size-7 items-center justify-center rounded-full bg-slate-900/70 text-white hover:bg-slate-900 disabled:opacity-50"
+                      >
+                        <Icon name="close" size={16} />
+                      </button>
                     )}
                   </li>
                 ))}
