@@ -18,10 +18,22 @@ import PhotoPlaceholder from '../../components/common/PhotoPlaceholder.jsx'
 import { Field, SelectInput, TextInput } from '../../components/common/FormControls.jsx'
 import { formatLeasePrice } from '../../utils/format.js'
 import Icon from '../../components/common/Icon.jsx'
-import { addPropertyImages, deletePropertyImage, getPropertyDetail, updatePropertyDetail } from '../../api/property/index.js'
+import ConfirmModal from '../../components/common/ConfirmModal.jsx'
+import {
+  addPropertyImages, deletePropertyImage, getPropertyDetail, publishProperty, updatePropertyDetail,
+} from '../../api/property/index.js'
 
 // 서버의 매물당 사진 상한과 같다
 const MAX_IMAGE_COUNT = 10
+
+// 공개에 꼭 필요한 칸. 서버도 같은 칸과 사진 1장 이상을 다시 확인한다 (PROPERTY_NOT_PUBLISHABLE)
+const REQUIRED_FIELD_MESSAGES = {
+  propertyType: '매물 종류를 선택해 주세요.',
+  areaPyeong: '면적을 입력해 주세요.',
+  roomCount: '방 개수를 입력해 주세요.',
+  floorNumber: '층을 입력해 주세요.',
+  totalFloor: '전체 층을 입력해 주세요.',
+}
 
 // 서버 enum(PropertyType)과 같은 값. 원룸·투룸은 방 개수로 나타낸다
 const PROPERTY_TYPE_OPTIONS = [
@@ -136,6 +148,7 @@ function PropertyDetailForm({ propertyId, detail }) {
   const {
     register,
     handleSubmit,
+    setError,
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: zodResolver(detailSchema),
@@ -144,6 +157,10 @@ function PropertyDetailForm({ propertyId, detail }) {
   const [isUploading, setIsUploading] = useState(false)
   const [dropzoneKey, setDropzoneKey] = useState(0)
   const [deletingImageId, setDeletingImageId] = useState(null)
+  const [isImageMissing, setIsImageMissing] = useState(false)
+  // 확인 창이 열려 있는 동안 공개할 입력값. null이면 창이 닫힌 상태다
+  const [publishValues, setPublishValues] = useState(null)
+  const [isPublishing, setIsPublishing] = useState(false)
 
   const address = `${detail.roadAddress} ${detail.detailAddress ?? ''}`.trim()
   // 공개된 매물은 상세 정보와 사진을 바꿀 수 없다 (서버도 409로 막는다)
@@ -195,9 +212,31 @@ function PropertyDetailForm({ propertyId, detail }) {
     }
   }
 
-  // TODO: [매물 공개하기]는 저장 후 POST /publish로 연결한다
-  const handlePublish = (event) => {
-    event.preventDefault()
+  // 입력 범위 검사를 통과한 뒤 필수 칸과 사진을 확인하고, 되돌릴 수 없으므로 확인 창을 띄운다
+  const handlePublishClick = (values) => {
+    const missingFields = Object.keys(REQUIRED_FIELD_MESSAGES).filter((name) => values[name] === '')
+    missingFields.forEach((name) => setError(name, { message: REQUIRED_FIELD_MESSAGES[name] }))
+    const hasNoImage = detail.images.length === 0
+    setIsImageMissing(hasNoImage)
+    if (missingFields.length > 0 || hasNoImage) return
+    setPublishValues(values)
+  }
+
+  // [임시 저장]을 누르지 않았어도 입력이 사라지지 않도록 지금 값을 저장한 뒤 공개한다
+  const handlePublishConfirm = async () => {
+    if (isPublishing) return
+    setIsPublishing(true)
+    try {
+      await updatePropertyDetail(propertyId, toRequest(publishValues))
+      await publishProperty(propertyId)
+    } catch (error) {
+      window.alert(error.response?.data?.message || '서버에 연결할 수 없습니다.')
+      setIsPublishing(false)
+      setPublishValues(null)
+      return
+    }
+    await queryClient.invalidateQueries({ queryKey: ['property-detail', propertyId] })
+    window.alert('매물을 공개했어요.')
     navigate('/agent/contracts')
   }
 
@@ -207,7 +246,7 @@ function PropertyDetailForm({ propertyId, detail }) {
       {!isEditable && (
         <p role="status" className="rounded-xl bg-slate-100 px-4 py-3 text-gray-700">공개된 매물은 수정할 수 없어요.</p>
       )}
-      <form onSubmit={handlePublish} noValidate className="flex flex-col gap-5">
+      <form onSubmit={handleSubmit(handlePublishClick)} noValidate className="flex flex-col gap-5">
         <fieldset disabled={!isEditable} className="grid min-w-0 items-start gap-5 lg:grid-cols-2">
           <section aria-labelledby="detail-info-title" className="card flex flex-col gap-4">
             <h2 id="detail-info-title" className="text-lg font-bold">상세 정보</h2>
@@ -221,6 +260,7 @@ function PropertyDetailForm({ propertyId, detail }) {
             <div className="grid grid-cols-2 gap-3">
               <Field label="매물 종류" htmlFor="detail-type">
                 <SelectInput id="detail-type" options={PROPERTY_TYPE_OPTIONS} {...register('propertyType')} />
+                <ErrorText error={errors.propertyType} />
               </Field>
               <Field label="층" htmlFor="detail-floor">
                 <div className="flex gap-2">
@@ -268,7 +308,10 @@ function PropertyDetailForm({ propertyId, detail }) {
                 ))}
               </ul>
             )}
-            {isEditable && isUploading && <p role="status" className="text-sm text-gray-600">사진을 올리고 있어요.</p>}
+            {isImageMissing && detail.images.length === 0 && (
+              <p className="text-sm text-red-600">사진을 1장 이상 올려 주세요.</p>
+            )}
+            {isEditable && isUploading &&<p role="status" className="text-sm text-gray-600">사진을 올리고 있어요.</p>}
             {isEditable && !isUploading && detail.images.length < MAX_IMAGE_COUNT && (
               <FileDropzone
                 key={dropzoneKey}
@@ -286,10 +329,19 @@ function PropertyDetailForm({ propertyId, detail }) {
         {isEditable && (
           <div className="flex justify-end gap-2">
             <button type="button" onClick={handleSubmit(handleSave)} disabled={isSubmitting} className="btn-secondary">임시 저장</button>
-            <button type="submit" className="btn-primary">매물 공개하기</button>
+            <button type="submit" disabled={isSubmitting} className="btn-primary">매물 공개하기</button>
           </div>
         )}
       </form>
+      {publishValues && (
+        <ConfirmModal
+          title="매물을 공개할까요?"
+          description="공개된 매물은 수정할 수 없습니다. 지금 입력한 정보와 사진으로 공개돼요."
+          confirmLabel={isPublishing ? '공개하는 중' : '공개하기'}
+          onConfirm={handlePublishConfirm}
+          onClose={() => !isPublishing && setPublishValues(null)}
+        />
+      )}
     </div>
   )
 }
