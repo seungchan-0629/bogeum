@@ -2,6 +2,7 @@ package com.bogeum.common.exception;
 
 import com.bogeum.domain.agent.AgentException;
 import com.bogeum.domain.aftersales.AfterSalesException;
+import com.bogeum.domain.contract.ContractException;
 import com.bogeum.domain.property.PropertyException;
 import com.bogeum.domain.openbanking.OpenBankingException;
 
@@ -45,6 +46,11 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(PropertyException.class)
 	public ResponseEntity<ErrorResponse> handlePropertyException(PropertyException exception) {
+		return toResponse(exception.getErrorCode());
+	}
+
+	@ExceptionHandler(ContractException.class)
+	public ResponseEntity<ErrorResponse> handleContractException(ContractException exception) {
 		return toResponse(exception.getErrorCode());
 	}
 
