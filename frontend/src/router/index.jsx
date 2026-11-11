@@ -98,15 +98,15 @@ export const router = createBrowserRouter([
               { path: '/my-properties/new', element: <BrokerageRequestFormPage /> },
               { path: '/my-properties/:propertyId/edit', element: <BrokerageRequestFormPage /> },
               {
-                // 임차인으로 계약한 경우
-                element: <RequireContract contractRole={CONTRACT_ROLES.TENANT} description="계약이 등록되면 이곳에 내 집 정보가 표시돼요." />,
+                path: '/my-home',
+                element: <MyHomeLayout />,
                 children: [
+                  { index: true, element: <Navigate to="/my-home/rent" replace /> },
+                  // 이체 내역은 서버가 실제 계약의 임차인을 확인한다.
+                  { path: 'rent', element: <RentPaymentPage /> },
                   {
-                    path: '/my-home',
-                    element: <MyHomeLayout />,
+                    element: <RequireContract contractRole={CONTRACT_ROLES.TENANT} description="계약이 등록되면 이곳에 내 집 정보가 표시돼요." />,
                     children: [
-                      { index: true, element: <Navigate to="/my-home/rent" replace /> },
-                      { path: 'rent', element: <RentPaymentPage /> },
                       { path: 'as', element: <TenantAsPage /> },
                       { path: 'move-in', element: <MoveInUploadPage /> },
                       { path: 'claim', element: <ClaimPage contractRole={CONTRACT_ROLES.TENANT} /> },
@@ -114,11 +114,12 @@ export const router = createBrowserRouter([
                   },
                 ],
               },
+              // 이체 내역은 서버가 실제 계약의 임대인을 확인한다.
+              { path: '/rent/collections', element: <RentCollectionPage /> },
               {
                 // 임대인으로 계약한 경우
                 element: <RequireContract contractRole={CONTRACT_ROLES.LANDLORD} description="내 매물이 계약되면 이곳에 월세와 입주·AS 정보가 표시돼요." />,
                 children: [
-                  { path: '/rent/collections', element: <RentCollectionPage /> },
                   {
                     path: '/care',
                     element: <LandlordCareLayout />,
