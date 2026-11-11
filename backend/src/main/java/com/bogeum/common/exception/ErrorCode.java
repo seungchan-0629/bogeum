@@ -17,6 +17,8 @@ public enum ErrorCode {
 	// AS 사진과 매물 사진이 같은 검사 기준을 쓴다 (AS_001, PROPERTY_010)
 	INVALID_IMAGE(HttpStatus.BAD_REQUEST, "사진의 형식, 크기와 개수를 확인해 주세요."),
 	AS_STORAGE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "사진을 저장할 수 없습니다. 잠시 후 다시 시도해 주세요."),
+	CONTRACT_NOT_FOUND(HttpStatus.NOT_FOUND, "계약 정보를 찾을 수 없습니다."),
+	OPENBANKING_ACCOUNT_NOT_FOUND(HttpStatus.NOT_FOUND, "등록된 계좌를 찾을 수 없습니다."),
 	AGENT_NOT_FOUND(HttpStatus.NOT_FOUND, "중개사 정보를 찾을 수 없습니다."),
 	INVALID_REQUEST(HttpStatus.BAD_REQUEST, "요청값을 확인해 주세요."),
 	INVALID_LEASE_PRICE(HttpStatus.BAD_REQUEST, "임대 형식에 맞게 보증금과 월세를 입력해 주세요."),

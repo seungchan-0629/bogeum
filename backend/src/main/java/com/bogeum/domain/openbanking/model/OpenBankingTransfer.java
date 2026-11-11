@@ -1,6 +1,7 @@
 package com.bogeum.domain.openbanking.model;
 
 
+import com.bogeum.domain.contract.model.Contract;
 import com.bogeum.domain.openbanking.TransferStatus;
 import com.bogeum.domain.openbanking.TransferType;
 import jakarta.persistence.*;
@@ -29,6 +30,11 @@ public class OpenBankingTransfer
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long openBankingTransferId;
 
+	// 기존 이체는 계약을 추정할 수 없어 null을 유지하고, 신규 요청에서는 계약을 필수로 확인한다.
+	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "contract_id", foreignKey = @ForeignKey(name = "fk_transfer_contract"))
+	private Contract contract;
+
     //금융결제원에서 관리할 결제내역번호(우리가 만드는식)
     @Column(name = "bank_tran_id", nullable = false, length = 20)
     private String bankTranId;
@@ -50,7 +56,7 @@ public class OpenBankingTransfer
     private TransferStatus status;
 
     // bank_tran_date: 은행 거래일자, 금융결제원 조회용도
-    @Column(name = "bank_tran_date", nullable = false)
+    @Column(name = "bank_tran_date")
     private LocalDate bankTranDate;
 
     // api_tran_id: 금융결제원 API 거래번호

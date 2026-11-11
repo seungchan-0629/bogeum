@@ -2,13 +2,8 @@ package com.bogeum.domain.openbanking;
 
 import com.bogeum.domain.openbanking.model.OpenBanking;
 import com.bogeum.domain.openbanking.model.OpenBankingDTO.*;
-import com.bogeum.domain.openbanking.model.OpenBankingTransfer;
 import com.bogeum.domain.user.model.UserDto.LoginUser;
 import jakarta.validation.Valid;
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -25,7 +20,6 @@ public class OpenBankingController {
 
 	private final OpenBankingService openBankingService;
 	private final OpenBankingRepository openBankingRepository;
-	private final OpenBankingTransferRepository openBankingTransferRepository;
 
 	@PostMapping("/authorize")
 	public Map<String, String> authorize(@AuthenticationPrincipal LoginUser loginUser) {
@@ -43,44 +37,14 @@ public class OpenBankingController {
 			@RequestHeader("X-Openbanking-Client-Id") String clientId,
 			@RequestHeader("X-Openbanking-Client-Secret") String clientSecret,
 			@RequestHeader("X-Openbanking-Scope") String scope) {
-		LocalDateTime requestedAt = LocalDateTime.now();
-		WithdrawRes response = openBankingService.withdraw(findAccount(openBankingId), request,
+		return openBankingService.withdraw(openBankingId, request,
 			new TokenRefreshReq(clientId, clientSecret, null, scope, "refresh_token"));
-		openBankingTransferRepository.save(OpenBankingTransfer.builder()
-			.bankTranId(request.getBankTranId())
-			.transfer_type(TransferType.WITHDRAW)
-			.requestAmount(new BigDecimal(request.getTranAmt()))
-			.requestedAt(requestedAt)
-			.status(resolveTransferStatus(response.getRspCode(), response.getBankRspCode()))
-			.bankTranDate(parseBankTranDate(response.getBankTranDate()))
-			.apiTranId(response.getApiTranId())
-			.apiResponseCode(response.getRspCode())
-			.apiResponseMessage(response.getRspMessage())
-			.bankResponseCode(response.getBankRspCode())
-			.bankResponseMessage(response.getBankRspMessage()).build());
-		return response;
 	}
 
 	@PostMapping("/remittances")
 	public RemittanceRes remit(@RequestHeader("X-Openbanking-Institution-Token") String institutionAccessToken,
 			@RequestParam String reqClientFintechUseNum, @Valid @RequestBody RemittanceReq request) {
-		LocalDateTime requestedAt = LocalDateTime.now();
-		RemittanceRes response = openBankingService.remit(institutionAccessToken, request, reqClientFintechUseNum);
-		RemittanceItemReq item = request.getReqList().get(0);
-		RemittanceItemRes result = response.getResList().get(0);
-		openBankingTransferRepository.save(OpenBankingTransfer.builder()
-			.bankTranId(item.getBankTranId())
-			.transfer_type(TransferType.REMITTANCE)
-			.requestAmount(new BigDecimal(item.getTranAmt()))
-			.requestedAt(requestedAt)
-			.status(resolveTransferStatus(response.getRspCode(), result.getBankRspCode()))
-			.bankTranDate(parseBankTranDate(result.getBankTranDate()))
-			.apiTranId(response.getApiTranId())
-			.apiResponseCode(response.getRspCode())
-			.apiResponseMessage(response.getRspMessage())
-			.bankResponseCode(result.getBankRspCode())
-			.bankResponseMessage(result.getBankRspMessage()).build());
-		return response;
+		return openBankingService.remit(institutionAccessToken, request, reqClientFintechUseNum);
 	}
 
 	@PostMapping("/tokens/institution")
@@ -95,6 +59,26 @@ public class OpenBankingController {
 			.map(AccountResponse::from)
 			.map(ResponseEntity::ok)
 			.orElseGet(() -> ResponseEntity.noContent().build());
+	}
+
+	/** 내 집 관리: 본인이 임차인인 계약의 출금 내역. */
+	@GetMapping("/transfers/withdrawals/me")
+	public TransferListResponse getMyWithdrawals(@AuthenticationPrincipal LoginUser loginUser,
+			@RequestParam(required = false) Long contractId, @RequestParam(required = false) Long propertyId,
+			@RequestParam(required = false) Integer year, @RequestParam(required = false) Integer month,
+			@RequestParam(required = false) Long cursor, @RequestParam(defaultValue = "20") int size) {
+		return TransferListResponse.from(openBankingService.findWithdrawals(loginUser.getUserId(),
+			contractId, propertyId, year, month, cursor, size));
+	}
+
+	/** 내 매물의 월세 관리: 본인이 임대인인 계약의 송금 내역. */
+	@GetMapping("/transfers/remittances/me")
+	public TransferListResponse getMyRemittances(@AuthenticationPrincipal LoginUser loginUser,
+			@RequestParam(required = false) Long contractId, @RequestParam(required = false) Long propertyId,
+			@RequestParam(required = false) Integer year, @RequestParam(required = false) Integer month,
+			@RequestParam(required = false) Long cursor, @RequestParam(defaultValue = "20") int size) {
+		return TransferListResponse.from(openBankingService.findRemittances(loginUser.getUserId(),
+			contractId, propertyId, year, month, cursor, size));
 	}
 
 	@GetMapping("/accounts/{openBankingId}")
@@ -126,19 +110,6 @@ public class OpenBankingController {
 	private OpenBanking findAccount(Long openBankingId) {
 		return openBankingRepository.findById(openBankingId)
 			.orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "등록된 계좌를 찾을 수 없습니다."));
-	}
-
-	private TransferStatus resolveTransferStatus(String apiResponseCode, String bankResponseCode) {
-		if (bankResponseCode == null || bankResponseCode.isBlank()) {
-			return TransferStatus.PENDING_CONFIRMATION;
-		}
-		return "A0000".equals(apiResponseCode) && "000".equals(bankResponseCode)
-			? TransferStatus.SUCCESS : TransferStatus.FAILED;
-	}
-
-	private LocalDate parseBankTranDate(String bankTranDate) {
-		return bankTranDate == null || bankTranDate.isBlank() ? null
-			: LocalDate.parse(bankTranDate, DateTimeFormatter.BASIC_ISO_DATE);
 	}
 
 	// 관리자 코드
