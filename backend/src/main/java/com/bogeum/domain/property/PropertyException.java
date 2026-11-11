@@ -22,4 +22,5 @@ public class PropertyException extends RuntimeException {
 	public static PropertyException storageUnavailable() { return new PropertyException(ErrorCode.PROPERTY_STORAGE_UNAVAILABLE); }
 	public static PropertyException propertyImageNotFound() { return new PropertyException(ErrorCode.PROPERTY_IMAGE_NOT_FOUND); }
 	public static PropertyException notPublishable() { return new PropertyException(ErrorCode.PROPERTY_NOT_PUBLISHABLE); }
+	public static PropertyException notContractable() { return new PropertyException(ErrorCode.PROPERTY_NOT_CONTRACTABLE); }
 }
