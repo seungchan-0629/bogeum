@@ -1,12 +1,19 @@
 package com.bogeum.domain.contract;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.util.List;
 
 import org.junit.jupiter.api.AfterEach;
@@ -19,13 +26,17 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.mockito.ArgumentCaptor;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import com.bogeum.common.enums.LeaseType;
@@ -51,6 +62,11 @@ class ContractControllerTest {
 		}
 	}
 
+	private static final String VALID_REQUEST = """
+		{"propertyId":20,"tenantId":2,"deposit":9500000,"monthlyRent":600000,"paymentDay":25,
+		 "startAt":"2026-12-01","endAt":"2028-11-30","contractedAt":"2026-11-08","brokerageFee":300000}
+		""";
+
 	private final MockMvc mockMvc;
 
 	@MockitoBean
@@ -73,6 +89,70 @@ class ContractControllerTest {
 	@AfterEach
 	void logout() {
 		SecurityContextHolder.clearContext();
+	}
+
+	@Test
+	@DisplayName("계약 등록은 로그인 중개사 기준으로 계약 정보와 계약서 이미지를 넘기고 201과 계약 번호를 반환한다")
+	void createsContract() throws Exception {
+		var request = ArgumentCaptor.forClass(ContractDto.ContractRequest.class);
+		@SuppressWarnings("unchecked")
+		ArgumentCaptor<List<MultipartFile>> images = ArgumentCaptor.forClass(List.class);
+		when(contractService.createContract(eq(101L), request.capture(), images.capture())).thenReturn(
+			ContractDto.SaveResponse.builder().contractId(30L).propertyId(20L).propertyStatus(PropertyStatus.CONTRACTED)
+				.build());
+
+		mockMvc.perform(multipart("/contract-details").file(requestPart(VALID_REQUEST))
+				.file(new MockMultipartFile("images", "a.jpg", "image/jpeg", new byte[]{1}))
+				.file(new MockMultipartFile("images", "b.jpg", "image/jpeg", new byte[]{2})))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.contractId").value(30))
+			.andExpect(jsonPath("$.propertyStatus").value("CONTRACTED"));
+
+		assertEquals(2L, request.getValue().getTenantId());
+		assertEquals(LocalDate.of(2026, 12, 1), request.getValue().getStartAt());
+		assertEquals(LocalDate.of(2026, 11, 8), request.getValue().getContractedAt());
+		assertEquals(new BigDecimal("300000"), request.getValue().getBrokerageFee());
+		assertEquals(2, images.getValue().size());
+	}
+
+	@Test
+	@DisplayName("계약서 이미지 파트가 없어도 서비스에 넘겨 사진 오류로 판단하게 한다")
+	void passesMissingImagesToService() throws Exception {
+		when(contractService.createContract(eq(101L), any(ContractDto.ContractRequest.class), isNull()))
+			.thenThrow(ContractException.invalidImage());
+
+		mockMvc.perform(multipart("/contract-details").file(requestPart(VALID_REQUEST)))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("INVALID_IMAGE"));
+	}
+
+	@Test
+	@DisplayName("후보가 아닌 임차인이면 400과 INVALID_CONTRACT_TENANT를 반환한다")
+	void rejectsTenantOutsideCandidates() throws Exception {
+		when(contractService.createContract(eq(101L), any(ContractDto.ContractRequest.class), any()))
+			.thenThrow(ContractException.invalidTenant());
+
+		mockMvc.perform(multipart("/contract-details").file(requestPart(VALID_REQUEST))
+				.file(new MockMultipartFile("images", "a.jpg", "image/jpeg", new byte[]{1})))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("INVALID_CONTRACT_TENANT"));
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {
+		"{\"propertyId\":20,\"deposit\":9500000,\"startAt\":\"2026-12-01\",\"endAt\":\"2028-11-30\",\"contractedAt\":\"2026-11-08\",\"brokerageFee\":300000}",
+		"{\"propertyId\":20,\"tenantId\":2,\"deposit\":9500000.5,\"startAt\":\"2026-12-01\",\"endAt\":\"2028-11-30\",\"contractedAt\":\"2026-11-08\",\"brokerageFee\":300000}",
+		"{\"propertyId\":20,\"tenantId\":2,\"deposit\":9500000,\"paymentDay\":32,\"startAt\":\"2026-12-01\",\"endAt\":\"2028-11-30\",\"contractedAt\":\"2026-11-08\",\"brokerageFee\":300000}",
+		"{\"propertyId\":20,\"tenantId\":2,\"deposit\":9500000,\"startAt\":\"2026-12-01\",\"endAt\":\"2028-11-30\",\"brokerageFee\":300000}",
+		"{\"propertyId\":20,\"tenantId\":2,\"deposit\":9500000,\"startAt\":\"12/01\",\"endAt\":\"2028-11-30\",\"contractedAt\":\"2026-11-08\",\"brokerageFee\":300000}",
+		"{\"propertyId\":20,\"tenantId\":2,\"deposit\":9500000,\"startAt\":\"2026-12-01\",\"endAt\":\"2028-11-30\",\"contractedAt\":\"2026-11-08\",\"brokerageFee\":-1}"
+	})
+	@DisplayName("임차인·계약일 누락, 원 단위가 아닌 금액, 범위 밖 납부일, 날짜 형식 오류, 음수 보수는 서비스 호출 전에 400으로 거절한다")
+	void rejectsInvalidContractRequest(String body) throws Exception {
+		mockMvc.perform(multipart("/contract-details").file(requestPart(body)))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+		verifyNoInteractions(contractService);
 	}
 
 	@Test
@@ -112,5 +192,11 @@ class ContractControllerTest {
 		mockMvc.perform(get("/contract/candidates" + query))
 			.andExpect(status().isBadRequest());
 		verifyNoInteractions(contractService);
+	}
+
+	// 프론트는 계약 정보를 JSON 파일 파트로 보낸다
+	private static MockMultipartFile requestPart(String json) {
+		return new MockMultipartFile("request", "", MediaType.APPLICATION_JSON_VALUE,
+			json.getBytes(StandardCharsets.UTF_8));
 	}
 }
