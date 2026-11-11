@@ -14,7 +14,7 @@ test('계좌 콜백·관리자 화면은 API 프록시를 거치지 않고 프�
   try {
     await server.listen()
     const origin = `http://127.0.0.1:${server.httpServer.address().port}`
-    for (const path of ['/mypage/openbanking/callback?code=test&state=test', '/admin/properties']) {
+    for (const path of ['/mypage/openbanking/callback?code=test&state=test', '/admin/properties', '/admin/agents', '/admin/agents']) {
       const response = await fetch(origin + path, { headers: { Accept: 'text/html' } })
       assert.equal(response.status, 200)
       assert.match(response.headers.get('content-type'), /text\/html/)
@@ -22,6 +22,46 @@ test('계좌 콜백·관리자 화면은 API 프록시를 거치지 않고 프�
     }
   } finally {
     await server.close()
+  }
+})
+
+test('중개사 API만 백엔드 주소로 변환하고 검색·페이지·인증 헤더를 유지한다', { timeout: 15000 }, async () => {
+  const backend = createHttpServer((request, response) => {
+    response.writeHead(200, { 'Content-Type': 'application/json' })
+    response.end(JSON.stringify({ url: request.url, authorization: request.headers.authorization }))
+  })
+  backend.listen(0, '127.0.0.1')
+  await once(backend, 'listening')
+  const key = '^/api/admin/agents(?:\\?|$)'
+  const proxy = Object.fromEntries(Object.entries(config.server.proxy).map(([path, value]) => [
+    path, { ...value, target: `http://127.0.0.1:${backend.address().port}` },
+  ]))
+  assert.ok(config.server.proxy[key], '일반 /api 프록시보다 먼저 전용 규칙이 필요하다')
+  const server = await createServer({
+    ...config, configFile: false,
+    server: { ...config.server, host: '127.0.0.1', port: 0, hmr: false, proxy },
+  })
+  try {
+    await server.listen()
+    const origin = `http://127.0.0.1:${server.httpServer.address().port}`
+    const response = await fetch(origin + '/api/admin/agents?keyword=%EC%84%9C%EC%9A%B8&page=2', {
+      headers: { Authorization: 'Bearer test-admin' },
+    })
+    assert.equal(response.status, 200)
+    const received = await response.json()
+    const url = new URL(received.url, origin)
+    assert.equal(url.pathname, '/admin/agents')
+    assert.equal(url.searchParams.get('keyword'), '서울')
+    assert.equal(url.searchParams.get('page'), '2')
+    assert.equal(received.authorization, 'Bearer test-admin')
+    const exact = await fetch(origin + '/api/admin/agents')
+    assert.equal((await exact.json()).url, '/admin/agents')
+    const legacy = await fetch(origin + '/api/v1/agents/me')
+    assert.equal((await legacy.json()).url, '/api/v1/agents/me')
+  } finally {
+    await server.close()
+    backend.closeAllConnections()
+    await new Promise((resolve) => backend.close(resolve))
   }
 })
 
