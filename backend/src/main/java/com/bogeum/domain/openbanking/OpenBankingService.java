@@ -8,6 +8,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Slice;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.validation.annotation.Validated;
@@ -15,6 +17,14 @@ import org.springframework.web.client.RestClient;
 import tools.jackson.databind.JsonNode;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.math.BigDecimal;
+
+import com.bogeum.common.enums.LeaseType;
+import com.bogeum.domain.contract.ContractRepository;
+import com.bogeum.domain.contract.model.Contract;
+import com.bogeum.domain.openbanking.model.OpenBankingTransfer;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -34,6 +44,7 @@ public class OpenBankingService
 {
     private final OpenBankingRepository openBankingRepository;
     private final OpenBankingTransferRepository openBankingTransferRepository;
+	private final ContractRepository contractRepository;
 	private final UserRepository userRepository;
     private final StateStore stateStore;
     private final RestClient restClient = RestClient.create("http://localhost:8090");
@@ -166,10 +177,20 @@ public class OpenBankingService
     }
 
     // 출금: 사용자 계좌에서 이용기관 약정계좌로 출금한다. 사용자 transfer 토큰을 사용한다.
-    public WithdrawRes withdraw(OpenBanking account, WithdrawReq request, TokenRefreshReq tokenRequest) {
+	@Transactional
+	public WithdrawRes withdraw(Long userId, Long openBankingId, WithdrawReq request, TokenRefreshReq tokenRequest) {
+		Contract contract = findMonthlyContract(request.getContractId());
+		OpenBanking account = openBankingRepository.findById(openBankingId)
+			.orElseThrow(OpenBankingException::accountNotFound);
+		if (!Objects.equals(contract.getTenant().getUserId(), userId)
+				|| !Objects.equals(account.getUser().getUserId(), userId)) {
+			throw OpenBankingException.accessDenied();
+		}
         if (!Objects.equals(account.getFintechNum(), request.getFintechUseNum())) {
-            throw new IllegalArgumentException("계좌와 출금할 핀테크이용번호가 다릅니다.");
+            throw OpenBankingException.invalidRequest();
         }
+		BigDecimal amount = transferAmount(request.getTranAmt());
+		LocalDateTime requestedAt = LocalDateTime.now();
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("bank_tran_id", request.getBankTranId());
         body.put("cntr_account_type", request.getCntrAccountType());
@@ -185,6 +206,7 @@ public class OpenBankingService
         body.put("req_client_fintech_use_num", account.getFintechNum());
         JsonNode response = withUserToken(account, tokenRequest,
                 token -> postJson("/v2.0/transfer/withdraw/fin_num", token, body));
+		saveTransfer(contract, TransferType.WITHDRAW, request.getBankTranId(), amount, requestedAt, response, response);
         return WithdrawRes.builder()
                 .apiTranId(response.path("api_tran_id").asText(""))
                 .apiTranDtm(response.path("api_tran_dtm").asText(""))
@@ -199,11 +221,20 @@ public class OpenBankingService
 
     // 송금: 기관 약정계좌에서 수취계좌로 입금한다. 기관 OOB 토큰을 받는다.
     // reqClientFintechUseNum은 DTO의 수취계좌와 다른 '송금인'의 핀테크이용번호다.
-    public RemittanceRes remit(String institutionAccessToken, RemittanceReq request,
-                               String reqClientFintechUseNum) {
+	@Transactional
+	public RemittanceRes remit(String institutionAccessToken, RemittanceReq request,
+			String reqClientFintechUseNum) {
+		Contract contract = findMonthlyContract(request.getContractId());
         requireText(reqClientFintechUseNum, "송금인 핀테크이용번호");
         requireCount(request.getReqCnt(), request.getReqList(), 1);
         RemittanceItemReq item = request.getReqList().get(0);
+		OpenBanking landlordAccount = openBankingRepository.findByUser_UserId(contract.getLandlord().getUserId())
+			.orElseThrow(OpenBankingException::accountNotFound);
+		if (!Objects.equals(landlordAccount.getFintechNum(), item.getFintechUseNum())) {
+			throw OpenBankingException.invalidRequest();
+		}
+		BigDecimal amount = transferAmount(item.getTranAmt());
+		LocalDateTime requestedAt = LocalDateTime.now();
         Map<String, Object> entry = new LinkedHashMap<>();
         entry.put("tran_no", item.getTranNo());
         entry.put("bank_tran_id", item.getBankTranId());
@@ -225,8 +256,12 @@ public class OpenBankingService
         body.put("req_list", List.of(entry));
         JsonNode response = checkResponse(
                 postJson("/v2.0/transfer/deposit/fin_num", institutionAccessToken, body), false);
+		JsonNode responseItems = responseList(response);
+		if (responseItems.size() != 1) throw new OpenBankingException("송금 응답 건수가 요청과 다릅니다.");
+		saveTransfer(contract, TransferType.REMITTANCE, item.getBankTranId(), amount, requestedAt,
+			response, responseItems.get(0));
         List<RemittanceItemRes> results = new ArrayList<>();
-        for (JsonNode result : responseList(response)) {
+        for (JsonNode result : responseItems) {
             results.add(RemittanceItemRes.builder()
                     .bankTranId(result.path("bank_tran_id").asText(""))
                     .bankTranDate(result.path("bank_tran_date").asText(""))
@@ -240,6 +275,28 @@ public class OpenBankingService
                 .rspCode(response.path("rsp_code").asText(""))
                 .rspMessage(response.path("rsp_message").asText("")).resList(results).build();
     }
+
+	/** 로그인 사용자가 임차인인 계약의 출금 내역만 조회한다. 기간은 이체 요청 시각 기준이다. */
+	@Transactional(readOnly = true)
+	public Slice<OpenBankingTransfer> findWithdrawals(Long userId, Long contractId, Long propertyId,
+			Integer year, Integer month, Long cursor, int size) {
+		validateHistoryFilters(contractId, propertyId, year, month, cursor, size);
+		LocalDateTime fromAt = historyStart(year, month);
+		LocalDateTime toAt = fromAt == null ? null : month == null ? fromAt.plusYears(1) : fromAt.plusMonths(1);
+		return openBankingTransferRepository.findWithdrawals(userId, contractId, propertyId,
+			fromAt, toAt, cursor, PageRequest.of(0, size));
+	}
+
+	/** 로그인 사용자가 임대인인 계약의 송금 내역만 조회한다. 기간은 이체 요청 시각 기준이다. */
+	@Transactional(readOnly = true)
+	public Slice<OpenBankingTransfer> findRemittances(Long userId, Long contractId, Long propertyId,
+			Integer year, Integer month, Long cursor, int size) {
+		validateHistoryFilters(contractId, propertyId, year, month, cursor, size);
+		LocalDateTime fromAt = historyStart(year, month);
+		LocalDateTime toAt = fromAt == null ? null : month == null ? fromAt.plusYears(1) : fromAt.plusMonths(1);
+		return openBankingTransferRepository.findRemittances(userId, contractId, propertyId,
+			fromAt, toAt, cursor, PageRequest.of(0, size));
+	}
 
     // 이체결과조회: 출금/입금 모두 기관 OOB 토큰을 사용하며 최대 25건까지 조회한다.
     public TransferResultRes getTransferResult(String institutionAccessToken, TransferResultReq request) {
@@ -410,6 +467,51 @@ public class OpenBankingService
         }
         return list;
     }
+
+	private Contract findMonthlyContract(Long contractId) {
+		if (contractId == null || contractId <= 0) throw OpenBankingException.invalidRequest();
+		Contract contract = contractRepository.findById(contractId).orElseThrow(OpenBankingException::contractNotFound);
+		if (contract.getLeaseType() != LeaseType.MONTHLY) throw OpenBankingException.invalidRequest();
+		return contract;
+	}
+
+	private BigDecimal transferAmount(String amount) {
+		if (amount == null || !amount.matches("[0-9]{1,12}") || new BigDecimal(amount).signum() <= 0) {
+			throw OpenBankingException.invalidRequest();
+		}
+		return new BigDecimal(amount);
+	}
+
+	private void saveTransfer(Contract contract, TransferType type, String bankTranId, BigDecimal amount,
+			LocalDateTime requestedAt, JsonNode response, JsonNode bankResponse) {
+		String bankCode = bankResponse.path("bank_rsp_code").asText("");
+		TransferStatus status = bankCode.isBlank() ? TransferStatus.PENDING_CONFIRMATION
+			: "A0000".equals(response.path("rsp_code").asText()) && "000".equals(bankCode)
+				? TransferStatus.SUCCESS : TransferStatus.FAILED;
+		String bankDate = bankResponse.path("bank_tran_date").asText("");
+		openBankingTransferRepository.save(OpenBankingTransfer.builder()
+			.contract(contract).bankTranId(bankTranId).transfer_type(type).requestAmount(amount)
+			.requestedAt(requestedAt).status(status)
+			.bankTranDate(bankDate.isBlank() ? null : LocalDate.parse(bankDate, DateTimeFormatter.BASIC_ISO_DATE))
+			.apiTranId(response.path("api_tran_id").asText(""))
+			.apiResponseCode(response.path("rsp_code").asText(""))
+			.apiResponseMessage(response.path("rsp_message").asText(""))
+			.bankResponseCode(bankCode).bankResponseMessage(bankResponse.path("bank_rsp_message").asText(""))
+			.build());
+	}
+
+	private void validateHistoryFilters(Long contractId, Long propertyId, Integer year, Integer month, Long cursor, int size) {
+		if ((contractId != null && contractId <= 0) || (propertyId != null && propertyId <= 0)
+				|| (year != null && (year < 1 || year > 9998))
+				|| (month != null && (year == null || month < 1 || month > 12))
+				|| (cursor != null && cursor <= 0) || size < 1 || size > 100) {
+			throw OpenBankingException.invalidRequest();
+		}
+	}
+
+	private LocalDateTime historyStart(Integer year, Integer month) {
+		return year == null ? null : LocalDate.of(year, month == null ? 1 : month, 1).atStartOfDay();
+	}
 
     private void requireCount(String count, List<?> items, int maximum) {
         if (items == null || items.isEmpty() || items.size() > maximum || items.stream().anyMatch(Objects::isNull)

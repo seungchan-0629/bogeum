@@ -1,10 +1,12 @@
 package com.bogeum.common.exception;
 
 import com.bogeum.domain.agent.AgentException;
+import com.bogeum.domain.openbanking.OpenBankingException;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -13,6 +15,10 @@ import com.bogeum.domain.user.UserException;
 /** 컨트롤러의 검증 오류와 사용자 인증 실패를 공통 JSON 응답으로 변환한다. */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+	@ExceptionHandler(OpenBankingException.class)
+	public ResponseEntity<ErrorResponse> handleOpenBankingException(OpenBankingException exception) {
+		return toResponse(exception.getErrorCode());
+	}
 
 	@ExceptionHandler(AgentException.class)
 	public ResponseEntity<ErrorResponse> handleAgentException(AgentException exception) {
@@ -26,7 +32,8 @@ public class GlobalExceptionHandler {
 	}
 
 	/** 잘못된 JSON과 DTO 검증 실패는 비밀번호 원문 없이 400으로 반환한다. */
-	@ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class})
+	@ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class,
+		MethodArgumentTypeMismatchException.class})
 	public ResponseEntity<ErrorResponse> handleInvalidRequest(Exception exception) {
 		return toResponse(ErrorCode.INVALID_REQUEST);
 	}

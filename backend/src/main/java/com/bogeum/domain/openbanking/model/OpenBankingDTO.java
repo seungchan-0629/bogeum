@@ -12,6 +12,17 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+
+import org.springframework.data.domain.Slice;
+
+import com.bogeum.domain.openbanking.TransferStatus;
+import com.bogeum.domain.openbanking.TransferType;
+
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 
 public class OpenBankingDTO
 {
@@ -61,6 +72,10 @@ public class OpenBankingDTO
     @AllArgsConstructor
     public static class WithdrawReq
     {
+		@NotNull(message = "계약 ID를 입력해 주세요.")
+		@Positive(message = "계약 ID는 양수여야 합니다.")
+		private Long contractId;
+
         private String bankTranId;      // 거래고유번호
         private String cntrAccountType; // 약정 계좌/계정 구분
         private String cntrAccountNum;  // 약정 계좌/계정 번호
@@ -99,6 +114,10 @@ public class OpenBankingDTO
     @AllArgsConstructor
     public static class RemittanceReq
     {
+		@NotNull(message = "계약 ID를 입력해 주세요.")
+		@Positive(message = "계약 ID는 양수여야 합니다.")
+		private Long contractId;
+
         private String cntrAccountType; // 약정 계좌/계정 구분
         private String cntrAccountNum;  // 약정 계좌/계정 번호
         private String wdPassPhrase;    // 입금이체용 암호문구
@@ -236,6 +255,57 @@ public class OpenBankingDTO
 
         private String tranAmt; // 원거래 거래금액
     }
+
+	/** 계약별 출금·송금 내역의 화면 표시 정보. */
+	@Getter
+	@Builder
+	public static class TransferResponse {
+		private Long openBankingTransferId;
+		private Long contractId;
+		private Long propertyId;
+		private String roadAddress;
+		private String detailAddress;
+		private String bankTranId;
+		private TransferType transferType;
+		private BigDecimal amount;
+		private TransferStatus transferStatus;
+		private LocalDateTime requestedAt;
+		private LocalDate bankTranDate;
+		private String bankResponseCode;
+		private String bankResponseMessage;
+
+		/** 계약과 매물 정보가 함께 조회된 이체 기록을 응답으로 변환한다. */
+		public static TransferResponse from(OpenBankingTransfer transfer) {
+			var contract = transfer.getContract();
+			var property = contract.getProperty();
+			return TransferResponse.builder()
+				.openBankingTransferId(transfer.getOpenBankingTransferId())
+				.contractId(contract.getContractId()).propertyId(property.getPropertyId())
+				.roadAddress(property.getRoadAddress()).detailAddress(property.getDetailAddress())
+				.bankTranId(transfer.getBankTranId()).transferType(transfer.getTransfer_type())
+				.amount(transfer.getRequestAmount()).transferStatus(transfer.getStatus())
+				.requestedAt(transfer.getRequestedAt()).bankTranDate(transfer.getBankTranDate())
+				.bankResponseCode(transfer.getBankResponseCode())
+				.bankResponseMessage(transfer.getBankResponseMessage()).build();
+		}
+	}
+
+	/** 최신 이체 ID 순으로 조회한 내역과 다음 페이지 커서. */
+	@Getter
+	@Builder
+	public static class TransferListResponse {
+		private List<TransferResponse> transfers;
+		private boolean hasNext;
+		private Long nextCursor;
+
+		/** 조회 결과를 목록 응답으로 변환한다. */
+		public static TransferListResponse from(Slice<OpenBankingTransfer> slice) {
+			var transfers = slice.getContent().stream().map(TransferResponse::from).toList();
+			return TransferListResponse.builder().transfers(transfers).hasNext(slice.hasNext())
+				.nextCursor(slice.hasNext() ? transfers.get(transfers.size() - 1).getOpenBankingTransferId() : null)
+				.build();
+		}
+	}
 
     // 사용자 액세스토큰 발급
     @Getter
