@@ -17,8 +17,9 @@ spring:
         secret-key: ${AWS_SECRET_KEY}
       s3:
         enabled: true # false = S3 작동 X
-        bucket: ${AWS_S3_BUCKET}
-        property-bucket: ${AWS_S3_PROPERTY_BUCKET}
+        bucket: ${AWS_S3_BUCKET} # AS-request 이미지 저장 버킷
+        property-bucket: ${AWS_S3_PROPERTY_BUCKET} # 매물 이미지 저장 버킷
+        contract-bucket: ${AWS_S3_CONTRACT_BUCKET} # 계약서 이미지 저장 버킷
       region:
         static: ${AWS_REGION}
   servlet:

@@ -672,7 +672,8 @@ class AuthIntegrationTests {
 		var contract = asContracts.save(com.bogeum.domain.contract.model.Contract.builder().property(property)
 			.tenant(tenant.user()).landlord(landlord.user()).agent(agent.user())
 			.leaseType(com.bogeum.common.enums.LeaseType.JEONSE).deposit(java.math.BigDecimal.TEN)
-			.startAt(today.atTime(23, 59)).endAt(today.atStartOfDay()).build());
+			.startAt(today.atTime(23, 59)).endAt(today.atStartOfDay())
+			.brokerageFee(java.math.BigDecimal.ZERO).contractedAt(today.atStartOfDay()).build());
 		String body = mapper.writeValueAsString(Map.of("contractId", contract.getContractId(), "content", "누수 점검"));
 		long before = asRequests.count();
 		mvc.perform(asMultipart(body, true).header("Authorization", "Bearer " + login(landlord).getAccessToken()))
@@ -842,7 +843,8 @@ class AuthIntegrationTests {
 		asContracts.save(com.bogeum.domain.contract.model.Contract.builder().property(property)
 			.landlord(former.user()).tenant(tenant.user()).agent(agent.user())
 			.leaseType(com.bogeum.common.enums.LeaseType.JEONSE).deposit(java.math.BigDecimal.TEN)
-			.startAt(past).endAt(past.plusMonths(1)).build());
+			.startAt(past).endAt(past.plusMonths(1))
+			.brokerageFee(java.math.BigDecimal.ZERO).contractedAt(past).build());
 		var request = readRequest(property, tenant.user(), "과거 접수", past);
 		// 소유권 이전 API를 구현하는 대신 테스트 데이터에서 현 소유자와 계약상 임대인을 구분한다.
 		jdbc.update("update property set landlord_id = ? where property_id = ?", current.user().getUserId(), property.getPropertyId());

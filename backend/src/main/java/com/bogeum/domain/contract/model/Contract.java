@@ -84,7 +84,15 @@ public class Contract {
 	@Column(nullable = false)
 	private LocalDateTime endAt;
 
-	// 계약 체결 시각. 입주 하자 사진 업로드 기한(체결 후 1주)의 기준 (MOVEIN_001)
+	// 중개사가 이 계약으로 받는 중개보수(원)
+	@Column(nullable = false, precision = 15, scale = 0)
+	private BigDecimal brokerageFee;
+
+	// 실제로 계약서를 쓴 날. 계약서를 며칠 뒤에 올려도 계약한 날이 남도록 등록 시각과 따로 받는다
+	@Column(nullable = false)
+	private LocalDateTime contractedAt;
+
+	// 계약 정보를 등록한 시각. 계약한 날은 contractedAt이다
 	@CreationTimestamp
 	@Column(nullable = false, updatable = false)
 	private LocalDateTime createdAt;
