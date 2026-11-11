@@ -161,6 +161,18 @@ public class Property {
 	}
 
 	/**
+	 * 중개사가 계약 정보를 등록하면 계약 완료가 된다. 공개 중인 매물만 계약할 수 있어 같은 매물을 두 번 계약하지 않는다 (PROPERTY_011).
+	 *
+	 * @throws PropertyException 공개 중(ACTIVE)이 아닌 매물인 경우
+	 */
+	public void contract() {
+		if (propertyStatus != PropertyStatus.ACTIVE) {
+			throw PropertyException.notContractable();
+		}
+		this.propertyStatus = PropertyStatus.CONTRACTED;
+	}
+
+	/**
 	 * 상세 정보와 사진은 공개 전(REQUESTED)에만 바꿀 수 있다. 공개 직전 화면에서 수정할 수 없다고 안내한다 (PROPERTY_010).
 	 *
 	 * @throws PropertyException 이미 공개 등으로 신청 상태가 아닌 매물인 경우

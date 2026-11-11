@@ -33,6 +33,13 @@ public enum ErrorCode {
 	PROPERTY_STORAGE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "사진을 저장할 수 없습니다. 잠시 후 다시 시도해 주세요."),
 	PROPERTY_IMAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "매물 사진을 찾을 수 없습니다."),
 	PROPERTY_NOT_PUBLISHABLE(HttpStatus.BAD_REQUEST, "매물 종류, 면적, 방 개수, 층, 전체 층과 사진 1장 이상이 있어야 공개할 수 있습니다."),
+	// 계약 정보 등록 (PROPERTY_011)
+	PROPERTY_NOT_CONTRACTABLE(HttpStatus.CONFLICT, "공개 중인 매물만 계약 정보를 등록할 수 있습니다."),
+	INVALID_CONTRACT_TENANT(HttpStatus.BAD_REQUEST, "이 매물로 상담한 임차인 중에서 선택해 주세요."),
+	INVALID_CONTRACT_PRICE(HttpStatus.BAD_REQUEST, "임대 형식에 맞게 보증금, 월세와 월 납부일을 입력해 주세요."),
+	INVALID_CONTRACT_PERIOD(HttpStatus.BAD_REQUEST, "계약 시작일은 종료일보다 앞이어야 합니다."),
+	INVALID_CONTRACTED_AT(HttpStatus.BAD_REQUEST, "계약일은 오늘이나 지난 날짜로, 계약 종료일 전으로 입력해 주세요."),
+	CONTRACT_STORAGE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "계약서를 저장할 수 없습니다. 잠시 후 다시 시도해 주세요."),
 	INVALID_PROFILE(HttpStatus.BAD_REQUEST, "전화번호 또는 새 비밀번호와 확인값을 확인해 주세요. 비밀번호는 UTF-8 기준 72바이트까지 가능합니다."),
 	CURRENT_PASSWORD_MISMATCH(HttpStatus.BAD_REQUEST, "현재 비밀번호를 확인해 주세요."),
 	INVALID_SIGNUP(HttpStatus.BAD_REQUEST, "가입 정보와 필수 동의를 확인해 주세요."),
