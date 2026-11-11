@@ -12,6 +12,8 @@ import java.util.Arrays;
 import java.util.stream.Collectors;
 
 import com.bogeum.domain.openbanking.FakeKFTC.StateStore;
+import com.bogeum.domain.contract.ContractRepository;
+import com.bogeum.domain.user.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -21,7 +23,8 @@ class OpenBankingAuthorizationTest {
 	void authorizationUrlBindsUniqueOneTimeStateToLoggedInUser() {
 		StateStore states = new StateStore();
 		OpenBankingService service = new OpenBankingService(mock(OpenBankingRepository.class),
-			mock(OpenBankingTransferRepository.class), states);
+			mock(OpenBankingTransferRepository.class), mock(UserRepository.class), mock(ContractRepository.class), states,
+			mock(InstitutionTokenRepository.class));
 		URI uri = URI.create(service.createAuthorizationUrl(7L));
 		var params = Arrays.stream(uri.getRawQuery().split("&"))
 			.map(part -> part.split("=", 2))
