@@ -90,6 +90,8 @@ public class CustomSecurityConfig {
 				.requestMatchers(publicRequests).permitAll()
 				.requestMatchers("/error").permitAll()
 				.requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+				.requestMatchers(HttpMethod.GET, "/admin/agents").hasRole("ADMIN")
+				.requestMatchers(HttpMethod.HEAD, "/admin/agents").hasRole("ADMIN")
 				// 중개 신청은 일반 사용자가 하고, 중개사가 받아서 관리한다 (PROPERTY_002, PROPERTY_008)
 				.requestMatchers(HttpMethod.POST, "/property/brokerage-requests").hasRole("USER")
 				.requestMatchers(HttpMethod.GET, "/property/brokerage-requests/received").access(approvedAgent)
