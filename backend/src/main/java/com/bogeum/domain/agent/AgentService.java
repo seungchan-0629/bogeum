@@ -10,6 +10,8 @@ import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.annotation.Validated;
 
@@ -17,6 +19,7 @@ import org.springframework.validation.annotation.Validated;
 @Validated
 @RequiredArgsConstructor
 public class AgentService {
+	private static final int PAGE_SIZE = 5;
 	private final UserService userService;
 	private final AgentRepository agentRepository;
 
@@ -40,6 +43,18 @@ public class AgentService {
 	@Transactional(readOnly = true)
 	public Agent findByUserId(Long userId) {
 		return agentRepository.findByUser_UserId(userId).orElseThrow(AgentException::notFound);
+	}
+
+	/** 기존 목록 API처럼 1부터 페이지를 세고, 1 미만은 첫 페이지로 처리한다. */
+	@Transactional(readOnly = true)
+	public Page<Agent> readAgents(String keyword, int page) {
+		var pageable = PageRequest.of(Math.max(page, 1) - 1, PAGE_SIZE);
+		// JPA 조회 시작 위치는 int 범위여야 한다. 페이지 수에 별도 정책 상한은 두지 않는다.
+		if (pageable.getOffset() > Integer.MAX_VALUE) {
+			throw AgentException.invalidRequest();
+		}
+		return agentRepository.findAdminAgents(keyword == null ? "" : keyword.strip(),
+			ApprovalStatus.PENDING, pageable);
 	}
 
 	/** 승인 변경을 기존 로그인 세션에도 즉시 반영하기 위해 DB에서 확인한다. */
