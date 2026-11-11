@@ -14,6 +14,7 @@ import { ROLES } from '../../constants/auth.js'
 import { useLocation } from 'react-router'
 
 const FINANCE_ADMIN_PATHS = new Set(['/admin/openbanking'])
+const AVAILABLE_ADMIN_PATHS = new Set([...FINANCE_ADMIN_PATHS, '/admin/agents'])
 
 const ADMIN_MENU = [
   { label: '매물 관리', to: '/admin/properties' },
@@ -32,12 +33,12 @@ function AdminLayout() {
   const { pathname } = useLocation()
 
   // 기존 메뉴와 라우트를 보존하고 현재 제공하는 관리자 기능만 표시한다.
-  const visibleMenu = ADMIN_MENU.filter((item) => FINANCE_ADMIN_PATHS.has(item.to))
+  const visibleMenu = ADMIN_MENU.filter((item) => AVAILABLE_ADMIN_PATHS.has(item.to))
   const isFinancePage = FINANCE_ADMIN_PATHS.has(pathname)
 
   if (!user) return <Navigate to="/admin/login" replace />
   if (user.role !== ROLES.ADMIN) return <ForbiddenPage allowedRoles={[ROLES.ADMIN]} />
-  if (pathname !== '/admin' && !isFinancePage) return <Navigate to="/admin/openbanking" replace />
+  if (pathname !== '/admin' && !AVAILABLE_ADMIN_PATHS.has(pathname)) return <Navigate to="/admin/openbanking" replace />
 
   const handleLogout = async () => {
     try {
