@@ -1,6 +1,8 @@
 package com.bogeum.domain.agent.model;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import org.springframework.data.domain.Page;
 
 import com.bogeum.common.enums.ApprovalStatus;
 import com.bogeum.domain.user.model.UserDto.AgreementsRequest;
@@ -19,6 +21,43 @@ import lombok.NoArgsConstructor;
  * 중개사 기능의 요청·응답 DTO.
  */
 public class AgentDto {
+
+	/** 관리자 목록에 필요한 중개사 기본 정보와 현재 승인 상태. */
+	@Getter
+	@Builder
+	public static class ItemRes {
+		private Long agentId;
+		private String representativeName;
+		private String officeName;
+		private String officeAddress;
+		private ApprovalStatus approvalStatus;
+		private LocalDateTime createdAt;
+
+		/** 계정 연락처·비밀번호·서류 저장 키를 제외하고 목록 정보만 매핑한다. */
+		public static ItemRes from(Agent agent) {
+			return ItemRes.builder().agentId(agent.getAgentProfileId())
+				.representativeName(agent.getUser().getName()).officeName(agent.getOfficeName())
+				.officeAddress(agent.getOfficeAddress()).approvalStatus(agent.getApprovalStatus())
+				.createdAt(agent.getCreatedAt()).build();
+		}
+	}
+
+	/** 관리자 중개사 목록과 1부터 시작하는 페이지 정보. */
+	@Getter
+	@Builder
+	public static class ListRes {
+		private List<ItemRes> agents;
+		private int page;
+		private int totalPages;
+		private long totalElements;
+
+		/** 조회 결과를 목록 응답으로 변환한다. */
+		public static ListRes from(Page<Agent> agents) {
+			return ListRes.builder().agents(agents.map(ItemRes::from).getContent())
+				.page(agents.getNumber() + 1).totalPages(agents.getTotalPages())
+				.totalElements(agents.getTotalElements()).build();
+		}
+	}
 
 	/** 중개사 회원가입 요청. */
 	@Getter
