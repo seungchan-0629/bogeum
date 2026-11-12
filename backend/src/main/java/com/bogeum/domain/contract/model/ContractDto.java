@@ -4,6 +4,8 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+
 import com.bogeum.common.enums.LeaseType;
 import com.bogeum.common.enums.PropertyStatus;
 import com.bogeum.domain.property.model.Property;
@@ -81,6 +83,68 @@ public class ContractDto {
 				.contractId(contract.getContractId())
 				.propertyId(contract.getProperty().getPropertyId())
 				.propertyStatus(contract.getProperty().getPropertyStatus())
+				.build();
+		}
+	}
+
+	/**
+	 * 중개 이력의 계약 한 건 (AGENT_003).
+	 * 거래 조건은 신청 가격이 아니라 실제로 계약한 금액이다. 날짜는 일 단위로 등록받아 날짜만 준다.
+	 */
+	@Getter
+	@Builder
+	public static class ContractItemResponse {
+
+		private Long contractId;
+		private Long propertyId;
+		private String roadAddress;
+		private String detailAddress;
+		private LeaseType leaseType;
+		private BigDecimal deposit;
+		private BigDecimal monthlyRent;
+		private BigDecimal brokerageFee;
+		private String landlordName;
+		private String tenantName;
+		private LocalDate startAt;
+		private LocalDate endAt;
+		private LocalDate contractedAt;
+
+		public static ContractItemResponse from(Contract contract) {
+			Property property = contract.getProperty();
+			return ContractItemResponse.builder()
+				.contractId(contract.getContractId())
+				.propertyId(property.getPropertyId())
+				.roadAddress(property.getRoadAddress())
+				.detailAddress(property.getDetailAddress())
+				.leaseType(contract.getLeaseType())
+				.deposit(contract.getDeposit())
+				.monthlyRent(contract.getMonthlyRent())
+				.brokerageFee(contract.getBrokerageFee())
+				.landlordName(contract.getLandlord().getName())
+				.tenantName(contract.getTenant().getName())
+				.startAt(contract.getStartAt().toLocalDate())
+				.endAt(contract.getEndAt().toLocalDate())
+				.contractedAt(contract.getContractedAt().toLocalDate())
+				.build();
+		}
+	}
+
+	/** 중개 이력 목록과 페이지 정보. page는 화면의 페이지 번호와 같이 1부터 센다 (AGENT_003) */
+	@Getter
+	@Builder
+	public static class ContractListResponse {
+
+		private List<ContractItemResponse> contracts;
+		private int page;
+		private int totalPages;
+		private long totalElements;
+
+		public static ContractListResponse from(Page<Contract> contracts) {
+			return ContractListResponse.builder()
+				.contracts(contracts.map(ContractItemResponse::from).getContent())
+				.page(contracts.getNumber() + 1)
+				.totalPages(contracts.getTotalPages())
+				.totalElements(contracts.getTotalElements())
 				.build();
 		}
 	}
