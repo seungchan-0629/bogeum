@@ -213,6 +213,8 @@ function ContractForm({ propertyId, candidates }) {
     // 내 계약 관리 목록에서 이 매물이 '계약 완료' 단계로 보이도록 다시 불러온다
     await queryClient.invalidateQueries({ queryKey: ['brokerage-requests'] })
     await queryClient.invalidateQueries({ queryKey: ['contract-candidates', propertyId] })
+    // 중개 이력에 들어가면 방금 등록한 계약이 바로 보이도록 한다
+    await queryClient.invalidateQueries({ queryKey: ['contracts'] })
     window.alert('계약을 등록했어요.')
     navigate('/agent/contracts')
   }
