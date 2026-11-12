@@ -28,6 +28,13 @@ public class ContractController {
 		return contractService.createContract(loginUser.getUserId(), request, images);
 	}
 
+	// 승인된 중개사가 본인이 중개해 계약 완료된 계약을 최근 계약일 순서로 본다 (AGENT_003)
+	@GetMapping("/contract-details")
+	public ContractDto.ContractListResponse readContracts(@AuthenticationPrincipal LoginUser loginUser,
+			@RequestParam(value = "page", defaultValue = "1") int page) {
+		return contractService.readContracts(loginUser.getUserId(), page);
+	}
+
 	// 승인된 중개사가 맡은 매물의 계약 등록 화면에서 임대인과 임차인 후보를 본다 (PROPERTY_011)
 	@GetMapping("/contract/candidates")
 	public ContractDto.CandidateResponse readContractCandidates(@AuthenticationPrincipal LoginUser loginUser,
