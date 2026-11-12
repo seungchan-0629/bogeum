@@ -17,6 +17,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -31,7 +32,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.SliceImpl;
 import org.springframework.data.domain.Sort;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -538,6 +541,97 @@ class PropertyServiceTest {
 	}
 
 	@Test
+	@DisplayName("매물 목록 첫 화면은 공개 중인 매물을 12개씩 주고, 매물마다 순서가 가장 앞선 사진을 대표 사진으로 준다")
+	void readsFirstPublishedProperties() {
+		Property first = publishedProperty(31L, LocalDateTime.of(2026, 11, 12, 10, 0));
+		Property second = publishedProperty(30L, LocalDateTime.of(2026, 11, 11, 9, 0));
+		var pageable = ArgumentCaptor.forClass(Pageable.class);
+		when(propertyRepository.findPublished(eq(PropertyStatus.ACTIVE), pageable.capture()))
+			.thenReturn(new SliceImpl<>(List.of(first, second), PageRequest.of(0, 12), true));
+		when(propertyImageRepository.findAllByProperty_PropertyIdInOrderBySortOrderAscPropertyImageIdAsc(List.of(31L, 30L)))
+			.thenReturn(List.of(listImage(first, "property-images/31/a.jpg"), listImage(second, "property-images/30/a.jpg"),
+				listImage(first, "property-images/31/b.jpg")));
+		when(storageProvider.getIfAvailable()).thenReturn(storage);
+		when(storage.createReadUrl(any())).thenAnswer(invocation -> "https://s3/" + invocation.getArgument(0));
+
+		var response = propertyService.readProperties(null, null);
+
+		assertEquals(0, pageable.getValue().getPageNumber());
+		assertEquals(12, pageable.getValue().getPageSize());
+		assertEquals(List.of(31L, 30L),
+			response.getProperties().stream().map(PropertyDto.PropertyItemResponse::getPropertyId).toList());
+		var item = response.getProperties().get(0);
+		assertEquals("https://s3/property-images/31/a.jpg", item.getThumbnailUrl());
+		assertEquals(PropertyType.OFFICETEL, item.getPropertyType());
+		assertEquals(LeaseType.MONTHLY, item.getLeaseType());
+		assertEquals(BigDecimal.valueOf(10_000_000), item.getDeposit());
+		assertEquals(BigDecimal.valueOf(700_000), item.getMonthlyRent());
+		assertEquals(new BigDecimal("8.50"), item.getAreaPyeong());
+		assertEquals(MAPO_ADDRESS, item.getRoadAddress());
+		assertEquals("https://s3/property-images/30/a.jpg", response.getProperties().get(1).getThumbnailUrl());
+		assertTrue(response.isHasNext());
+		assertEquals(LocalDateTime.of(2026, 11, 11, 9, 0), response.getNextCursor().getCursorPublishedAt());
+		assertEquals(30L, response.getNextCursor().getCursorPropertyId());
+	}
+
+	@Test
+	@DisplayName("커서를 보내면 그 매물 다음부터 조회하고, 마지막 목록이면 다음 커서를 비운다")
+	void readsPublishedPropertiesAfterCursor() {
+		LocalDateTime cursorPublishedAt = LocalDateTime.of(2026, 11, 11, 9, 0);
+		when(propertyRepository.findPublishedAfter(eq(PropertyStatus.ACTIVE), eq(cursorPublishedAt), eq(30L), any()))
+			.thenReturn(new SliceImpl<>(List.of(publishedProperty(29L, cursorPublishedAt)), PageRequest.of(0, 12), false));
+
+		var response = propertyService.readProperties(cursorPublishedAt, 30L);
+
+		assertEquals(29L, response.getProperties().get(0).getPropertyId());
+		assertFalse(response.isHasNext());
+		assertNull(response.getNextCursor());
+		verify(propertyRepository, never()).findPublished(any(), any());
+	}
+
+	@Test
+	@DisplayName("사진이 없거나 저장소가 없으면 대표 사진만 비우고 목록은 준다")
+	void readsPropertiesWithoutThumbnail() {
+		Property withImage = publishedProperty(31L, LocalDateTime.of(2026, 11, 12, 10, 0));
+		Property withoutImage = publishedProperty(30L, LocalDateTime.of(2026, 11, 11, 9, 0));
+		when(propertyRepository.findPublished(eq(PropertyStatus.ACTIVE), any()))
+			.thenReturn(new SliceImpl<>(List.of(withImage, withoutImage), PageRequest.of(0, 12), false));
+		when(propertyImageRepository.findAllByProperty_PropertyIdInOrderBySortOrderAscPropertyImageIdAsc(List.of(31L, 30L)))
+			.thenReturn(List.of(listImage(withImage, "property-images/31/a.jpg")));
+		when(storageProvider.getIfAvailable()).thenReturn(null);
+
+		var response = propertyService.readProperties(null, null);
+
+		assertEquals(2, response.getProperties().size());
+		assertTrue(response.getProperties().stream().allMatch(item -> item.getThumbnailUrl() == null));
+	}
+
+	@Test
+	@DisplayName("공개 중인 매물이 없으면 사진을 조회하지 않고 빈 목록을 준다")
+	void readsEmptyProperties() {
+		when(propertyRepository.findPublished(eq(PropertyStatus.ACTIVE), any()))
+			.thenReturn(new SliceImpl<>(List.of(), PageRequest.of(0, 12), false));
+
+		var response = propertyService.readProperties(null, null);
+
+		assertEquals(List.of(), response.getProperties());
+		assertNull(response.getNextCursor());
+		verifyNoInteractions(propertyImageRepository, storageProvider);
+	}
+
+	@Test
+	@DisplayName("커서의 공개 시각과 매물 번호 중 하나만 오면 조회하지 않고 거절한다")
+	void rejectsHalfCursor() {
+		var withoutPropertyId = assertThrows(PropertyException.class,
+			() -> propertyService.readProperties(LocalDateTime.of(2026, 11, 11, 9, 0), null));
+		var withoutPublishedAt = assertThrows(PropertyException.class, () -> propertyService.readProperties(null, 30L));
+
+		assertEquals(ErrorCode.INVALID_REQUEST, withoutPropertyId.getErrorCode());
+		assertEquals(ErrorCode.INVALID_REQUEST, withoutPublishedAt.getErrorCode());
+		verifyNoInteractions(propertyRepository);
+	}
+
+	@Test
 	@DisplayName("필수 상세 정보와 사진이 있으면 매물을 공개(ACTIVE)한다")
 	void publishesProperty() {
 		Property property = completeProperty().build();
@@ -547,6 +641,8 @@ class PropertyServiceTest {
 		var response = propertyService.publishProperty(101L, 20L);
 
 		assertEquals(PropertyStatus.ACTIVE, property.getPropertyStatus());
+		// 매물 목록은 공개한 시각 순서로 보여 준다 (PROPERTY_004)
+		assertNotNull(property.getPublishedAt());
 		assertEquals(20L, response.getPropertyId());
 		assertEquals(PropertyStatus.ACTIVE, response.getPropertyStatus());
 	}
@@ -732,6 +828,17 @@ class PropertyServiceTest {
 			.roadAddress(MAPO_ADDRESS).detailAddress("302호").propertyType(PropertyType.OFFICETEL).build();
 		when(propertyRepository.findByPropertyIdAndAgent_UserId(20L, 101L)).thenReturn(Optional.of(property));
 		return property;
+	}
+
+	private static Property publishedProperty(Long propertyId, LocalDateTime publishedAt) {
+		return Property.builder().propertyId(propertyId).propertyType(PropertyType.OFFICETEL).leaseType(LeaseType.MONTHLY)
+			.deposit(BigDecimal.valueOf(10_000_000)).monthlyRent(BigDecimal.valueOf(700_000))
+			.areaPyeong(new BigDecimal("8.50")).roadAddress(MAPO_ADDRESS).detailAddress("302호")
+			.propertyStatus(PropertyStatus.ACTIVE).publishedAt(publishedAt).build();
+	}
+
+	private static PropertyImage listImage(Property property, String fileKey) {
+		return PropertyImage.builder().property(property).fileKey(fileKey).build();
 	}
 
 	private static PropertyImage image(Long propertyImageId, int sortOrder, String fileKey) {
