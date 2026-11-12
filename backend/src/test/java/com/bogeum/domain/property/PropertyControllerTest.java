@@ -103,7 +103,11 @@ class PropertyControllerTest {
 			.properties(List.of(PropertyDto.PropertyItemResponse.builder().propertyId(31L)
 				.thumbnailUrl("https://s3/property-images/31/a.jpg").propertyType(PropertyType.OFFICETEL)
 				.leaseType(LeaseType.MONTHLY).deposit(new BigDecimal("10000000")).monthlyRent(new BigDecimal("700000"))
-				.areaPyeong(new BigDecimal("8.50")).roadAddress("서울특별시 마포구 월드컵로 61").build()))
+				.areaPyeong(new BigDecimal("8.50")).roadAddress("서울특별시 마포구 월드컵로 61")
+				.nearbySubwayStation("월드컵경기장역").build(),
+				PropertyDto.PropertyItemResponse.builder().propertyId(30L).propertyType(PropertyType.VILLA)
+				.leaseType(LeaseType.JEONSE).deposit(new BigDecimal("300000000")).monthlyRent(BigDecimal.ZERO)
+				.areaPyeong(new BigDecimal("15.00")).roadAddress("서울특별시 동작구 노량진로 81").build()))
 			.hasNext(true)
 			.nextCursor(PropertyDto.PropertyCursor.builder()
 				.cursorPublishedAt(LocalDateTime.of(2026, 11, 12, 10, 0, 30, 123456000)).cursorPropertyId(31L).build())
@@ -116,6 +120,9 @@ class PropertyControllerTest {
 			.andExpect(jsonPath("$.properties[0].deposit").value(10000000))
 			.andExpect(jsonPath("$.properties[0].areaPyeong").value(8.5))
 			.andExpect(jsonPath("$.properties[0].detailAddress").doesNotExist())
+			.andExpect(jsonPath("$.properties[0].nearbySubwayStation").value("월드컵경기장역"))
+			// 지하철역이 없는 매물은 빈 값으로 줘서 화면이 "정보 없음"을 보여 준다
+			.andExpect(jsonPath("$.properties[1].nearbySubwayStation").isEmpty())
 			.andExpect(jsonPath("$.hasNext").value(true))
 			.andExpect(jsonPath("$.nextCursor.cursorPublishedAt").value("2026-11-12T10:00:30.123456"))
 			.andExpect(jsonPath("$.nextCursor.cursorPropertyId").value(31));

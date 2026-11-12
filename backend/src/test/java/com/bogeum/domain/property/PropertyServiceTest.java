@@ -568,6 +568,7 @@ class PropertyServiceTest {
 		assertEquals(BigDecimal.valueOf(700_000), item.getMonthlyRent());
 		assertEquals(new BigDecimal("8.50"), item.getAreaPyeong());
 		assertEquals(MAPO_ADDRESS, item.getRoadAddress());
+		assertEquals("월드컵경기장역", item.getNearbySubwayStation());
 		assertEquals("https://s3/property-images/30/a.jpg", response.getProperties().get(1).getThumbnailUrl());
 		assertTrue(response.isHasNext());
 		assertEquals(LocalDateTime.of(2026, 11, 11, 9, 0), response.getNextCursor().getCursorPublishedAt());
@@ -834,7 +835,7 @@ class PropertyServiceTest {
 		return Property.builder().propertyId(propertyId).propertyType(PropertyType.OFFICETEL).leaseType(LeaseType.MONTHLY)
 			.deposit(BigDecimal.valueOf(10_000_000)).monthlyRent(BigDecimal.valueOf(700_000))
 			.areaPyeong(new BigDecimal("8.50")).roadAddress(MAPO_ADDRESS).detailAddress("302호")
-			.propertyStatus(PropertyStatus.ACTIVE).publishedAt(publishedAt).build();
+			.nearbySubwayStation("월드컵경기장역").propertyStatus(PropertyStatus.ACTIVE).publishedAt(publishedAt).build();
 	}
 
 	private static PropertyImage listImage(Property property, String fileKey) {
