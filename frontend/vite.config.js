@@ -15,6 +15,11 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     proxy: {
+      // AGENT_001: API만 변환하고 화면 /admin/agents의 직접 진입·새로고침은 Vite가 처리한다.
+      '^/api/admin/agents(?:\\?|$)': {
+        ...backendProxy,
+        rewrite: (path) => path.replace(/^\/api\/admin\/agents/, '/admin/agents'),
+      },
       '/api': backendProxy,
       // 매물 API(/property/...). 끝의 /가 있어야 화면 주소 /properties/...가 백엔드로 넘어가지 않는다
       '/property/': backendProxy,
