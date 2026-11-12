@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -27,6 +28,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -336,6 +341,56 @@ class ContractServiceTest {
 
 		assertEquals(ErrorCode.PROPERTY_NOT_FOUND, exception.getErrorCode());
 		verifyNoInteractions(chatRepository);
+	}
+
+	@Test
+	@DisplayName("중개 이력은 본인이 중개한 계약을 계약일·계약 번호 최신순으로 10개씩 주고 실제 계약 금액과 당사자 이름을 담는다")
+	void readsBrokeredContracts() {
+		Property property = Property.builder().propertyId(20L).roadAddress("서울 마포구 월드컵로 1").detailAddress("302호")
+			.leaseType(LeaseType.MONTHLY).deposit(new BigDecimal("10000000")).build();
+		Contract contract = Contract.builder().contractId(30L).property(property).landlord(landlord).tenant(seip)
+			.agent(agent).leaseType(LeaseType.MONTHLY).deposit(new BigDecimal("9500000"))
+			.monthlyRent(new BigDecimal("600000")).paymentDay(25).startAt(START.atStartOfDay()).endAt(END.atStartOfDay())
+			.brokerageFee(new BigDecimal("300000")).contractedAt(LocalDate.of(2026, 11, 8).atStartOfDay()).build();
+		var pageable = ArgumentCaptor.forClass(Pageable.class);
+		when(contractRepository.findAllByAgent_UserId(eq(101L), pageable.capture()))
+			.thenAnswer(invocation -> new PageImpl<>(List.of(contract), invocation.getArgument(1), 11));
+
+		var response = contractService.readContracts(101L, 2);
+
+		assertEquals(1, pageable.getValue().getPageNumber());
+		assertEquals(10, pageable.getValue().getPageSize());
+		assertEquals(Sort.by(Sort.Direction.DESC, "contractedAt", "contractId"), pageable.getValue().getSort());
+		assertEquals(2, response.getPage());
+		assertEquals(2, response.getTotalPages());
+		assertEquals(11L, response.getTotalElements());
+		var item = response.getContracts().get(0);
+		assertEquals(30L, item.getContractId());
+		assertEquals(20L, item.getPropertyId());
+		assertEquals("서울 마포구 월드컵로 1", item.getRoadAddress());
+		assertEquals(new BigDecimal("9500000"), item.getDeposit());
+		assertEquals(new BigDecimal("600000"), item.getMonthlyRent());
+		assertEquals(new BigDecimal("300000"), item.getBrokerageFee());
+		assertEquals("박임대", item.getLandlordName());
+		assertEquals("최세입", item.getTenantName());
+		assertEquals(START, item.getStartAt());
+		assertEquals(END, item.getEndAt());
+		assertEquals(LocalDate.of(2026, 11, 8), item.getContractedAt());
+	}
+
+	@Test
+	@DisplayName("중개 이력 페이지가 1보다 작으면 첫 페이지를 주고, 계약이 없으면 빈 목록을 준다")
+	void readsFirstPageWhenPageBelowOne() {
+		var pageable = ArgumentCaptor.forClass(Pageable.class);
+		when(contractRepository.findAllByAgent_UserId(eq(101L), pageable.capture()))
+			.thenAnswer(invocation -> Page.empty(invocation.getArgument(1)));
+
+		var response = contractService.readContracts(101L, 0);
+
+		assertEquals(0, pageable.getValue().getPageNumber());
+		assertEquals(List.of(), response.getContracts());
+		assertEquals(1, response.getPage());
+		assertEquals(0L, response.getTotalElements());
 	}
 
 	private void assertContractError(ErrorCode errorCode, ContractDto.ContractRequest request) {

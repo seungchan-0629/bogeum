@@ -194,6 +194,39 @@ class ContractControllerTest {
 		verifyNoInteractions(contractService);
 	}
 
+	@Test
+	@DisplayName("중개 이력은 로그인 중개사 기준으로 조회하고 금액은 원 단위, 날짜는 일 단위로 반환한다")
+	void readsContracts() throws Exception {
+		when(contractService.readContracts(101L, 2)).thenReturn(ContractDto.ContractListResponse.builder()
+			.contracts(List.of(ContractDto.ContractItemResponse.builder().contractId(30L).propertyId(20L)
+				.roadAddress("서울 마포구 월드컵로 1").leaseType(LeaseType.MONTHLY).deposit(new BigDecimal("9500000"))
+				.monthlyRent(new BigDecimal("600000")).brokerageFee(new BigDecimal("300000")).landlordName("박임대")
+				.tenantName("최세입").startAt(LocalDate.of(2026, 12, 1)).endAt(LocalDate.of(2028, 11, 30))
+				.contractedAt(LocalDate.of(2026, 11, 8)).build()))
+			.page(2).totalPages(2).totalElements(11L).build());
+
+		mockMvc.perform(get("/contract-details").param("page", "2"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.contracts[0].contractId").value(30))
+			.andExpect(jsonPath("$.contracts[0].deposit").value(9500000))
+			.andExpect(jsonPath("$.contracts[0].brokerageFee").value(300000))
+			.andExpect(jsonPath("$.contracts[0].tenantName").value("최세입"))
+			.andExpect(jsonPath("$.contracts[0].contractedAt").value("2026-11-08"))
+			.andExpect(jsonPath("$.page").value(2))
+			.andExpect(jsonPath("$.totalElements").value(11));
+	}
+
+	@Test
+	@DisplayName("중개 이력 페이지를 보내지 않으면 첫 페이지를 조회한다")
+	void readsFirstPageByDefault() throws Exception {
+		when(contractService.readContracts(101L, 1)).thenReturn(ContractDto.ContractListResponse.builder()
+			.contracts(List.of()).page(1).totalPages(0).totalElements(0L).build());
+
+		mockMvc.perform(get("/contract-details"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.contracts").isEmpty());
+	}
+
 	// 프론트는 계약 정보를 JSON 파일 파트로 보낸다
 	private static MockMultipartFile requestPart(String json) {
 		return new MockMultipartFile("request", "", MediaType.APPLICATION_JSON_VALUE,
