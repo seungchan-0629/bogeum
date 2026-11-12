@@ -18,6 +18,13 @@ export async function addPropertyImages(propertyId, files) {
   return data
 }
 
+// PROPERTY_004 공개 매물 목록. 최근 공개 순서로 12개씩 준다
+// 첫 목록은 cursor 없이, 다음 목록은 앞 응답의 nextCursor({ cursorPublishedAt, cursorPropertyId })를 그대로 보낸다
+export async function getProperties(cursor, signal) {
+  const { data } = await api.get('/property', { ...PROPERTY_CONFIG, params: cursor ?? {}, signal })
+  return data
+}
+
 // PROPERTY_012 나에게 온 중개 신청 목록. status(REQUESTED·ACCEPTED)별로 한 페이지 5개씩, page는 1부터
 export async function getReceivedBrokerageRequests(status, page = 1, signal) {
   const { data } = await api.get('/property/brokerage-requests/received', { ...PROPERTY_CONFIG, params: { status, page }, signal })
