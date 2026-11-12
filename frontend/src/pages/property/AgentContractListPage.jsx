@@ -2,7 +2,7 @@
 // 수락한 매물마다 진행 단계(중개 수락 → 매물 공개 → 계약 완료)를 보여주고 다음 할 일로 보낸다
 // 요구사항: PROPERTY_010 (매물 상세 정보·사진 업로드), PROPERTY_011 (계약 정보 업로드)
 // API: 수락한 신청 목록 GET /property/brokerage-requests/received?status=ACCEPTED&page= (PROPERTY_012) — 한 페이지 5개
-//      계약 정보 등록(#183)이 생기면 계약 상태를 함께 주는 전용 목록 API로 바꾼다
+//      계약을 등록하면 매물이 계약 완료(CONTRACTED)가 되어, 이 목록의 매물 상태만으로 3단계를 보여줄 수 있다
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
@@ -45,7 +45,8 @@ function NextAction({ propertyId, step }) {
       </span>
     )
   }
-  return <Link to={`/agent/properties/${propertyId}/contract`} className="btn-secondary btn-sm">계약 정보 보기</Link>
+  // 계약 상세 화면은 따로 두지 않고, 계약한 매물은 중개 이력에서 모아 본다 (AGENT_003)
+  return <Link to="/agent/history" className="btn-secondary btn-sm">중개 이력 보기</Link>
 }
 
 function StepProgress({ title, step }) {
