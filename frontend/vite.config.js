@@ -21,6 +21,8 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/api\/admin\/agents/, '/admin/agents'),
       },
       '/api': backendProxy,
+      // 매물 목록 API(/property, /property?cursor...)만 정확히 넘긴다. 화면 주소 /properties는 Vite가 처리한다 (PROPERTY_004)
+      '^/property(\\?.*)?$': backendProxy,
       // 매물 API(/property/...). 끝의 /가 있어야 화면 주소 /properties/...가 백엔드로 넘어가지 않는다
       '/property/': backendProxy,
       // 계약 API(/contract/..., /contract-details). 화면 주소에는 /contract로 시작하는 곳이 없다
