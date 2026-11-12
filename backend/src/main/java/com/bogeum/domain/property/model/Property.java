@@ -110,6 +110,10 @@ public class Property {
 	@Column(nullable = false, length = 20)
 	private PropertyStatus propertyStatus = PropertyStatus.REQUESTED;
 
+	// 중개사가 매물 정보와 사진까지 모두 업로드 해서 공개(ACTIVE)한 시각. 매물 목록은 이 순서로 보여 준다. 공개 전에는 비어 있다
+	// updated_at은 숨김 해제·수정 등으로도 바뀌어 공개 순서로 쓰지 않는다
+	private LocalDateTime publishedAt;
+
 	@CreationTimestamp
 	@Column(nullable = false, updatable = false)
 	private LocalDateTime createdAt;
@@ -158,6 +162,7 @@ public class Property {
 			throw PropertyException.notPublishable();
 		}
 		this.propertyStatus = PropertyStatus.ACTIVE;
+		this.publishedAt = LocalDateTime.now();
 	}
 
 	/**
