@@ -146,7 +146,7 @@ public class PropertyDto {
 
 	/**
 	 * 매물 목록의 카드 한 장 (PROPERTY_004).
-	 * 누구나 보는 목록이라 동·호수가 있는 상세주소는 빼고 도로명주소로 지역을 보여 준다.
+	 * 누구나 보는 목록이라 동·호수가 있는 상세주소는 빼고 도로명주소와 주변 지하철역으로 위치를 보여 준다.
 	 * 대표 사진은 순서가 가장 앞선 사진이고, 사진이나 저장소가 없으면 비어 있다.
 	 */
 	@Getter
@@ -161,6 +161,7 @@ public class PropertyDto {
 		private BigDecimal monthlyRent;
 		private BigDecimal areaPyeong;
 		private String roadAddress;
+		private String nearbySubwayStation;
 
 		public static PropertyItemResponse from(Property property, String thumbnailUrl) {
 			return PropertyItemResponse.builder()
@@ -172,6 +173,7 @@ public class PropertyDto {
 				.monthlyRent(property.getMonthlyRent())
 				.areaPyeong(property.getAreaPyeong())
 				.roadAddress(property.getRoadAddress())
+				.nearbySubwayStation(property.getNearbySubwayStation())
 				.build();
 		}
 	}
