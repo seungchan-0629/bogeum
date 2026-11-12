@@ -15,6 +15,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.junit.jupiter.api.AfterEach;
@@ -92,6 +94,59 @@ class PropertyControllerTest {
 	@AfterEach
 	void logout() {
 		SecurityContextHolder.clearContext();
+	}
+
+	@Test
+	@DisplayName("매물 목록 첫 화면은 커서 없이 조회하고 카드 정보와 다음 커서를 반환한다")
+	void readsFirstProperties() throws Exception {
+		when(propertyService.readProperties(null, null)).thenReturn(PropertyDto.PropertyListResponse.builder()
+			.properties(List.of(PropertyDto.PropertyItemResponse.builder().propertyId(31L)
+				.thumbnailUrl("https://s3/property-images/31/a.jpg").propertyType(PropertyType.OFFICETEL)
+				.leaseType(LeaseType.MONTHLY).deposit(new BigDecimal("10000000")).monthlyRent(new BigDecimal("700000"))
+				.areaPyeong(new BigDecimal("8.50")).roadAddress("서울특별시 마포구 월드컵로 61")
+				.nearbySubwayStation("월드컵경기장역").build(),
+				PropertyDto.PropertyItemResponse.builder().propertyId(30L).propertyType(PropertyType.VILLA)
+				.leaseType(LeaseType.JEONSE).deposit(new BigDecimal("300000000")).monthlyRent(BigDecimal.ZERO)
+				.areaPyeong(new BigDecimal("15.00")).roadAddress("서울특별시 동작구 노량진로 81").build()))
+			.hasNext(true)
+			.nextCursor(PropertyDto.PropertyCursor.builder()
+				.cursorPublishedAt(LocalDateTime.of(2026, 11, 12, 10, 0, 30, 123456000)).cursorPropertyId(31L).build())
+			.build());
+
+		mockMvc.perform(get("/property"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.properties[0].propertyId").value(31))
+			.andExpect(jsonPath("$.properties[0].thumbnailUrl").value("https://s3/property-images/31/a.jpg"))
+			.andExpect(jsonPath("$.properties[0].deposit").value(10000000))
+			.andExpect(jsonPath("$.properties[0].areaPyeong").value(8.5))
+			.andExpect(jsonPath("$.properties[0].detailAddress").doesNotExist())
+			.andExpect(jsonPath("$.properties[0].nearbySubwayStation").value("월드컵경기장역"))
+			// 지하철역이 없는 매물은 빈 값으로 줘서 화면이 "정보 없음"을 보여 준다
+			.andExpect(jsonPath("$.properties[1].nearbySubwayStation").isEmpty())
+			.andExpect(jsonPath("$.hasNext").value(true))
+			.andExpect(jsonPath("$.nextCursor.cursorPublishedAt").value("2026-11-12T10:00:30.123456"))
+			.andExpect(jsonPath("$.nextCursor.cursorPropertyId").value(31));
+	}
+
+	@Test
+	@DisplayName("응답의 다음 커서를 그대로 보내면 공개 시각과 매물 번호로 바꿔 서비스에 넘긴다")
+	void readsPropertiesAfterCursor() throws Exception {
+		when(propertyService.readProperties(LocalDateTime.of(2026, 11, 12, 10, 0, 30, 123456000), 31L))
+			.thenReturn(PropertyDto.PropertyListResponse.builder().properties(List.of()).hasNext(false).build());
+
+		mockMvc.perform(get("/property")
+				.param("cursorPublishedAt", "2026-11-12T10:00:30.123456").param("cursorPropertyId", "31"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.hasNext").value(false))
+			.andExpect(jsonPath("$.nextCursor").isEmpty());
+	}
+
+	@Test
+	@DisplayName("커서 형식이 틀리면 서비스 호출 전에 400으로 거절한다")
+	void rejectsInvalidCursorFormat() throws Exception {
+		mockMvc.perform(get("/property").param("cursorPublishedAt", "어제").param("cursorPropertyId", "31"))
+			.andExpect(status().isBadRequest());
+		verifyNoInteractions(propertyService);
 	}
 
 	@Test

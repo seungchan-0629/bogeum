@@ -145,6 +145,59 @@ public class PropertyDto {
 	}
 
 	/**
+	 * 매물 목록의 카드 한 장 (PROPERTY_004).
+	 * 누구나 보는 목록이라 동·호수가 있는 상세주소는 빼고 도로명주소와 주변 지하철역으로 위치를 보여 준다.
+	 * 대표 사진은 순서가 가장 앞선 사진이고, 사진이나 저장소가 없으면 비어 있다.
+	 */
+	@Getter
+	@Builder
+	public static class PropertyItemResponse {
+
+		private Long propertyId;
+		private String thumbnailUrl;
+		private PropertyType propertyType;
+		private LeaseType leaseType;
+		private BigDecimal deposit;
+		private BigDecimal monthlyRent;
+		private BigDecimal areaPyeong;
+		private String roadAddress;
+		private String nearbySubwayStation;
+
+		public static PropertyItemResponse from(Property property, String thumbnailUrl) {
+			return PropertyItemResponse.builder()
+				.propertyId(property.getPropertyId())
+				.thumbnailUrl(thumbnailUrl)
+				.propertyType(property.getPropertyType())
+				.leaseType(property.getLeaseType())
+				.deposit(property.getDeposit())
+				.monthlyRent(property.getMonthlyRent())
+				.areaPyeong(property.getAreaPyeong())
+				.roadAddress(property.getRoadAddress())
+				.nearbySubwayStation(property.getNearbySubwayStation())
+				.build();
+		}
+	}
+
+	/** 다음 목록을 이어 받을 위치. 그대로 다음 요청의 쿼리(cursorPublishedAt, cursorPropertyId)로 보낸다 (PROPERTY_004) */
+	@Getter
+	@Builder
+	public static class PropertyCursor {
+
+		private LocalDateTime cursorPublishedAt;
+		private Long cursorPropertyId;
+	}
+
+	/** 매물 목록과 다음 목록 위치. 마지막 목록이면 nextCursor가 비어 있다 (PROPERTY_004) */
+	@Getter
+	@Builder
+	public static class PropertyListResponse {
+
+		private List<PropertyItemResponse> properties;
+		private boolean hasNext;
+		private PropertyCursor nextCursor;
+	}
+
+	/**
 	 * 중개사가 저장하는 매물 상세 정보 (PROPERTY_010).
 	 * 임시 저장이라 모두 선택값이고, 비워 보내면 비운 채로 저장한다.
 	 */

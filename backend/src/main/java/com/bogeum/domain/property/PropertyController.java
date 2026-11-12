@@ -1,7 +1,9 @@
 package com.bogeum.domain.property;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -36,6 +38,16 @@ public class PropertyController {
 			@PathVariable("propertyId") Long propertyId,
 			@RequestPart(value = "images", required = false) List<MultipartFile> images) {
 		return propertyService.createPropertyImages(loginUser.getUserId(), propertyId, images);
+	}
+
+	// 로그인한 사용자가 공개 중인 매물을 최근 공개 순서로 스크롤하며 본다 (PROPERTY_004)
+	// 첫 목록은 커서 없이, 다음 목록은 응답의 nextCursor 값을 그대로 보낸다
+	@GetMapping
+	public PropertyDto.PropertyListResponse readProperties(
+			@RequestParam(value = "cursorPublishedAt", required = false)
+			@DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime cursorPublishedAt,
+			@RequestParam(value = "cursorPropertyId", required = false) Long cursorPropertyId) {
+		return propertyService.readProperties(cursorPublishedAt, cursorPropertyId);
 	}
 
 	// 승인된 중개사가 본인에게 온 중개 신청을 '새 신청'(REQUESTED)·'수락한 신청'(ACCEPTED)으로 나눠 본다 (PROPERTY_012)

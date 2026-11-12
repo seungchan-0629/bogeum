@@ -496,6 +496,10 @@ INSERT INTO property (property_id, landlord_id, agent_id, property_type, lease_t
     (59, 28, NULL, NULL, 'JEONSE', 870000000, 0, '서울특별시 송파구 올림픽로 272', '109동 2203호', NULL, NULL, NULL, NULL, NULL, NULL, 'REQUESTED', '2026-10-15 20:52:06', '2026-10-15 20:52:06'),
     (60, 15, NULL, NULL, 'MONTHLY', 15000000, 800000, '서울특별시 마포구 독막로 332', '1604호', NULL, NULL, NULL, NULL, NULL, NULL, 'REQUESTED', '2026-10-18 11:37:30', '2026-10-18 11:37:30');
 
+-- 공개 시각 (PROPERTY_004). 더미 매물은 공개한 뒤 바뀐 기록이 없어 updated_at을 공개 시각으로 본다
+-- 계약·숨김·삭제 매물도 한 번 공개됐던 매물이라 함께 채운다. 공개 전(REQUESTED)은 비워 둔다
+UPDATE property SET published_at = updated_at WHERE property_status <> 'REQUESTED';
+
 -- ============================================================
 -- 9. PropertyImage (매물 사진) - 240건
 -- ============================================================

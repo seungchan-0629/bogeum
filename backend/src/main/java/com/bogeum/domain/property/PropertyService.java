@@ -1,14 +1,18 @@
 package com.bogeum.domain.property;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +23,7 @@ import org.springframework.web.multipart.MultipartFile;
 import com.bogeum.common.enums.ApprovalStatus;
 import com.bogeum.common.enums.BrokerageStatus;
 import com.bogeum.common.enums.LeaseType;
+import com.bogeum.common.enums.PropertyStatus;
 import com.bogeum.domain.agent.AgentRepository;
 import com.bogeum.domain.agent.model.Agent;
 import com.bogeum.domain.property.model.BrokerageRequest;
@@ -39,6 +44,8 @@ public class PropertyService {
 
 	// 중개 신청 목록 한 페이지의 개수 (PROPERTY_012)
 	private static final int PAGE_SIZE = 5;
+	// 매물 목록을 한 번에 가져오는 개수. 카드가 2·3·4열 어느 쪽이어도 줄이 맞는다 (PROPERTY_004)
+	private static final int LIST_SIZE = 12;
 	// 매물 하나에 올릴 수 있는 사진 수. AS 사진 상한과 같다 (PROPERTY_010)
 	private static final int MAX_IMAGE_COUNT = 10;
 
@@ -133,6 +140,45 @@ public class PropertyService {
 			responses.add(PropertyDto.ImageResponse.from(image, storage.createReadUrl(key)));
 		}
 		return responses;
+	}
+
+	/**
+	 * 공개 중(ACTIVE)인 매물을 최근 공개 순서로 이어서 조회한다.
+	 * 스크롤 목록이라 페이지 번호 대신 앞 목록의 마지막 매물 다음부터 보여준다.
+	 * 저장소가 없으면 사진 주소만 비우고 목록 조회는 막지 않는다.
+	 *
+	 * @param cursorPublishedAt 앞 목록 마지막 매물의 공개 시각. 첫 목록이면 둘 다 비운다
+	 * @param cursorPropertyId 앞 목록 마지막 매물의 번호
+	 * @throws PropertyException 커서 값이 하나만 온 경우
+	 */
+	@Transactional(readOnly = true)
+	public PropertyDto.PropertyListResponse readProperties(LocalDateTime cursorPublishedAt, Long cursorPropertyId) {
+		if ((cursorPublishedAt == null) != (cursorPropertyId == null)) {
+			throw PropertyException.invalidCursor();
+		}
+		Pageable pageable = PageRequest.of(0, LIST_SIZE);
+		Slice<Property> properties = cursorPropertyId == null
+			? propertyRepository.findPublished(PropertyStatus.ACTIVE, pageable)
+			: propertyRepository.findPublishedAfter(PropertyStatus.ACTIVE, cursorPublishedAt, cursorPropertyId, pageable);
+
+		Map<Long, String> thumbnailKeys = findThumbnailKeys(properties.getContent());
+		PropertyImageStorage storage = thumbnailKeys.isEmpty() ? null : storageProvider.getIfAvailable();
+		List<PropertyDto.PropertyItemResponse> items = properties.stream()
+			.map(property -> {
+				String key = thumbnailKeys.get(property.getPropertyId());
+				return PropertyDto.PropertyItemResponse.from(property,
+					key == null || storage == null ? null : storage.createReadUrl(key));
+			})
+			.toList();
+		Property last = properties.hasNext() ? properties.getContent().get(properties.getNumberOfElements() - 1) : null;
+		return PropertyDto.PropertyListResponse.builder()
+			.properties(items)
+			.hasNext(properties.hasNext())
+			.nextCursor(last == null ? null : PropertyDto.PropertyCursor.builder()
+				.cursorPublishedAt(last.getPublishedAt())
+				.cursorPropertyId(last.getPropertyId())
+				.build())
+			.build();
 	}
 
 	/**
@@ -293,6 +339,20 @@ public class PropertyService {
 
 	private String regionPrefix(String sido) {
 		return sido.length() <= 2 ? sido : sido.substring(0, 2);
+	}
+
+	// 매물별 대표 사진 키. 사진이 순서대로 오니 매물마다 처음 나온 사진이 대표 사진이다
+	private Map<Long, String> findThumbnailKeys(List<Property> properties) {
+		if (properties.isEmpty()) {
+			return Map.of();
+		}
+		Map<Long, String> keys = new HashMap<>();
+		List<Long> propertyIds = properties.stream().map(Property::getPropertyId).toList();
+		for (PropertyImage image : propertyImageRepository
+				.findAllByProperty_PropertyIdInOrderBySortOrderAscPropertyImageIdAsc(propertyIds)) {
+			keys.putIfAbsent(image.getProperty().getPropertyId(), image.getFileKey());
+		}
+		return keys;
 	}
 
 	/** 정리 실패는 로그로 남기고 다음 키를 계속 지운다. */
