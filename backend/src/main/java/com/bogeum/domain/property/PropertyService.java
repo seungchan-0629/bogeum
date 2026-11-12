@@ -182,6 +182,30 @@ public class PropertyService {
 	}
 
 	/**
+	 * 공개 중(ACTIVE)인 매물의 상세 정보, 사진, 담당 중개사를 조회한다 (PROPERTY_003).
+	 * 사용자는 담당 중개사에게 채팅으로 문의한다. 저장소가 없으면 사진 주소만 비우고 조회는 막지 않는다.
+	 *
+	 * @throws PropertyException 없거나 공개 중이 아닌 매물(공개 전·숨김·계약 완료·삭제)인 경우
+	 */
+	@Transactional(readOnly = true)
+	public PropertyDto.PublicDetailResponse readPublicProperty(Long propertyId) {
+		Property property = propertyRepository.findByPropertyIdAndPropertyStatus(propertyId, PropertyStatus.ACTIVE)
+			.orElseThrow(PropertyException::propertyNotFound);
+		List<PropertyImage> images = propertyImageRepository
+			.findAllByProperty_PropertyIdOrderBySortOrderAscPropertyImageIdAsc(propertyId);
+		PropertyImageStorage storage = images.isEmpty() ? null : storageProvider.getIfAvailable();
+		List<PropertyDto.PublicImageResponse> imageResponses = images.stream()
+			.map(image -> PropertyDto.PublicImageResponse.from(image,
+				storage == null ? null : storage.createReadUrl(image.getFileKey())))
+			.toList();
+		// 공개된 매물은 중개사가 수락해 올린 매물이라 담당 중개사가 있다. 사무소 정보가 없어도 이름은 보여 준다
+		User agentUser = property.getAgent();
+		Agent agent = agentRepository.findByUser_UserId(agentUser.getUserId()).orElse(null);
+		return PropertyDto.PublicDetailResponse.from(property, imageResponses,
+			PropertyDto.AgentInfoResponse.from(agentUser, agent));
+	}
+
+	/**
 	 * 중개사 본인에게 온 중개 신청을 상태별로 페이지 단위로 조회한다 (PROPERTY_012).
 	 * 새 신청은 신청한 순서, 수락한 신청은 수락한 순서로 최신이 위에 온다.
 	 *
