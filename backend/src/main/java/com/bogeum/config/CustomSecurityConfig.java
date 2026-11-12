@@ -93,6 +93,8 @@ public class CustomSecurityConfig {
 				.requestMatchers(HttpMethod.GET, "/admin/agents").hasRole("ADMIN")
 				.requestMatchers(HttpMethod.HEAD, "/admin/agents").hasRole("ADMIN")
 				// 중개 신청은 일반 사용자가 하고, 중개사가 받아서 관리한다 (PROPERTY_002, PROPERTY_008)
+				// 매물 목록은 임대인·임차인(USER)과 중개사(AGENT)가 함께 본다 (PROPERTY_004, PROPERTY_009)
+				.requestMatchers(HttpMethod.GET, "/property").authenticated()
 				.requestMatchers(HttpMethod.POST, "/property/brokerage-requests").hasRole("USER")
 				.requestMatchers(HttpMethod.GET, "/property/brokerage-requests/received").access(approvedAgent)
 				.requestMatchers(HttpMethod.POST, "/property/brokerage-requests/*/accept").access(approvedAgent)
