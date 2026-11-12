@@ -11,6 +11,7 @@ import com.bogeum.common.enums.LeaseType;
 import com.bogeum.common.enums.PropertyStatus;
 import com.bogeum.common.enums.PropertyType;
 import com.bogeum.domain.agent.model.Agent;
+import com.bogeum.domain.user.model.User;
 
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
@@ -195,6 +196,86 @@ public class PropertyDto {
 		private List<PropertyItemResponse> properties;
 		private boolean hasNext;
 		private PropertyCursor nextCursor;
+	}
+
+	/** 매물 상세의 사진 한 장. 첫 장이 대표 사진이다 (PROPERTY_003) */
+	@Getter
+	@Builder
+	public static class PublicImageResponse {
+
+		private Integer sortOrder;
+		private String url;
+
+		public static PublicImageResponse from(PropertyImage image, String url) {
+			return PublicImageResponse.builder()
+				.sortOrder(image.getSortOrder())
+				.url(url)
+				.build();
+		}
+	}
+
+	/** 매물을 중개하는 중개사. 사용자는 이 중개사에게 채팅으로 문의한다 (PROPERTY_003, CHAT_002) */
+	@Getter
+	@Builder
+	public static class AgentInfoResponse {
+
+		private String agentName;
+		private String officeName;
+
+		public static AgentInfoResponse from(User agentUser, Agent agent) {
+			return AgentInfoResponse.builder()
+				.agentName(agentUser.getName())
+				.officeName(agent == null ? null : agent.getOfficeName())
+				.build();
+		}
+	}
+
+	/**
+	 * 누구나 보는 매물 상세 (PROPERTY_003).
+	 * 중개사용 상세(DetailResponse)와 달리 임대인 이름, 동·호수가 있는 상세주소, 공개 상태는 주지 않는다.
+	 * 세대 수·주차 대수·지하철역은 공개할 때 필수가 아니라 비어 있을 수 있다.
+	 */
+	@Getter
+	@Builder
+	public static class PublicDetailResponse {
+
+		private Long propertyId;
+		private PropertyType propertyType;
+		private LeaseType leaseType;
+		private BigDecimal deposit;
+		private BigDecimal monthlyRent;
+		private BigDecimal areaPyeong;
+		private Integer householdCount;
+		private Integer parkingCount;
+		// 지하층은 음수다
+		private Integer floor;
+		private Integer totalFloor;
+		private Integer roomCount;
+		private String roadAddress;
+		private String nearbySubwayStation;
+		private List<PublicImageResponse> images;
+		private AgentInfoResponse agent;
+
+		public static PublicDetailResponse from(Property property, List<PublicImageResponse> images,
+				AgentInfoResponse agent) {
+			return PublicDetailResponse.builder()
+				.propertyId(property.getPropertyId())
+				.propertyType(property.getPropertyType())
+				.leaseType(property.getLeaseType())
+				.deposit(property.getDeposit())
+				.monthlyRent(property.getMonthlyRent())
+				.areaPyeong(property.getAreaPyeong())
+				.householdCount(property.getHouseholdCount())
+				.parkingCount(property.getParkingCount())
+				.floor(property.getFloor())
+				.totalFloor(property.getTotalFloor())
+				.roomCount(property.getRoomCount())
+				.roadAddress(property.getRoadAddress())
+				.nearbySubwayStation(property.getNearbySubwayStation())
+				.images(images)
+				.agent(agent)
+				.build();
+		}
 	}
 
 	/**

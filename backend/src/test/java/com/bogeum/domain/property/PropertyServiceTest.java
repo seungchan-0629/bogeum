@@ -633,6 +633,84 @@ class PropertyServiceTest {
 	}
 
 	@Test
+	@DisplayName("공개 중인 매물 상세는 상세 항목, 순서대로 사진 주소, 담당 중개사 이름과 사무소를 준다")
+	void readsPublicProperty() {
+		User agentUser = User.builder().userId(101L).name("김중개").build();
+		Property property = givenPublicProperty(agentUser);
+		when(propertyImageRepository.findAllByProperty_PropertyIdOrderBySortOrderAscPropertyImageIdAsc(20L))
+			.thenReturn(List.of(image(1L, 0, "property-images/20/a.jpg"), image(2L, 1, "property-images/20/b.jpg")));
+		when(storageProvider.getIfAvailable()).thenReturn(storage);
+		when(storage.createReadUrl(any())).thenAnswer(invocation -> "https://s3/" + invocation.getArgument(0));
+		when(agentRepository.findByUser_UserId(101L)).thenReturn(Optional.of(
+			Agent.builder().user(agentUser).officeName("망원 행복공인중개사사무소").officeAddress(MAPO_ADDRESS).build()));
+
+		var response = propertyService.readPublicProperty(20L);
+
+		assertEquals(20L, response.getPropertyId());
+		assertEquals(PropertyType.OFFICETEL, response.getPropertyType());
+		assertEquals(LeaseType.MONTHLY, response.getLeaseType());
+		assertEquals(BigDecimal.valueOf(10_000_000), response.getDeposit());
+		assertEquals(BigDecimal.valueOf(700_000), response.getMonthlyRent());
+		assertEquals(property.getAreaPyeong(), response.getAreaPyeong());
+		assertEquals(property.getHouseholdCount(), response.getHouseholdCount());
+		assertEquals(property.getParkingCount(), response.getParkingCount());
+		assertEquals(property.getFloor(), response.getFloor());
+		assertEquals(property.getTotalFloor(), response.getTotalFloor());
+		assertEquals(property.getRoomCount(), response.getRoomCount());
+		assertEquals(MAPO_ADDRESS, response.getRoadAddress());
+		assertEquals(property.getNearbySubwayStation(), response.getNearbySubwayStation());
+		assertEquals(List.of("https://s3/property-images/20/a.jpg", "https://s3/property-images/20/b.jpg"),
+			response.getImages().stream().map(PropertyDto.PublicImageResponse::getUrl).toList());
+		assertEquals(List.of(0, 1),
+			response.getImages().stream().map(PropertyDto.PublicImageResponse::getSortOrder).toList());
+		assertEquals("김중개", response.getAgent().getAgentName());
+		assertEquals("망원 행복공인중개사사무소", response.getAgent().getOfficeName());
+	}
+
+	@Test
+	@DisplayName("저장소가 없으면 사진 주소만 비우고, 사진이 없으면 저장소를 찾지 않고 빈 목록을 준다")
+	void readsPublicPropertyWithoutStorageOrImages() {
+		givenPublicProperty(User.builder().userId(101L).name("김중개").build());
+		when(propertyImageRepository.findAllByProperty_PropertyIdOrderBySortOrderAscPropertyImageIdAsc(20L))
+			.thenReturn(List.of(image(1L, 0, "property-images/20/a.jpg")))
+			.thenReturn(List.of());
+		when(storageProvider.getIfAvailable()).thenReturn(null);
+
+		var withoutStorage = propertyService.readPublicProperty(20L);
+		var withoutImages = propertyService.readPublicProperty(20L);
+
+		assertNull(withoutStorage.getImages().get(0).getUrl());
+		assertEquals(List.of(), withoutImages.getImages());
+		verify(storageProvider, times(1)).getIfAvailable();
+	}
+
+	@Test
+	@DisplayName("담당 중개사의 사무소 정보가 없어도 중개사 이름은 보여 준다")
+	void readsPublicPropertyWithoutAgentProfile() {
+		givenPublicProperty(User.builder().userId(101L).name("김중개").build());
+		when(propertyImageRepository.findAllByProperty_PropertyIdOrderBySortOrderAscPropertyImageIdAsc(20L))
+			.thenReturn(List.of());
+		when(agentRepository.findByUser_UserId(101L)).thenReturn(Optional.empty());
+
+		var response = propertyService.readPublicProperty(20L);
+
+		assertEquals("김중개", response.getAgent().getAgentName());
+		assertNull(response.getAgent().getOfficeName());
+	}
+
+	@Test
+	@DisplayName("없거나 공개 중이 아닌 매물(공개 전·숨김·계약 완료·삭제)은 상세를 볼 수 없다")
+	void rejectsPropertyNotPublic() {
+		when(propertyRepository.findByPropertyIdAndPropertyStatus(20L, PropertyStatus.ACTIVE))
+			.thenReturn(Optional.empty());
+
+		var exception = assertThrows(PropertyException.class, () -> propertyService.readPublicProperty(20L));
+
+		assertEquals(ErrorCode.PROPERTY_NOT_FOUND, exception.getErrorCode());
+		verifyNoInteractions(propertyImageRepository, agentRepository);
+	}
+
+	@Test
 	@DisplayName("필수 상세 정보와 사진이 있으면 매물을 공개(ACTIVE)한다")
 	void publishesProperty() {
 		Property property = completeProperty().build();
@@ -712,6 +790,16 @@ class PropertyServiceTest {
 
 		assertEquals(ErrorCode.PROPERTY_NOT_FOUND, exception.getErrorCode());
 		verifyNoInteractions(propertyImageRepository);
+	}
+
+	// 상세 정보를 다 채워 공개한 매물. 상세주소는 있지만 누구나 보는 상세에는 주지 않는다
+	private Property givenPublicProperty(User agentUser) {
+		Property property = completeProperty().agent(agentUser).propertyType(PropertyType.OFFICETEL)
+			.leaseType(LeaseType.MONTHLY).deposit(BigDecimal.valueOf(10_000_000)).monthlyRent(BigDecimal.valueOf(700_000))
+			.roadAddress(MAPO_ADDRESS).detailAddress("302호").propertyStatus(PropertyStatus.ACTIVE).build();
+		when(propertyRepository.findByPropertyIdAndPropertyStatus(20L, PropertyStatus.ACTIVE))
+			.thenReturn(Optional.of(property));
+		return property;
 	}
 
 	// 공개에 필요한 상세 정보를 모두 채운 공개 전 매물

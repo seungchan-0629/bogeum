@@ -30,6 +30,10 @@ public interface PropertyRepository extends JpaRepository<Property, Long> {
 	Slice<Property> findPublishedAfter(@Param("status") PropertyStatus status,
 		@Param("publishedAt") LocalDateTime publishedAt, @Param("propertyId") Long propertyId, Pageable pageable);
 
+	// 공개 중인 매물만 상세로 보여 준다. 담당 중개사 정보를 함께 보여 줘서 함께 가져온다 (PROPERTY_003)
+	@EntityGraph(attributePaths = "agent")
+	Optional<Property> findByPropertyIdAndPropertyStatus(Long propertyId, PropertyStatus propertyStatus);
+
 	// 이 매물을 맡은 중개사 본인만 찾는다. 남의 매물은 없는 것과 같이 다룬다 (PROPERTY_010)
 	@EntityGraph(attributePaths = "landlord")
 	Optional<Property> findByPropertyIdAndAgent_UserId(Long propertyId, Long agentUserId);
