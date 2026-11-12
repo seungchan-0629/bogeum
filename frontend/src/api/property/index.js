@@ -25,6 +25,13 @@ export async function getProperties(cursor, signal) {
   return data
 }
 
+// PROPERTY_003 공개 매물 상세. 상세 항목, 사진(조회 주소, 첫 장이 대표), 담당 중개사를 준다
+// 공개 중이 아니거나 없는 매물은 404다. 중개사용 상세(getPropertyDetail)와 달리 임대인 이름·상세주소는 없다
+export async function getPublicProperty(propertyId, signal) {
+  const { data } = await api.get(`/property/${propertyId}`, { ...PROPERTY_CONFIG, signal })
+  return data
+}
+
 // PROPERTY_012 나에게 온 중개 신청 목록. status(REQUESTED·ACCEPTED)별로 한 페이지 5개씩, page는 1부터
 export async function getReceivedBrokerageRequests(status, page = 1, signal) {
   const { data } = await api.get('/property/brokerage-requests/received', { ...PROPERTY_CONFIG, params: { status, page }, signal })

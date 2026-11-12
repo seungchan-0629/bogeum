@@ -12,15 +12,13 @@ import { useAuthStore } from '../../stores/authStore.js'
 import { useFavoriteToggle } from '../../hooks/useFavoriteToggle.js'
 import { ROLES } from '../../constants/auth.js'
 import { getProperties } from '../../api/property/index.js'
-
-// 매물 종류(PropertyType)별 이름. 매물 정보 올리기 화면과 같다 (PROPERTY_010)
-const PROPERTY_TYPE_LABELS = { APARTMENT: '아파트', VILLA: '빌라', OFFICETEL: '오피스텔', MULTI_FAMILY: '다가구주택' }
+import { getPropertyTypeLabel } from '../../utils/format.js'
 
 // 목록 API 응답을 카드 모양으로 바꾼다. 금액은 원 → 만원, 면적은 평
 const toCardProperty = (property) => ({
   propertyId: property.propertyId,
   thumbnailUrl: property.thumbnailUrl,
-  propertyType: PROPERTY_TYPE_LABELS[property.propertyType],
+  propertyType: getPropertyTypeLabel(property.propertyType),
   leaseType: property.leaseType,
   deposit: property.deposit / 10000,
   monthlyRent: property.monthlyRent / 10000,
