@@ -20,12 +20,13 @@ function PropertyCard({ property, isFavorite = false, onToggleFavorite }) {
           <PhotoPlaceholder label="대표 사진" className="h-40 rounded-none" />
         )}
         <div className="flex flex-col gap-0.5 px-4 py-3.5">
-          <p className="text-lg font-bold">{formatLeasePrice(property)}</p>
+          {/* 주소가 카드 제목이다. 자르지 않고 다 보여 주되, 한 줄 주소도 두 줄 높이를 차지해 카드 높이를 맞춘다 */}
+          <h3 className="min-h-[2lh] text-lg leading-snug font-bold break-keep">{property.address}</h3>
+          <p className="mt-1 font-bold text-gray-900">{formatLeasePrice(property)}</p>
           {/* 면적은 평 기준 (PROPERTY_003) */}
           <p className="text-sm text-gray-800">
             {property.propertyType} · {property.area}평
           </p>
-          <p className="truncate text-sm text-gray-800">{property.address}</p>
           {/* 중개사가 쉼표로 여러 역을 적을 수 있어 받은 글자 그대로 보여 주고, 길면 한 줄로 자른다 */}
           <p className="truncate text-sm text-gray-500">{property.nearbySubway || '주변 지하철역 정보 없음'}</p>
         </div>
