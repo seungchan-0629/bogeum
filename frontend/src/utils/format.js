@@ -24,6 +24,13 @@ export function getLeaseTypeLabel(leaseType) {
   return LEASE_TYPE_LABELS[leaseType]
 }
 
+// 매물 종류(PropertyType)별 이름. 매물 정보 올리기 화면의 선택지와 같다 (PROPERTY_010)
+const PROPERTY_TYPE_LABELS = { APARTMENT: '아파트', VILLA: '빌라', OFFICETEL: '오피스텔', MULTI_FAMILY: '다가구주택' }
+
+export function getPropertyTypeLabel(propertyType) {
+  return PROPERTY_TYPE_LABELS[propertyType]
+}
+
 // 원 단위 금액 (월세 납부·지급 내역). 예: 650000 → '650,000원'
 export function formatWon(amount) {
   return `${amount.toLocaleString()}원`
