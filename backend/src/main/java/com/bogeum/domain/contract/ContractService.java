@@ -7,6 +7,9 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -37,6 +40,8 @@ public class ContractService {
 
 	// 계약 하나에 올릴 수 있는 계약서 이미지 수. 매물 사진 상한과 같다 (PROPERTY_011)
 	private static final int MAX_DOCUMENT_COUNT = 10;
+	// 중개 이력 한 페이지의 계약 수 (AGENT_003)
+	private static final int PAGE_SIZE = 10;
 
 	private final PropertyRepository propertyRepository;
 	private final ChatRepository chatRepository;
@@ -94,6 +99,19 @@ public class ContractService {
 			.build());
 		saveDocuments(storage, contract, jpegs);
 		return ContractDto.SaveResponse.from(contract);
+	}
+
+	/**
+	 * 중개사 본인이 중개해 계약 정보를 등록한 계약을 페이지 단위로 조회한다 (AGENT_003).
+	 * 계약일은 하루 단위라 같은 날 계약이 많아서, 페이지를 넘겨도 순서가 섞이지 않게 계약 번호로 한 번 더 정렬한다.
+	 *
+	 * @param page 1부터 센다. 1보다 작으면 첫 페이지를 준다
+	 */
+	@Transactional(readOnly = true)
+	public ContractDto.ContractListResponse readContracts(Long agentUserId, int page) {
+		Pageable pageable = PageRequest.of(Math.max(page, 1) - 1, PAGE_SIZE,
+			Sort.by(Sort.Direction.DESC, "contractedAt", "contractId"));
+		return ContractDto.ContractListResponse.from(contractRepository.findAllByAgent_UserId(agentUserId, pageable));
 	}
 
 	/**
