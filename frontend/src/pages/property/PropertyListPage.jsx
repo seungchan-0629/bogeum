@@ -2,7 +2,8 @@
 // 누가: 임차인·임대인·중개사 (로그인 안 하면 로그인 안내 페이지)
 // 요구사항: PROPERTY_004 (목록, 스크롤 방식), PROPERTY_005 (검색·필터, 결과 없음 안내), PROPERTY_009 (중개사 열람), FAVORITE_001·002
 // 화면 구성: 왼쪽 검색 조건 / 오른쪽 결과 카드 (모바일에서는 위아래로 쌓인다)
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useInfiniteQuery } from '@tanstack/react-query'
 import clsx from 'clsx'
 import PageHeader from '../../components/common/PageHeader.jsx'
 import PropertyCard from '../../components/property/PropertyCard.jsx'
@@ -10,7 +11,23 @@ import { Field, TextInput, SelectInput } from '../../components/common/FormContr
 import { useAuthStore } from '../../stores/authStore.js'
 import { useFavoriteToggle } from '../../hooks/useFavoriteToggle.js'
 import { ROLES } from '../../constants/auth.js'
-import { SAMPLE_PROPERTIES } from '../../constants/sampleProperties.js'
+import { getProperties } from '../../api/property/index.js'
+
+// 매물 종류(PropertyType)별 이름. 매물 정보 올리기 화면과 같다 (PROPERTY_010)
+const PROPERTY_TYPE_LABELS = { APARTMENT: '아파트', VILLA: '빌라', OFFICETEL: '오피스텔', MULTI_FAMILY: '다가구주택' }
+
+// 목록 API 응답을 카드 모양으로 바꾼다. 금액은 원 → 만원, 면적은 평
+const toCardProperty = (property) => ({
+  propertyId: property.propertyId,
+  thumbnailUrl: property.thumbnailUrl,
+  propertyType: PROPERTY_TYPE_LABELS[property.propertyType],
+  leaseType: property.leaseType,
+  deposit: property.deposit / 10000,
+  monthlyRent: property.monthlyRent / 10000,
+  area: property.areaPyeong,
+  address: property.roadAddress,
+  nearbySubway: property.nearbySubwayStation,
+})
 
 const LEASE_TYPE_OPTIONS = [
   { value: 'JEONSE', label: '전세' },
@@ -51,16 +68,30 @@ function PropertyListPage() {
   const [leaseTypes, setLeaseTypes] = useState([])
   const [propertyTypes, setPropertyTypes] = useState([])
 
-  // TODO: 검색 조건이 바뀌면 GET /api/v1/properties (BE-018) 호출
-  // - 쿼리: propertyType, leaseType, depositMin/Max, rentMin/Max, areaMin/Max, households, parkingCount, floor, roomCount, address, nearbySubway
-  // - 조건이 없으면 목록 API GET /api/v1/properties?cursor=&size= (BE-017)
-  // - 스크롤이 바닥에 닿으면 응답의 nextCursor로 다음 목록을 이어 불러온다 (PROPERTY_004, TanStack Query useInfiniteQuery)
-  // 지금은 임시 데이터에서 거래 유형·매물 종류만 화면에서 거른다
-  const properties = SAMPLE_PROPERTIES.filter(
-    (property) =>
-      (leaseTypes.length === 0 || leaseTypes.includes(property.leaseType)) &&
-      (propertyTypes.length === 0 || propertyTypes.includes(property.propertyType)),
-  )
+  // PROPERTY_004: 공개 매물을 12개씩 불러오고, 스크롤이 바닥에 닿으면 응답의 nextCursor로 다음 목록을 이어 불러온다
+  // TODO: PROPERTY_005에서 왼쪽 검색 조건을 GET /property의 쿼리로 보낸다. 그 전까지 조건은 고를 수만 있고 목록을 거르지 않는다
+  //       (불러온 목록만 화면에서 거르면 아직 안 불러온 매물이 빠져 결과가 틀린다)
+  const list = useInfiniteQuery({
+    queryKey: ['properties'],
+    queryFn: ({ pageParam, signal }) => getProperties(pageParam, signal),
+    initialPageParam: null,
+    getNextPageParam: (lastPage) => (lastPage.hasNext ? lastPage.nextCursor : undefined),
+  })
+  const properties = list.data?.pages.flatMap((page) => page.properties).map(toCardProperty) ?? []
+
+  // 목록 맨 아래 표시 칸이 화면에 들어오면 다음 목록을 불러온다. 불러오다 실패하면 자동으로 다시 부르지 않고 [다시 시도]를 보여 준다
+  const sentinelRef = useRef(null)
+  const { hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage } = list
+  useEffect(() => {
+    const sentinel = sentinelRef.current
+    if (!sentinel || !hasNextPage || isFetchingNextPage || isFetchNextPageError) return
+    // 바닥에 닿기 조금 전(200px)부터 불러와 스크롤이 끊기지 않게 한다
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) fetchNextPage()
+    }, { rootMargin: '200px' })
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage])
 
   const handleReset = () => {
     setLeaseTypes([])
@@ -125,8 +156,16 @@ function PropertyListPage() {
         </aside>
 
         <section aria-label="검색 결과" className="flex flex-col gap-4">
-          <p className="font-bold">검색 결과 {properties.length}개</p>
-          {properties.length > 0 ? (
+          {/* 스크롤 목록이라 서버가 전체 개수를 주지 않아 개수 대신 제목만 보여 준다 */}
+          <p className="font-bold">공개 중인 매물</p>
+          {list.isPending && <p role="status">매물을 불러오고 있어요.</p>}
+          {list.isError && !list.isFetchNextPageError && <p role="alert">매물을 불러오지 못했어요.</p>}
+          {list.isSuccess && properties.length === 0 && (
+            <p className="rounded-xl border border-dashed border-gray-300 px-6 py-10 text-center text-gray-600">
+              아직 공개된 매물이 없어요.
+            </p>
+          )}
+          {properties.length > 0 && (
             <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
               {properties.map((property) => (
                 <PropertyCard
@@ -137,11 +176,17 @@ function PropertyListPage() {
                 />
               ))}
             </div>
-          ) : (
-            // PROPERTY_005: 조건에 맞는 매물이 없으면 안내
-            <p className="rounded-xl border border-dashed border-gray-300 px-6 py-10 text-center text-gray-600">
-              조건에 맞는 매물이 없어요. 조건을 줄여서 다시 찾아보세요.
-            </p>
+          )}
+          <div ref={sentinelRef} aria-hidden="true" />
+          {isFetchingNextPage && <p role="status" className="text-center text-lg text-gray-600">매물을 더 불러오고 있어요.</p>}
+          {isFetchNextPageError && (
+            <div role="alert" className="flex flex-col items-center gap-2 text-lg text-gray-600">
+              다음 매물을 불러오지 못했어요.
+              <button type="button" onClick={() => fetchNextPage()} className="btn-secondary btn-sm">다시 시도</button>
+            </div>
+          )}
+          {list.isSuccess && properties.length > 0 && !hasNextPage && (
+            <p className="text-center text-lg text-gray-500">모든 매물을 봤어요.</p>
           )}
         </section>
       </div>
