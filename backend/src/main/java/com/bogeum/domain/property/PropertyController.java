@@ -50,6 +50,12 @@ public class PropertyController {
 		return propertyService.readProperties(cursorPublishedAt, cursorPropertyId);
 	}
 
+	// 로그인한 사용자가 공개 중인 매물의 상세 정보·사진·담당 중개사를 본다 (PROPERTY_003)
+	@GetMapping("/{propertyId}")
+	public PropertyDto.PublicDetailResponse readPublicProperty(@PathVariable("propertyId") Long propertyId) {
+		return propertyService.readPublicProperty(propertyId);
+	}
+
 	// 승인된 중개사가 본인에게 온 중개 신청을 '새 신청'(REQUESTED)·'수락한 신청'(ACCEPTED)으로 나눠 본다 (PROPERTY_012)
 	@GetMapping("/brokerage-requests/received")
 	public PropertyDto.BrokerageListResponse readBrokerageRequests(@AuthenticationPrincipal LoginUser loginUser,
