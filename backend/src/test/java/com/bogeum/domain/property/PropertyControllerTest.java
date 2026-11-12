@@ -150,6 +150,51 @@ class PropertyControllerTest {
 	}
 
 	@Test
+	@DisplayName("매물 상세는 상세 항목·사진·담당 중개사를 반환하고 임대인 이름·상세주소·공개 상태는 주지 않는다")
+	void readsPublicProperty() throws Exception {
+		when(propertyService.readPublicProperty(20L)).thenReturn(PropertyDto.PublicDetailResponse.builder()
+			.propertyId(20L).propertyType(PropertyType.VILLA).leaseType(LeaseType.JEONSE)
+			.deposit(new BigDecimal("300000000")).monthlyRent(BigDecimal.ZERO).areaPyeong(new BigDecimal("17.32"))
+			.householdCount(19).parkingCount(0).floor(-1).totalFloor(5).roomCount(3)
+			.roadAddress("서울특별시 영등포구 여의대방로21길 8").nearbySubwayStation("대방역")
+			.images(List.of(PropertyDto.PublicImageResponse.builder().sortOrder(0).url("https://s3/a.jpg").build()))
+			.agent(PropertyDto.AgentInfoResponse.builder().agentName("김중개").officeName("대방 공인중개사사무소").build())
+			.build());
+
+		mockMvc.perform(get("/property/20"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.propertyId").value(20))
+			.andExpect(jsonPath("$.deposit").value(300000000))
+			.andExpect(jsonPath("$.floor").value(-1))
+			.andExpect(jsonPath("$.parkingCount").value(0))
+			.andExpect(jsonPath("$.images[0].url").value("https://s3/a.jpg"))
+			.andExpect(jsonPath("$.images[0].propertyImageId").doesNotExist())
+			.andExpect(jsonPath("$.agent.agentName").value("김중개"))
+			.andExpect(jsonPath("$.agent.officeName").value("대방 공인중개사사무소"))
+			.andExpect(jsonPath("$.landlordName").doesNotExist())
+			.andExpect(jsonPath("$.detailAddress").doesNotExist())
+			.andExpect(jsonPath("$.propertyStatus").doesNotExist());
+	}
+
+	@Test
+	@DisplayName("없거나 공개 중이 아닌 매물 상세는 404와 PROPERTY_NOT_FOUND를 반환한다")
+	void rejectsPropertyNotPublic() throws Exception {
+		when(propertyService.readPublicProperty(999L)).thenThrow(PropertyException.propertyNotFound());
+
+		mockMvc.perform(get("/property/999"))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.code").value("PROPERTY_NOT_FOUND"));
+	}
+
+	@Test
+	@DisplayName("매물 번호가 숫자가 아니면 서비스 호출 전에 400으로 거절한다")
+	void rejectsInvalidPropertyId() throws Exception {
+		mockMvc.perform(get("/property/abc"))
+			.andExpect(status().isBadRequest());
+		verifyNoInteractions(propertyService);
+	}
+
+	@Test
 	@DisplayName("중개 신청은 로그인 사용자 기준으로 처리하고 201과 배정 결과를 반환한다")
 	void createsBrokerageRequest() throws Exception {
 		when(propertyService.createBrokerageRequest(eq(1L), any(PropertyDto.BrokerageRequest.class)))
