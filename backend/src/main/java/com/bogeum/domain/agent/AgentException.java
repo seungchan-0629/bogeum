@@ -11,4 +11,5 @@ public class AgentException extends RuntimeException {
 		this.errorCode = errorCode;
 	}
 	public static AgentException notFound() { return new AgentException(ErrorCode.AGENT_NOT_FOUND); }
+	public static AgentException invalidRequest() { return new AgentException(ErrorCode.INVALID_REQUEST); }
 }
