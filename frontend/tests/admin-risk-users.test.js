@@ -3,6 +3,7 @@ import { after, before, test } from 'node:test'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { createMemoryRouter, RouterProvider } from 'react-router'
 import { createServer } from 'vite'
 import react from '@vitejs/plugin-react'
 
@@ -11,6 +12,9 @@ let api
 let getAdminRiskUsers
 let AdminRiskUserPage
 let store
+let AdminLayout
+let AdminAgentPage
+let AdminOpenBankingPage
 const admin = { userId: 35, role: 'ADMIN' }
 const risk = (id, overrides = {}) => ({
   riskInfoId: id, userId: 20, name: '조회 대상', userType: 'TENANT',
@@ -27,6 +31,9 @@ before(async () => {
   getAdminRiskUsers = (await server.ssrLoadModule('/src/api/admin/index.js')).getAdminRiskUsers
   AdminRiskUserPage = (await server.ssrLoadModule('/src/pages/risk/admin/AdminRiskUserPage.jsx')).default
   store = (await server.ssrLoadModule('/src/stores/authStore.js')).useAuthStore
+  AdminLayout = (await server.ssrLoadModule('/src/components/common/AdminLayout.jsx')).default
+  AdminAgentPage = (await server.ssrLoadModule('/src/pages/agent/admin/AdminAgentPage.jsx')).default
+  AdminOpenBankingPage = (await server.ssrLoadModule('/src/pages/openbanking/admin/AdminOpenBankingPage.jsx')).default
 })
 
 after(async () => { await server?.close() })
@@ -118,6 +125,72 @@ test('다른 관리자·유형·검색어·페이지의 캐시를 현재 목록�
     [['admin-risk-users', admin.userId, 'TENANT', '', 2], data],
   ]
   assert.doesNotMatch(renderList({ loading: true, cached }), /이전 조회 대상/)
+})
+
+function renderAdmin(path, user = admin) {
+  store.getInitialState().user = user
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
+  client.setQueryData(['admin-risk-users', user?.userId, 'TENANT', '', 1], {
+    riskUsers: [risk(101)], page: 1, totalPages: 1, totalElements: 1,
+  })
+  client.setQueryData(['admin-agents', user?.userId, '', 1], {
+    agents: [{ agentId: 7, officeName: '기존 중개사무소', representativeName: '중개사 대표', officeAddress: '서울', approvalStatus: 'PENDING' }],
+    page: 1, totalPages: 1, totalElements: 1,
+  })
+  client.setQueryData(['admin-institution-token'], {
+    usable: true, issued: true, maskedToken: 'MASKED-TOKEN', clientUseCode: 'TEST-CODE',
+  })
+  const hiddenPaths = ['properties', 'rent', 'risk-properties', 'chats', 'notifications']
+  const router = createMemoryRouter([{
+    path: '/admin', element: createElement(AdminLayout),
+    children: [
+      { path: 'risk-users', element: createElement(AdminRiskUserPage) },
+      { path: 'agents', element: createElement(AdminAgentPage) },
+      { path: 'openbanking', element: createElement(AdminOpenBankingPage) },
+      ...hiddenPaths.map((path) => ({ path, element: createElement('p', null, '미제공 관리자 화면') })),
+    ],
+  }], { initialEntries: [path] })
+  try {
+    return renderToStaticMarkup(createElement(QueryClientProvider, { client }, createElement(RouterProvider, { router })))
+  } finally {
+    router.dispose()
+    client.clear()
+  }
+}
+
+test('관리자는 위험 사용자 메뉴와 목록에 접근하고 기존 중개사·금융 화면도 유지한다', () => {
+  const html = renderAdmin('/admin/risk-users')
+  assert.match(html, /href="\/admin\/risk-users"[^>]*>위험 사용자/)
+  assert.match(html, /조회 대상/)
+  assert.match(html, /href="\/admin\/agents"/)
+  assert.match(html, /href="\/admin\/openbanking"/)
+  const agents = renderAdmin('/admin/agents')
+  assert.match(agents, /기존 중개사무소/)
+  assert.match(agents, /중개사 대표/)
+  assert.doesNotMatch(agents, /조회 대상/)
+  const finance = renderAdmin('/admin/openbanking')
+  assert.match(finance, /기업용 OOB 토큰 관리/)
+  assert.match(finance, /MASKED-TOKEN/)
+  assert.match(finance, /상태 새로고침/)
+  assert.doesNotMatch(finance, /조회 대상|기존 중개사무소/)
+})
+
+test('미로그인·일반 사용자·중개사는 캐시가 있어도 관리자 메뉴와 데이터를 볼 수 없다', () => {
+  for (const user of [null, { userId: 1, role: 'USER' }, { userId: 2, role: 'AGENT' }]) {
+    for (const path of ['/admin/risk-users', '/admin/agents', '/admin/openbanking']) {
+      const html = renderAdmin(path, user)
+      assert.doesNotMatch(html, /조회 대상|기존 중개사무소|중개사 대표|MASKED-TOKEN|href="\/admin\/(risk-users|agents|openbanking)"/)
+      if (user) assert.match(html, /들어갈 수 없는 방이에요/)
+    }
+  }
+})
+
+test('위험 사용자 접근 허용 후에도 다른 미제공 관리자 메뉴와 화면은 계속 차단한다', () => {
+  const html = renderAdmin('/admin/risk-users')
+  for (const path of ['properties', 'rent', 'risk-properties', 'chats', 'notifications']) {
+    assert.ok(!html.includes(`href="/admin/${path}"`), path)
+    assert.doesNotMatch(renderAdmin(`/admin/${path}`), /미제공 관리자 화면/)
+  }
 })
 
 test('위험 사용자 API는 전용 주소·유형·이름·페이지·취소 신호를 전달한다', async () => {
