@@ -34,6 +34,13 @@ export async function getPublicProperty(propertyId, signal) {
   return data
 }
 
+// PROPERTY_013 내 매물 목록 (임대인). 내가 중개를 신청한 매물을 최근 신청 순서로 10개씩, page는 1부터
+// 삭제한 매물은 빠지고 관리자가 숨긴 매물은 남는다. 중개 신청 상태·매물 상태·담당 중개사(사무소 이름 포함)를 준다
+export async function getMyProperties(page = 1, signal) {
+  const { data } = await api.get('/property/mine', { ...PROPERTY_CONFIG, params: { page }, signal })
+  return data
+}
+
 // PROPERTY_012 나에게 온 중개 신청 목록. status(REQUESTED·ACCEPTED)별로 한 페이지 5개씩, page는 1부터
 export async function getReceivedBrokerageRequests(status, page = 1, signal) {
   const { data } = await api.get('/property/brokerage-requests/received', { ...PROPERTY_CONFIG, params: { status, page }, signal })
