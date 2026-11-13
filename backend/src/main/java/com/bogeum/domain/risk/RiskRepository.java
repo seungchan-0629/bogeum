@@ -16,6 +16,9 @@ import com.bogeum.domain.risk.model.RiskInfo;
 
 public interface RiskRepository extends JpaRepository<RiskInfo, Long> {
 
+	boolean existsByTargetTypeAndTargetUser_UserIdAndReasonTypeAndRiskStatus(RiskTargetType targetType,
+		Long userId, RiskReason reasonType, RiskStatus riskStatus);
+
 	/** 위험정보 한 건을 한 행으로 조회하고, 검색어의 %, _도 일반 문자로 취급한다. */
 	@EntityGraph(attributePaths = "targetUser")
 	@Query("""

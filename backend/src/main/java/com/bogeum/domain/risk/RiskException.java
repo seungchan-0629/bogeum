@@ -16,4 +16,16 @@ public class RiskException extends RuntimeException {
 	public static RiskException invalidRequest() {
 		return new RiskException(ErrorCode.INVALID_REQUEST);
 	}
+
+	public static RiskException accessDenied() {
+		return new RiskException(ErrorCode.ACCESS_DENIED);
+	}
+
+	public static RiskException userNotFound() {
+		return new RiskException(ErrorCode.RISK_USER_NOT_FOUND);
+	}
+
+	public static RiskException alreadyRegistered() {
+		return new RiskException(ErrorCode.RISK_ALREADY_REGISTERED);
+	}
 }
