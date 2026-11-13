@@ -6,6 +6,12 @@ export async function getAdminAgents(keyword, page, signal) {
   return data
 }
 
+// RISK_002: 화면과 API의 /admin/risk-users 경로 충돌을 전용 프록시로 피한다.
+export async function getAdminRiskUsers(type, keyword, page, signal) {
+  const { data } = await api.get('/api/admin/risk-users', { params: { type, keyword, page }, signal })
+  return data
+}
+
 export async function getInstitutionToken() {
   const { data } = await api.get('/openbanking/admin/institution-token')
   return data
