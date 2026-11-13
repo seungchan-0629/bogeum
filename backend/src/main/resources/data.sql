@@ -1189,7 +1189,7 @@ INSERT INTO property_view_log (property_view_log_id, user_id, property_id, viewe
 -- ============================================================
 -- 12. FavoriteProperty (관심 매물) - 100건
 -- ============================================================
-INSERT INTO favorite_property (favorite_property_id, tenant_id, property_id, created_at) VALUES
+INSERT INTO favorite_property (favorite_property_id, user_id, property_id, created_at) VALUES
     (1, 44, 1, '2024-09-08 14:43:22'),
     (2, 32, 1, '2024-09-15 19:31:12'),
     (3, 75, 1, '2024-09-23 14:06:54'),
