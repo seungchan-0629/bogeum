@@ -102,6 +102,8 @@ public class CustomSecurityConfig {
 				// 관심 매물은 집을 찾는 사용자만 담는다 (FAVORITE_001)
 				.requestMatchers(HttpMethod.PUT, "/favorites/*").hasRole("USER")
 				.requestMatchers(HttpMethod.DELETE, "/favorites/*").hasRole("USER")
+				// 내 관심 매물 목록과 담은 매물 번호 (FAVORITE_003)
+				.requestMatchers(HttpMethod.GET, "/favorites/me", "/favorites/me/ids").hasRole("USER")
 				.requestMatchers(HttpMethod.POST, "/property/brokerage-requests").hasRole("USER")
 				.requestMatchers(HttpMethod.GET, "/property/brokerage-requests/received").access(approvedAgent)
 				.requestMatchers(HttpMethod.POST, "/property/brokerage-requests/*/accept").access(approvedAgent)
