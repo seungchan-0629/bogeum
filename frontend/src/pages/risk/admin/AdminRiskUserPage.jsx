@@ -1,12 +1,10 @@
-// [관리자 페이지] 위험 사용자 — /admin/risk-users
-// 대상(임차인·임대인·중개사)별 위험 사용자 목록, 등록, 수정. 월세 연체로 생긴 '위험 정보 후보'도 안내한다
-// 요구사항: RISK_001 (등록), RISK_002 (조회, 이름 검색, 페이지 방식), RISK_003 (수정 + 수정 사유), RENT_007·NOTIFY_002 (후보)
-// API:
-// - 목록: GET /api/v1/admin/risk-users?userType=&name=&page=&size= (BE-061)
-// - 등록: POST /api/v1/admin/risk-users (BE-060)
-// - 수정: PUT/PATCH /api/v1/admin/risk-users/{riskUserId} (BE-062) — 수정 사유 필수
-// - 후보: GET /api/v1/admin/risk-candidates?page=&size= (BE-063)
+// RISK_002: 관리자 위험 사용자 유형별 목록·이름 검색·서버 페이징.
+// GET /admin/risk-users?type=&keyword=&page= (#44). 페이지 크기와 정렬은 서버에서 결정한다.
+// 증빙은 키 기록 여부만 표시하며 등록·수정·후보 조회·파일 열람은 별도 기능이다.
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { getAdminRiskUsers } from '../../../api/admin/index.js'
+import { useAuthStore } from '../../../stores/authStore.js'
 import PageHeader from '../../../components/common/PageHeader.jsx'
 import DataTable from '../../../components/common/DataTable.jsx'
 import StatusBadge from '../../../components/common/StatusBadge.jsx'
@@ -20,45 +18,77 @@ const USER_TYPE_TABS = [
   { key: 'AGENT', label: '중개사' },
 ]
 
-// TODO: GET /api/v1/admin/risk-users (BE-061) 응답으로 교체. 탭은 userType 파라미터
-const SAMPLE_RISK_USERS = [
-  { riskUserId: 1, userType: 'TENANT', name: '김보금', reasonType: '월세 미납', reasonTone: 'red', detail: '8월분 미납, 58일 연체', evidence: '결제 내역', registeredAt: '10.20' },
-  { riskUserId: 2, userType: 'TENANT', name: '이월세', reasonType: '연체 이력', reasonTone: 'amber', detail: '3회 연체 후 납부', evidence: '결제 내역', registeredAt: '09.11' },
-  { riskUserId: 3, userType: 'LANDLORD', name: '홍길동', reasonType: '보증금 미지급', reasonTone: 'red', detail: '퇴실 후 2개월째 미반환', evidence: '임차인 신고서', registeredAt: '08.30' },
-  { riskUserId: 4, userType: 'AGENT', name: '박새집', reasonType: '매물 이미지 미등록', reasonTone: 'amber', detail: '공개 매물 3건 사진 없음', evidence: '매물 목록', registeredAt: '10.02' },
-]
+const RISK_REASONS = {
+  RENT_UNPAID: { label: '월세 미지급', tone: 'red' },
+  RENT_OVERDUE: { label: '연체', tone: 'amber' },
+  DEPOSIT_UNPAID: { label: '보증금 미지급', tone: 'red' },
+  FALSE_LISTING: { label: '허위 매물 등록', tone: 'amber' },
+  NO_PROPERTY_IMAGE: { label: '매물 이미지 미등록', tone: 'amber' },
+  AGENT_CHANGE_HISTORY: { label: '중개사 교체 이력', tone: 'amber' },
+}
 
 function AdminRiskUserPage() {
+  const user = useAuthStore((state) => state.user)
   const [userType, setUserType] = useState('TENANT')
+  const [keyword, setKeyword] = useState('')
   const [page, setPage] = useState(1)
-  const rows = SAMPLE_RISK_USERS.filter((row) => row.userType === userType)
-
-  // TODO: 등록·수정 창(대상 선택, 사유 유형, 상세, 근거 자료, 수정 사유)은 다음 단계. 저장은 BE-060 / BE-062
-  const handleCreate = () => {}
-  const handleEdit = () => {}
+  const list = useQuery({
+    queryKey: ['admin-risk-users', user?.userId, userType, keyword, page],
+    queryFn: ({ signal }) => getAdminRiskUsers(userType, keyword, page, signal),
+    enabled: user?.role === 'ADMIN',
+    gcTime: 0,
+    retry: false,
+  })
+  const changeType = (nextType) => {
+    setUserType(nextType)
+    setPage(1)
+  }
+  const changeSearch = (event) => {
+    setKeyword(event.target.value)
+    setPage(1)
+  }
 
   const columns = [
-    { label: '이름', render: (row) => <strong>{row.name}</strong> },
-    { label: '사유 유형', render: (row) => <StatusBadge tone={row.reasonTone}>{row.reasonType}</StatusBadge> },
-    { label: '상세 내용', render: (row) => row.detail },
-    { label: '근거 자료', render: (row) => <button type="button" className="font-medium text-blue-700 hover:underline">{row.evidence}</button> },
-    { label: '등록일', render: (row) => row.registeredAt },
-    { label: '', render: (row) => <button type="button" onClick={() => handleEdit(row)} className="btn-secondary btn-sm">수정</button> },
+    { label: '이름', render: (row) => (
+      <div className="flex flex-col gap-1 whitespace-nowrap">
+        <strong>{row.name}</strong>
+        <span className="text-xs text-gray-500">ID {row.userId}</span>
+      </div>
+    ) },
+    { label: '사유 유형', render: (row) => {
+      const reason = RISK_REASONS[row.reasonType] ?? { label: '사유 확인 필요', tone: 'gray' }
+      return <StatusBadge tone={reason.tone}>{reason.label}</StatusBadge>
+    } },
+    { label: '상세 내용', render: (row) => <span className="whitespace-pre-wrap break-words">{row.detail?.trim() ? row.detail : '-'}</span> },
+    { label: '근거 자료', render: (row) => row.hasEvidence ? '있음' : '없음' },
+    { label: '생성일', render: (row) => row.createdAt?.slice(0, 10) || '-' },
   ]
 
   return (
     <>
-      <PageHeader title="위험 사용자" actions={<button type="button" onClick={handleCreate} className="btn-primary">+ 위험 사용자 등록</button>} />
-      {/* TODO: GET /api/v1/admin/risk-candidates (BE-063) 의 건수. 후보 목록 화면은 다음 단계 */}
-      <p className="rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-orange-900">
-        <strong>새 위험 정보 후보 1명</strong> — 월세 연체가 다음 달까지 이어진 임차인이에요.
-      </p>
+      <PageHeader title="위험 사용자" />
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <Tabs label="대상" items={USER_TYPE_TABS} value={userType} onChange={setUserType} />
-        <SearchInput label="이름 검색" placeholder="이름으로 검색" />
+        <Tabs label="대상" items={USER_TYPE_TABS} value={userType} onChange={changeType} />
+        <SearchInput label="이름 검색" placeholder="이름으로 검색" onChange={changeSearch} />
       </div>
-      <DataTable columns={columns} rows={rows} rowKey="riskUserId" emptyMessage="등록된 위험 사용자가 없어요." />
-      <Pagination page={page} totalPages={5} onChange={setPage} />
+      {list.isPending && <p role="status">위험 사용자 목록을 불러오고 있어요.</p>}
+      {list.isError && (
+        <div role="alert" className="card flex items-center justify-between gap-3">
+          <p>{list.error.response?.data?.message || '위험 사용자 목록을 불러오지 못했어요.'}</p>
+          <button type="button" className="btn-secondary" disabled={list.isFetching} onClick={() => list.refetch()}>다시 조회</button>
+        </div>
+      )}
+      {list.isFetching && !list.isPending && <p role="status">위험 사용자 목록을 다시 불러오고 있어요.</p>}
+      {list.isSuccess && (
+        <>
+          <p className="text-sm text-gray-600">총 {list.data.totalElements}건</p>
+          <DataTable columns={columns} rows={list.data.riskUsers} rowKey="riskInfoId"
+            emptyMessage={keyword.trim() ? '검색 결과가 없어요.' : '등록된 위험 사용자가 없어요.'} />
+          {list.data.totalPages > 1 && (
+            <Pagination page={list.data.page} totalPages={list.data.totalPages} onChange={setPage} />
+          )}
+        </>
+      )}
     </>
   )
 }

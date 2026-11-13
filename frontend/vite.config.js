@@ -20,6 +20,11 @@ export default defineConfig({
         ...backendProxy,
         rewrite: (path) => path.replace(/^\/api\/admin\/agents/, '/admin/agents'),
       },
+      // RISK_002: 화면 직접 진입은 Vite가 처리하고 목록 API만 백엔드 경로로 변환한다.
+      '^/api/admin/risk-users(?:\\?|$)': {
+        ...backendProxy,
+        rewrite: (path) => path.replace(/^\/api\/admin\/risk-users/, '/admin/risk-users'),
+      },
       '/api': backendProxy,
       // 매물 목록 API(/property, /property?cursor...)만 정확히 넘긴다. 화면 주소 /properties는 Vite가 처리한다 (PROPERTY_004)
       '^/property(\\?.*)?$': backendProxy,

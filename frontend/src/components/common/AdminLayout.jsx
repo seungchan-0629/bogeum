@@ -14,7 +14,7 @@ import { ROLES } from '../../constants/auth.js'
 import { useLocation } from 'react-router'
 
 const FINANCE_ADMIN_PATHS = new Set(['/admin/openbanking'])
-const AVAILABLE_ADMIN_PATHS = new Set([...FINANCE_ADMIN_PATHS, '/admin/agents'])
+const AVAILABLE_ADMIN_PATHS = new Set([...FINANCE_ADMIN_PATHS, '/admin/agents', '/admin/risk-users'])
 
 const ADMIN_MENU = [
   { label: '매물 관리', to: '/admin/properties' },
