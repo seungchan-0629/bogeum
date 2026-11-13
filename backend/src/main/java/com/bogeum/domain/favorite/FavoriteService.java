@@ -2,6 +2,7 @@ package com.bogeum.domain.favorite;
 
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.bogeum.common.enums.PropertyStatus;
 import com.bogeum.domain.favorite.model.Favorite;
@@ -48,5 +49,15 @@ public class FavoriteService {
 				throw exception;
 			}
 		}
+	}
+
+	/**
+	 * 사용자가 담아 둔 매물을 관심 매물에서 뺀다 (FAVORITE_002).
+	 * 담은 뒤 계약 완료·숨김·삭제된 매물도 목록에서 뺄 수 있어야 해서 매물 상태는 보지 않는다.
+	 * 담지 않았거나 없는 매물이면 지울 게 없어 그대로 성공으로 끝낸다. 등록과 같이 여러 번 보내도 결과가 같다.
+	 */
+	@Transactional
+	public void deleteFavorite(Long userId, Long propertyId) {
+		favoriteRepository.deleteByUserAndProperty(userId, propertyId);
 	}
 }
