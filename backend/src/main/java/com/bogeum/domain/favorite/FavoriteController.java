@@ -2,6 +2,7 @@ package com.bogeum.domain.favorite;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -23,5 +24,12 @@ public class FavoriteController {
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	public void createFavorite(@AuthenticationPrincipal LoginUser loginUser, @PathVariable("propertyId") Long propertyId) {
 		favoriteService.createFavorite(loginUser.getUserId(), propertyId);
+	}
+
+	// 사용자가 담아 둔 매물을 관심 매물에서 뺀다. 담지 않은 매물이어도 오류 없이 204다 (FAVORITE_002)
+	@DeleteMapping("/favorites/{propertyId}")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	public void deleteFavorite(@AuthenticationPrincipal LoginUser loginUser, @PathVariable("propertyId") Long propertyId) {
+		favoriteService.deleteFavorite(loginUser.getUserId(), propertyId);
 	}
 }
