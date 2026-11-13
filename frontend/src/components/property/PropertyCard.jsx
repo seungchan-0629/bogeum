@@ -2,14 +2,15 @@
 // 카드를 누르면 매물 상세(/properties/:propertyId)로 이동한다 (PROPERTY_003)
 // - property: { propertyId, thumbnailUrl, propertyType(한글), leaseType, deposit·monthlyRent(만원), area(평), address, nearbySubway }
 //   매물 목록은 API 응답을 이 모양으로 바꿔서 넘긴다 (PropertyListPage)
-// - onToggleFavorite를 넘기면 오른쪽 위에 하트 버튼이 생긴다. 관심 매물은 임차인만 쓰므로 임차인 화면에서만 넘긴다 (FAVORITE_001)
+// - onToggleFavorite를 넘기면 오른쪽 위에 하트 버튼이 생긴다. 관심 매물은 사용자(USER)만 쓰므로 그 화면에서만 넘긴다 (FAVORITE_001·002)
+//   isFavoritePending: 담기·빼기 요청 중이면 하트를 잠깐 막는다 / favoriteError: 실패 안내를 하트 바로 아래에 잠깐 보여 준다
 import { Link } from 'react-router'
 import clsx from 'clsx'
 import Icon from '../common/Icon.jsx'
 import PhotoPlaceholder from '../common/PhotoPlaceholder.jsx'
 import { formatLeasePrice } from '../../utils/format.js'
 
-function PropertyCard({ property, isFavorite = false, onToggleFavorite }) {
+function PropertyCard({ property, isFavorite = false, onToggleFavorite, isFavoritePending = false, favoriteError }) {
   return (
     <article className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white">
       <Link to={`/properties/${property.propertyId}`} className="flex flex-col">
@@ -35,15 +36,22 @@ function PropertyCard({ property, isFavorite = false, onToggleFavorite }) {
         <button
           type="button"
           onClick={() => onToggleFavorite(property.propertyId)}
+          disabled={isFavoritePending}
           aria-pressed={isFavorite}
           aria-label={isFavorite ? '관심 매물 해제' : '관심 매물로 저장'}
           className={clsx(
-            'absolute top-2.5 right-2.5 flex size-10 items-center justify-center rounded-full bg-white',
+            'absolute top-2.5 right-2.5 flex size-10 items-center justify-center rounded-full bg-white disabled:cursor-wait',
             isFavorite ? 'text-rose-600' : 'text-gray-600 hover:text-rose-600',
           )}
         >
           <Icon name="heart" size={18} filled={isFavorite} />
         </button>
+      )}
+      {/* 사진 위, 하트 바로 아래에 실패 안내를 잠깐 띄운다. 카드를 눌러 상세로 가는 링크는 가리지 않게 링크 밖에 둔다 */}
+      {favoriteError && (
+        <p role="alert" className="absolute top-14 right-2.5 left-2.5 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-2 text-xs leading-snug text-rose-800">
+          {favoriteError}
+        </p>
       )}
     </article>
   )
