@@ -3,6 +3,7 @@ package com.bogeum.domain.property;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -99,7 +100,8 @@ class PropertyControllerTest {
 	@Test
 	@DisplayName("매물 목록 첫 화면은 커서 없이 조회하고 카드 정보와 다음 커서를 반환한다")
 	void readsFirstProperties() throws Exception {
-		when(propertyService.readProperties(null, null)).thenReturn(PropertyDto.PropertyListResponse.builder()
+		when(propertyService.readProperties(any(PropertyDto.SearchRequest.class), isNull(), isNull()))
+			.thenReturn(PropertyDto.PropertyListResponse.builder()
 			.properties(List.of(PropertyDto.PropertyItemResponse.builder().propertyId(31L)
 				.thumbnailUrl("https://s3/property-images/31/a.jpg").propertyType(PropertyType.OFFICETEL)
 				.leaseType(LeaseType.MONTHLY).deposit(new BigDecimal("10000000")).monthlyRent(new BigDecimal("700000"))
@@ -131,7 +133,8 @@ class PropertyControllerTest {
 	@Test
 	@DisplayName("응답의 다음 커서를 그대로 보내면 공개 시각과 매물 번호로 바꿔 서비스에 넘긴다")
 	void readsPropertiesAfterCursor() throws Exception {
-		when(propertyService.readProperties(LocalDateTime.of(2026, 11, 12, 10, 0, 30, 123456000), 31L))
+		when(propertyService.readProperties(any(PropertyDto.SearchRequest.class),
+				eq(LocalDateTime.of(2026, 11, 12, 10, 0, 30, 123456000)), eq(31L)))
 			.thenReturn(PropertyDto.PropertyListResponse.builder().properties(List.of()).hasNext(false).build());
 
 		mockMvc.perform(get("/property")
@@ -139,6 +142,61 @@ class PropertyControllerTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.hasNext").value(false))
 			.andExpect(jsonPath("$.nextCursor").isEmpty());
+	}
+
+	@Test
+	@DisplayName("검색 조건을 쿼리로 보내면 여러 개 고르기·범위·글자 조건을 그대로 받아 서비스에 넘긴다")
+	void readsPropertiesWithSearch() throws Exception {
+		var search = ArgumentCaptor.forClass(PropertyDto.SearchRequest.class);
+		when(propertyService.readProperties(search.capture(), isNull(), isNull()))
+			.thenReturn(PropertyDto.PropertyListResponse.builder().properties(List.of()).hasNext(false).build());
+
+		mockMvc.perform(get("/property")
+				.param("propertyTypes", "APARTMENT", "VILLA").param("leaseTypes", "JEONSE,MONTHLY")
+				.param("minDeposit", "10000000").param("maxDeposit", "300000000")
+				.param("minMonthlyRent", "0").param("maxMonthlyRent", "800000")
+				.param("minArea", "10.5").param("minHouseholdCount", "100").param("minParkingCount", "1")
+				.param("minFloor", "-1").param("minRoomCount", "2")
+				.param("region", "서울 강남구").param("subway", "역삼").param("keyword", "마포 공덕역"))
+			.andExpect(status().isOk());
+
+		var value = search.getValue();
+		assertEquals(List.of(PropertyType.APARTMENT, PropertyType.VILLA), value.getPropertyTypes());
+		assertEquals(List.of(LeaseType.JEONSE, LeaseType.MONTHLY), value.getLeaseTypes());
+		assertEquals(new BigDecimal("10000000"), value.getMinDeposit());
+		assertEquals(new BigDecimal("300000000"), value.getMaxDeposit());
+		assertEquals(BigDecimal.ZERO, value.getMinMonthlyRent());
+		assertEquals(new BigDecimal("800000"), value.getMaxMonthlyRent());
+		assertEquals(new BigDecimal("10.5"), value.getMinArea());
+		assertEquals(100, value.getMinHouseholdCount());
+		assertEquals(1, value.getMinParkingCount());
+		assertEquals(-1, value.getMinFloor());
+		assertEquals(2, value.getMinRoomCount());
+		assertEquals("서울 강남구", value.getRegion());
+		assertEquals("역삼", value.getSubway());
+		assertEquals("마포 공덕역", value.getKeyword());
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"leaseTypes=SALE", "propertyTypes=ONE_ROOM", "minDeposit=-1", "maxMonthlyRent=-1",
+		"minArea=-1", "minArea=1.234", "minRoomCount=-1", "minParkingCount=abc",
+		"minDeposit=300000000&maxDeposit=100000000", "minMonthlyRent=900000&maxMonthlyRent=500000"})
+	@DisplayName("없는 선택지, 음수, 최소가 최대보다 큰 범위는 서비스 호출 전에 400으로 거절한다")
+	void rejectsInvalidSearch(String query) throws Exception {
+		mockMvc.perform(get("/property?" + query))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+		verifyNoInteractions(propertyService);
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"region", "subway", "keyword"})
+	@DisplayName("지역·지하철역·검색어가 50자를 넘으면 서비스 호출 전에 400으로 거절한다")
+	void rejectsTooLongText(String name) throws Exception {
+		mockMvc.perform(get("/property").param(name, "가".repeat(51)))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+		verifyNoInteractions(propertyService);
 	}
 
 	@Test
