@@ -77,7 +77,7 @@ function PhotoGallery({ images }) {
 function PropertyDetail({ property }) {
   const user = useAuthStore((state) => state.user)
   const navigate = useNavigate()
-  const { favoriteIds, toggleFavorite } = useFavoriteToggle()
+  const { favoriteIds, toggleFavorite, isPending, errorOf } = useFavoriteToggle()
   const isUser = user.role === ROLES.USER
   const isFavorite = favoriteIds.has(property.propertyId)
   const price = formatLeasePrice(toManwonPrice(property))
@@ -164,10 +164,17 @@ function PropertyDetail({ property }) {
               <button type="button" onClick={handleStartChat} className="btn-primary h-12">
                 <Icon name="chat" size={18} /> 채팅으로 문의하기
               </button>
-              <button type="button" onClick={() => toggleFavorite(property.propertyId)} aria-pressed={isFavorite} className="btn-secondary h-12">
-                <Icon name="heart" size={18} filled={isFavorite} className={isFavorite ? 'text-rose-600' : undefined} />
-                {isFavorite ? '관심 매물 해제' : '관심 매물 등록'}
-              </button>
+              {/* FAVORITE_001·002: 누르자마자 바뀌고, 실패하면 되돌린 뒤 버튼 바로 아래에 안내를 잠깐 보여 준다 */}
+              <div className="flex flex-col gap-1.5">
+                <button type="button" onClick={() => toggleFavorite(property.propertyId)} disabled={isPending(property.propertyId)}
+                  aria-pressed={isFavorite} className="btn-secondary h-12 disabled:cursor-wait">
+                  <Icon name="heart" size={18} filled={isFavorite} className={isFavorite ? 'text-rose-600' : undefined} />
+                  {isFavorite ? '관심 매물 해제' : '관심 매물 등록'}
+                </button>
+                {errorOf(property.propertyId) && (
+                  <p role="alert" className="text-sm text-rose-700">{errorOf(property.propertyId)}</p>
+                )}
+              </div>
               <p className="text-sm text-gray-500">이미 대화 중이면 기존 채팅방으로 이동해요.</p>
             </>
           )}
