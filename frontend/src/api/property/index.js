@@ -41,6 +41,19 @@ export async function getMyProperties(page = 1, signal) {
   return data
 }
 
+// PROPERTY_006 내 매물 수정 화면의 첫 값. 거래 조건·주소·진행 상태와 수정 가능 여부(isUpdatable)를 준다
+// 없거나 남의 매물, 삭제한 매물은 404다
+export async function getMyProperty(propertyId, signal) {
+  const { data } = await api.get(`/property/mine/${propertyId}`, { ...PROPERTY_CONFIG, signal })
+  return data
+}
+
+// PROPERTY_006 내 매물 거래 조건 수정. 거래 유형·보증금·월세(원)만 바꾸고 주소는 바꾸지 않는다. 성공하면 본문 없이 204를 준다
+// 계약이 끝난 매물은 409(PROPERTY_NOT_UPDATABLE)다
+export async function updateMyProperty(propertyId, request) {
+  await api.put(`/property/mine/${propertyId}`, request, PROPERTY_CONFIG)
+}
+
 // PROPERTY_012 나에게 온 중개 신청 목록. status(REQUESTED·ACCEPTED)별로 한 페이지 5개씩, page는 1부터
 export async function getReceivedBrokerageRequests(status, page = 1, signal) {
   const { data } = await api.get('/property/brokerage-requests/received', { ...PROPERTY_CONFIG, params: { status, page }, signal })
