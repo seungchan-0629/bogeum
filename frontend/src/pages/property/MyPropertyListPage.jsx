@@ -1,6 +1,6 @@
 // [페이지] 내 매물 (임대인) — /my-properties
 // 중개를 신청한 매물과 진행 상태를 보고, 수정·삭제한다
-// 요구사항: PROPERTY_013 (목록), PROPERTY_006 (수정 → /my-properties/:propertyId/edit), PROPERTY_007 (삭제, 확인 창)
+// 요구사항: PROPERTY_013 (목록), PROPERTY_006 (수정 → /my-properties/:propertyId/edit, 계약 완료는 월세·AS로), PROPERTY_007 (삭제, 확인 창)
 // API:
 // - 목록: GET /property/mine?page= — 최근 신청 순서로 10개씩, 삭제한 매물은 빠지고 숨긴 매물은 남는다
 // - 삭제: DELETE /api/v1/properties/{propertyId} (BE-022)
@@ -92,10 +92,14 @@ function MyPropertyListPage() {
     { label: '신청일', render: (row) => <span className="whitespace-nowrap">{formatDate(row.requestedAt)}</span> },
     {
       label: '관리',
-      // TODO: PROPERTY_006·007을 연결할 때 단계별로 수정·삭제할 수 있는지 다시 정한다
+      // 계약이 끝난 매물은 고칠 수 없고 이제 월세와 입주·AS를 관리한다
+      // TODO: 월세 수납 현황(RENT_003)·AS가 매물별로 보이게 되면 ?propertyId=를 붙여 이 매물만 보여 준다
       render: (row) =>
         row.propertyStatus === 'CONTRACTED' ? (
-          <Link to={`/properties/${row.propertyId}`} className="btn-secondary btn-sm">상세</Link>
+          <span className="flex gap-1.5">
+            <Link to="/rent/collections" className="btn-secondary btn-sm whitespace-nowrap">월세 관리</Link>
+            <Link to="/care" className="btn-secondary btn-sm whitespace-nowrap">입주·AS</Link>
+          </span>
         ) : (
           <span className="flex gap-1.5">
             <Link to={`/my-properties/${row.propertyId}/edit`} className="btn-secondary btn-sm">수정</Link>
