@@ -21,6 +21,7 @@ import com.bogeum.common.enums.PropertyStatus;
 import com.bogeum.common.enums.Role;
 import com.bogeum.domain.favorite.model.Favorite;
 import com.bogeum.domain.property.PropertyRepository;
+import com.bogeum.domain.property.PropertyService;
 import com.bogeum.domain.property.model.Property;
 import com.bogeum.domain.user.UserRepository;
 import com.bogeum.domain.user.UserService;
@@ -50,6 +51,9 @@ class FavoriteDeleteTest {
 	// 해제에는 쓰지 않는 회원 조회
 	@MockitoBean
 	private UserService userService;
+	// 해제에는 쓰지 않는 매물 서비스 (관심 매물 목록의 대표 사진용)
+	@MockitoBean
+	private PropertyService propertyService;
 
 	private User landlord;
 	private User user;
