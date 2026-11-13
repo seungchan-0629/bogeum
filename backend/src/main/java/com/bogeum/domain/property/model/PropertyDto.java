@@ -13,6 +13,7 @@ import com.bogeum.common.enums.PropertyType;
 import com.bogeum.domain.agent.model.Agent;
 import com.bogeum.domain.user.model.User;
 
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -142,6 +143,73 @@ public class PropertyDto {
 				.totalPages(requests.getTotalPages())
 				.totalElements(requests.getTotalElements())
 				.build();
+		}
+	}
+
+	/**
+	 * 매물 목록 검색 조건 (PROPERTY_005). 모두 선택값이고, 보낸 조건만 모두 맞는 매물을 찾는다.
+	 * 금액은 원, 면적은 평 단위다. 보증금·월세는 화면의 범위 막대에 맞춰 최소·최대를 받고, 나머지는 최소만 받는다.
+	 * 쿼리 값을 생성자로 받는다 (예: ?propertyTypes=APARTMENT&propertyTypes=VILLA&maxDeposit=300000000).
+	 */
+	@Getter
+	@Builder
+	@AllArgsConstructor
+	public static class SearchRequest {
+
+		private List<PropertyType> propertyTypes;
+		private List<LeaseType> leaseTypes;
+
+		@PositiveOrZero(message = "보증금은 0원 이상으로 입력해 주세요.")
+		@Digits(integer = 15, fraction = 0, message = "보증금은 원 단위로 입력해 주세요.")
+		private BigDecimal minDeposit;
+
+		@PositiveOrZero(message = "보증금은 0원 이상으로 입력해 주세요.")
+		@Digits(integer = 15, fraction = 0, message = "보증금은 원 단위로 입력해 주세요.")
+		private BigDecimal maxDeposit;
+
+		@PositiveOrZero(message = "월세는 0원 이상으로 입력해 주세요.")
+		@Digits(integer = 15, fraction = 0, message = "월세는 원 단위로 입력해 주세요.")
+		private BigDecimal minMonthlyRent;
+
+		@PositiveOrZero(message = "월세는 0원 이상으로 입력해 주세요.")
+		@Digits(integer = 15, fraction = 0, message = "월세는 원 단위로 입력해 주세요.")
+		private BigDecimal maxMonthlyRent;
+
+		@PositiveOrZero(message = "면적은 0평 이상으로 입력해 주세요.")
+		@Digits(integer = 5, fraction = 2, message = "면적은 소수 둘째 자리까지 입력해 주세요.")
+		private BigDecimal minArea;
+
+		@PositiveOrZero(message = "세대 수는 0 이상으로 입력해 주세요.")
+		private Integer minHouseholdCount;
+
+		@PositiveOrZero(message = "주차 대수는 0 이상으로 입력해 주세요.")
+		private Integer minParkingCount;
+
+		// 지하층(음수)부터 찾을 수도 있어 음수를 허용한다
+		private Integer minFloor;
+
+		@PositiveOrZero(message = "방 개수는 0 이상으로 입력해 주세요.")
+		private Integer minRoomCount;
+
+		// 도로명주소에서 찾는다. 띄어쓰기로 나눈 낱말이 모두 들어 있어야 한다 (예: "서울 강남구")
+		@Size(max = 50, message = "지역은 50자까지 입력해 주세요.")
+		private String region;
+
+		@Size(max = 50, message = "지하철역은 50자까지 입력해 주세요.")
+		private String subway;
+
+		// 메인 검색창의 검색어. 낱말마다 주소나 지하철역 중 한 곳에 들어 있어야 한다
+		@Size(max = 50, message = "검색어는 50자까지 입력해 주세요.")
+		private String keyword;
+
+		@AssertTrue(message = "보증금 최소값은 최대값보다 클 수 없습니다.")
+		public boolean isDepositRangeValid() {
+			return minDeposit == null || maxDeposit == null || minDeposit.compareTo(maxDeposit) <= 0;
+		}
+
+		@AssertTrue(message = "월세 최소값은 최대값보다 클 수 없습니다.")
+		public boolean isMonthlyRentRangeValid() {
+			return minMonthlyRent == null || maxMonthlyRent == null || minMonthlyRent.compareTo(maxMonthlyRent) <= 0;
 		}
 	}
 

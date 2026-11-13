@@ -46,6 +46,8 @@ public class PropertyService {
 	private static final int PAGE_SIZE = 5;
 	// 매물 목록을 한 번에 가져오는 개수. 카드가 2·3·4열 어느 쪽이어도 줄이 맞는다 (PROPERTY_004)
 	private static final int LIST_SIZE = 12;
+	// 최근 공개 순서. 같은 시각이면 번호가 큰 매물부터라 커서 비교와 순서가 같다 (PROPERTY_004)
+	private static final Sort LIST_SORT = Sort.by(Sort.Direction.DESC, "publishedAt", "propertyId");
 	// 매물 하나에 올릴 수 있는 사진 수. AS 사진 상한과 같다 (PROPERTY_010)
 	private static final int MAX_IMAGE_COUNT = 10;
 
@@ -145,21 +147,24 @@ public class PropertyService {
 	/**
 	 * 공개 중(ACTIVE)인 매물을 최근 공개 순서로 이어서 조회한다.
 	 * 스크롤 목록이라 페이지 번호 대신 앞 목록의 마지막 매물 다음부터 보여준다.
+	 * 검색 조건이 있으면 모두 맞는 매물만 같은 순서로 보여준다 (PROPERTY_005).
 	 * 저장소가 없으면 사진 주소만 비우고 목록 조회는 막지 않는다.
 	 *
+	 * @param search 검색 조건. 조건을 하나도 보내지 않으면 공개 매물 전체다
 	 * @param cursorPublishedAt 앞 목록 마지막 매물의 공개 시각. 첫 목록이면 둘 다 비운다
 	 * @param cursorPropertyId 앞 목록 마지막 매물의 번호
 	 * @throws PropertyException 커서 값이 하나만 온 경우
 	 */
 	@Transactional(readOnly = true)
-	public PropertyDto.PropertyListResponse readProperties(LocalDateTime cursorPublishedAt, Long cursorPropertyId) {
+	public PropertyDto.PropertyListResponse readProperties(PropertyDto.SearchRequest search,
+			LocalDateTime cursorPublishedAt, Long cursorPropertyId) {
 		if ((cursorPublishedAt == null) != (cursorPropertyId == null)) {
 			throw PropertyException.invalidCursor();
 		}
-		Pageable pageable = PageRequest.of(0, LIST_SIZE);
-		Slice<Property> properties = cursorPropertyId == null
-			? propertyRepository.findPublished(PropertyStatus.ACTIVE, pageable)
-			: propertyRepository.findPublishedAfter(PropertyStatus.ACTIVE, cursorPublishedAt, cursorPropertyId, pageable);
+		Slice<Property> properties = propertyRepository.findBy(
+			PropertySpecifications.searchPublished(search, cursorPublishedAt, cursorPropertyId),
+			// 정렬은 Pageable에 함께 넣는다. sortBy()로 따로 주면 정렬 없는 Pageable이 그 정렬을 덮어쓴다
+			query -> query.slice(PageRequest.of(0, LIST_SIZE, LIST_SORT)));
 
 		Map<Long, String> thumbnailKeys = findThumbnailKeys(properties.getContent());
 		PropertyImageStorage storage = thumbnailKeys.isEmpty() ? null : storageProvider.getIfAvailable();
