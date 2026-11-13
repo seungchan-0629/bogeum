@@ -7,6 +7,9 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum ErrorCode {
+	// 관리자 위험 사용자 신규 등록 (RISK_001)
+	RISK_USER_NOT_FOUND(HttpStatus.NOT_FOUND, "등록할 회원을 찾을 수 없습니다."),
+	RISK_ALREADY_REGISTERED(HttpStatus.CONFLICT, "이미 같은 사유로 등록된 위험 사용자입니다."),
 	// 종료된 AS의 댓글 추가·재개 요청을 거절한다 (AS_003).
 	AS_ALREADY_COMPLETED(HttpStatus.CONFLICT, "처리가 완료된 AS 요청은 변경할 수 없습니다."),
 	// 타인 소유 AS와 없는 AS를 구분하지 않는다 (AS_002).
