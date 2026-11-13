@@ -297,6 +297,63 @@ class PropertyControllerTest {
 	}
 
 	@Test
+	@DisplayName("내 매물 수정 화면 첫 값은 로그인 사용자 기준으로 조회하고 수정 가능 여부를 isUpdatable로 준다")
+	void readsMyProperty() throws Exception {
+		when(propertyService.readMyProperty(1L, 20L)).thenReturn(PropertyDto.MyPropertyDetailResponse.builder()
+			.propertyId(20L).leaseType(LeaseType.MONTHLY).deposit(BigDecimal.valueOf(10_000_000))
+			.monthlyRent(BigDecimal.valueOf(700_000)).roadAddress("서울특별시 마포구 월드컵로 61").detailAddress("302호")
+			.brokerageStatus(BrokerageStatus.ACCEPTED).propertyStatus(PropertyStatus.ACTIVE).isUpdatable(true).build());
+
+		mockMvc.perform(get("/property/mine/20"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.propertyId").value(20))
+			.andExpect(jsonPath("$.leaseType").value("MONTHLY"))
+			.andExpect(jsonPath("$.detailAddress").value("302호"))
+			.andExpect(jsonPath("$.isUpdatable").value(true));
+	}
+
+	@Test
+	@DisplayName("내 매물 수정은 로그인 사용자·매물 기준으로 처리하고 204를 반환한다")
+	void updatesMyProperty() throws Exception {
+		mockMvc.perform(put("/property/mine/20").contentType(MediaType.APPLICATION_JSON)
+				.content("{\"leaseType\":\"JEONSE\",\"deposit\":300000000}"))
+			.andExpect(status().isNoContent());
+
+		ArgumentCaptor<PropertyDto.LeaseTermsRequest> captor = ArgumentCaptor.forClass(PropertyDto.LeaseTermsRequest.class);
+		verify(propertyService).updateMyProperty(eq(1L), eq(20L), captor.capture());
+		assertEquals(LeaseType.JEONSE, captor.getValue().getLeaseType());
+		assertEquals(0, BigDecimal.valueOf(300_000_000).compareTo(captor.getValue().getDeposit()));
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {
+		"{\"deposit\":10000000}",
+		"{\"leaseType\":\"MONTHLY\"}",
+		"{\"leaseType\":\"MONTHLY\",\"deposit\":-1,\"monthlyRent\":700000}",
+		"{\"leaseType\":\"MONTHLY\",\"deposit\":10000000,\"monthlyRent\":-1}",
+		"{\"leaseType\":\"MONTHLY\",\"deposit\":1234567890123456,\"monthlyRent\":700000}"
+	})
+	@DisplayName("내 매물 수정 값이 없거나 음수, 15자리를 넘으면 서비스 호출 전에 400으로 거절한다")
+	void rejectsInvalidLeaseTerms(String body) throws Exception {
+		mockMvc.perform(put("/property/mine/20").contentType(MediaType.APPLICATION_JSON).content(body))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+		verifyNoInteractions(propertyService);
+	}
+
+	@Test
+	@DisplayName("계약이 끝난 매물을 수정하면 409와 PROPERTY_NOT_UPDATABLE을 반환한다")
+	void rejectsUpdatingContractedProperty() throws Exception {
+		doThrow(PropertyException.notUpdatable()).when(propertyService)
+			.updateMyProperty(eq(1L), eq(20L), any(PropertyDto.LeaseTermsRequest.class));
+
+		mockMvc.perform(put("/property/mine/20").contentType(MediaType.APPLICATION_JSON)
+				.content("{\"leaseType\":\"MONTHLY\",\"deposit\":10000000,\"monthlyRent\":700000}"))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("PROPERTY_NOT_UPDATABLE"));
+	}
+
+	@Test
 	@DisplayName("매물 번호가 숫자가 아니면 서비스 호출 전에 400으로 거절한다")
 	void rejectsInvalidPropertyId() throws Exception {
 		mockMvc.perform(get("/property/abc"))
