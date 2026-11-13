@@ -7,11 +7,45 @@ import org.springframework.data.domain.Page;
 
 import com.bogeum.common.enums.RiskReason;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
-/** 위험정보 조회 응답. 저장 키와 불필요한 개인정보는 노출하지 않는다. */
+/** 위험정보 등록·수정 요청과 조회 응답. 저장 키와 불필요한 개인정보는 노출하지 않는다. */
 public class RiskDto {
+
+	/** 사용자 위험정보 등록 요청. 등록자·상태·증빙 키는 요청으로 지정하지 않는다. */
+	@Getter
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class UserRegReq {
+		@NotNull(message = "등록할 회원 번호를 입력해 주세요.")
+		@Positive(message = "회원 번호는 양수로 입력해 주세요.")
+		private Long userId;
+		@NotNull(message = "위험 사유를 선택해 주세요.")
+		private RiskReason reasonType;
+		// 선택값이며, 기존 TEXT 컬럼의 UTF-8 바이트 상한은 서비스에서 검증한다.
+		private String detail;
+	}
+
+	/** 수정 후 최종 상태. detail 생략·null은 삭제이며, 수정 사유만 바꾸는 요청은 허용하지 않는다. */
+	@Getter
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class UserUpdateReq {
+		@NotNull(message = "위험 사유를 선택해 주세요.")
+		private RiskReason reasonType;
+		// 공백·줄바꿈을 보존하며, 등록과 같은 TEXT 바이트 상한을 적용한다.
+		private String detail;
+		@NotBlank(message = "수정 사유를 입력해 주세요.")
+		@Size(max = 255, message = "수정 사유는 255자 이하로 입력해 주세요.")
+		private String updateReason;
+	}
 
 	/** 위험정보 한 건에 대응하는 관리자 목록 항목. */
 	@Getter
