@@ -73,7 +73,7 @@ const toCardProperty = (property) => ({
 
 function PropertyListPage() {
   const user = useAuthStore((state) => state.user)
-  const { favoriteIds, toggleFavorite } = useFavoriteToggle([2])
+  const { favoriteIds, toggleFavorite, isPending, errorOf } = useFavoriteToggle()
   const [searchParams, setSearchParams] = useSearchParams()
   // 지금 목록에 적용된 조건. 주소창 그대로라 query key로도 쓴다
   const appliedQuery = searchParams.toString()
@@ -159,6 +159,8 @@ function PropertyListPage() {
                   property={property}
                   isFavorite={favoriteIds.has(property.propertyId)}
                   onToggleFavorite={user.role === ROLES.USER ? toggleFavorite : undefined}
+                  isFavoritePending={isPending(property.propertyId)}
+                  favoriteError={errorOf(property.propertyId)}
                 />
               ))}
             </div>
