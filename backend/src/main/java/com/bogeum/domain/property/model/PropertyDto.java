@@ -204,6 +204,61 @@ public class PropertyDto {
 	}
 
 	/**
+	 * 임대인 매물 수정 화면의 첫 값 (PROPERTY_006).
+	 * 주소는 바꿀 수 없어 보여 주기만 하고, 계약이 끝난 매물은 isUpdatable이 false라 화면이 저장을 막는다.
+	 */
+	@Getter
+	@Builder
+	public static class MyPropertyDetailResponse {
+
+		private Long propertyId;
+		private LeaseType leaseType;
+		private BigDecimal deposit;
+		private BigDecimal monthlyRent;
+		private String roadAddress;
+		private String detailAddress;
+		private BrokerageStatus brokerageStatus;
+		private PropertyStatus propertyStatus;
+		private Boolean isUpdatable;
+
+		public static MyPropertyDetailResponse from(com.bogeum.domain.property.model.BrokerageRequest request) {
+			Property property = request.getProperty();
+			return MyPropertyDetailResponse.builder()
+				.propertyId(property.getPropertyId())
+				.leaseType(property.getLeaseType())
+				.deposit(property.getDeposit())
+				.monthlyRent(property.getMonthlyRent())
+				.roadAddress(property.getRoadAddress())
+				.detailAddress(property.getDetailAddress())
+				.brokerageStatus(request.getBrokerageStatus())
+				.propertyStatus(property.getPropertyStatus())
+				.isUpdatable(property.isUpdatableByLandlord())
+				.build();
+		}
+	}
+
+	/** 임대인이 바꾸는 거래 조건. 가격 규칙은 중개 신청과 같다 (PROPERTY_006) */
+	@Getter
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class LeaseTermsRequest {
+
+		@NotNull(message = "임대 형식을 선택해 주세요.")
+		private LeaseType leaseType;
+
+		// 보증금 또는 전세금(원). DB 자리수(15자리)를 넘지 않게 막는다
+		@NotNull(message = "보증금을 입력해 주세요.")
+		@PositiveOrZero(message = "보증금은 0원 이상으로 입력해 주세요.")
+		@Digits(integer = 15, fraction = 0, message = "보증금은 15자리 이하의 원 단위로 입력해 주세요.")
+		private BigDecimal deposit;
+
+		// 전세는 비워 두거나 0
+		@PositiveOrZero(message = "월세는 0원 이상으로 입력해 주세요.")
+		@Digits(integer = 15, fraction = 0, message = "월세는 15자리 이하의 원 단위로 입력해 주세요.")
+		private BigDecimal monthlyRent;
+	}
+
+	/**
 	 * 매물 목록 검색 조건 (PROPERTY_005). 모두 선택값이고, 보낸 조건만 모두 맞는 매물을 찾는다.
 	 * 금액은 원, 면적은 평 단위다. 보증금·월세는 화면의 범위 막대에 맞춰 최소·최대를 받고, 나머지는 최소만 받는다.
 	 * 쿼리 값을 생성자로 받는다 (예: ?propertyTypes=APARTMENT&propertyTypes=VILLA&maxDeposit=300000000).
