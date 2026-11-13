@@ -2,17 +2,30 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import clsx from 'clsx'
 
-const TRADE_TYPES = ['전세', '월세', '매매']
+// 매매는 서비스에서 다루지 않아 뺐다. 처음엔 거래 유형 조건 없이(전체) 찾는다 (PROPERTY_005)
+const TRADE_TYPES = [
+  { value: '', label: '전체' },
+  { value: 'JEONSE', label: '전세' },
+  { value: 'MONTHLY', label: '월세' },
+]
 
 function SearchSection() {
-  const [tradeType, setTradeType] = useState(TRADE_TYPES[0])
+  const [tradeType, setTradeType] = useState('')
+  const [region, setRegion] = useState('')
+  const [subway, setSubway] = useState('')
   const navigate = useNavigate()
 
-  // 매물 찾기 화면으로 이동한다. 로그인하지 않았으면 그 화면에서 로그인 안내가 뜬다
-  // TODO: 고른 거래 유형과 검색어를 주소 쿼리로 넘겨 매물 찾기 화면의 검색 조건(BE-018)에 채운다
+  // 고른 거래 유형·지역·지하철역을 주소 쿼리로 넘긴다. 매물 찾기 화면이 이 값을 왼쪽 같은 칸에 채운다
+  // 지역과 지하철역을 칸으로 나눠 받아서, 입력한 글자가 무엇인지 짐작하지 않아도 된다. 둘 다 비우면 전체 목록이다
+  // 로그인하지 않았으면 그 화면에서 로그인 안내가 뜬다
   const handleSubmit = (event) => {
     event.preventDefault()
-    navigate('/properties')
+    const params = new URLSearchParams()
+    if (tradeType) params.set('leaseTypes', tradeType)
+    if (region.trim()) params.set('region', region.trim())
+    if (subway.trim()) params.set('subway', subway.trim())
+    const query = params.toString()
+    navigate(query ? `/properties?${query}` : '/properties')
   }
 
   return (
@@ -31,31 +44,47 @@ function SearchSection() {
           <div role="group" aria-label="거래 유형" className="flex gap-2">
             {TRADE_TYPES.map((type) => (
               <button
-                key={type}
+                key={type.value}
                 type="button"
-                aria-pressed={tradeType === type}
-                onClick={() => setTradeType(type)}
+                aria-pressed={tradeType === type.value}
+                onClick={() => setTradeType(type.value)}
                 className={clsx(
                   'rounded-full px-5 py-2.5 text-[15px]',
-                  tradeType === type
+                  tradeType === type.value
                     ? 'bg-blue-600 font-bold text-white'
                     : 'border border-gray-300 bg-white font-medium text-gray-700 hover:bg-gray-50',
                 )}
               >
-                {type}
+                {type.label}
               </button>
             ))}
           </div>
-          <div className="flex flex-wrap gap-3">
-            <label htmlFor="main-search" className="sr-only">
-              매물 검색
-            </label>
-            <input
-              id="main-search"
-              type="search"
-              placeholder="지역, 지하철역, 학교 이름으로 찾아보세요"
-              className="h-14 min-w-0 flex-[1_1_320px] rounded-xl border border-gray-300 px-5 text-base"
-            />
+          {/* 넓은 화면에서는 한 줄, 좁은 화면에서는 칸이 아래로 쌓인다 */}
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex min-w-0 flex-[1_1_240px] flex-col gap-1.5">
+              <label htmlFor="main-search-region" className="text-sm font-medium text-gray-700">지역</label>
+              <input
+                id="main-search-region"
+                type="search"
+                value={region}
+                maxLength={50}
+                onChange={(event) => setRegion(event.target.value)}
+                placeholder="ex. 서울 강남구"
+                className="h-14 w-full rounded-xl border border-gray-300 px-5 text-base"
+              />
+            </div>
+            <div className="flex min-w-0 flex-[1_1_240px] flex-col gap-1.5">
+              <label htmlFor="main-search-subway" className="text-sm font-medium text-gray-700">지하철역</label>
+              <input
+                id="main-search-subway"
+                type="search"
+                value={subway}
+                maxLength={50}
+                onChange={(event) => setSubway(event.target.value)}
+                placeholder="ex. 고속터미널"
+                className="h-14 w-full rounded-xl border border-gray-300 px-5 text-base"
+              />
+            </div>
             <button type="submit" className="h-14 rounded-xl bg-blue-600 px-8 text-base font-bold text-white hover:bg-blue-700">
               검색
             </button>
