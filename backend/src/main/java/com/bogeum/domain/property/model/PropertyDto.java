@@ -147,6 +147,63 @@ public class PropertyDto {
 	}
 
 	/**
+	 * 임대인이 중개를 신청한 내 매물 한 줄 (PROPERTY_013).
+	 * 진행 단계는 중개 신청 상태(수락했는지)와 매물 상태(공개·계약했는지)를 그대로 주고 화면이 이름을 붙인다.
+	 * 본인 매물이라 공개 목록과 달리 상세주소(동·호수)도 준다.
+	 * 담당 중개사는 사무소 이름과 중개사 이름을 함께 주고, 사무소 정보가 없으면 사무소 이름만 비운다.
+	 */
+	@Getter
+	@Builder
+	public static class MyPropertyItemResponse {
+
+		private Long propertyId;
+		private Long brokerageRequestId;
+		private String roadAddress;
+		private String detailAddress;
+		private LeaseType leaseType;
+		private BigDecimal deposit;
+		private BigDecimal monthlyRent;
+		private BrokerageStatus brokerageStatus;
+		private PropertyStatus propertyStatus;
+		private String agentName;
+		private String officeName;
+		// 임대인이 직접 고른 중개사인지(false면 서비스가 배정한 중개사)
+		private Boolean isDesignated;
+		private LocalDateTime requestedAt;
+
+		public static MyPropertyItemResponse from(com.bogeum.domain.property.model.BrokerageRequest request,
+				Agent agentProfile) {
+			Property property = request.getProperty();
+			return MyPropertyItemResponse.builder()
+				.propertyId(property.getPropertyId())
+				.brokerageRequestId(request.getBrokerageRequestId())
+				.roadAddress(property.getRoadAddress())
+				.detailAddress(property.getDetailAddress())
+				.leaseType(property.getLeaseType())
+				.deposit(property.getDeposit())
+				.monthlyRent(property.getMonthlyRent())
+				.brokerageStatus(request.getBrokerageStatus())
+				.propertyStatus(property.getPropertyStatus())
+				.agentName(request.getAgent().getName())
+				.officeName(agentProfile == null ? null : agentProfile.getOfficeName())
+				.isDesignated(request.getIsDesignated())
+				.requestedAt(request.getCreatedAt())
+				.build();
+		}
+	}
+
+	/** 내 매물 목록과 페이지 정보. page는 화면의 페이지 번호와 같이 1부터 센다 (PROPERTY_013) */
+	@Getter
+	@Builder
+	public static class MyPropertyListResponse {
+
+		private List<MyPropertyItemResponse> properties;
+		private int page;
+		private int totalPages;
+		private long totalElements;
+	}
+
+	/**
 	 * 매물 목록 검색 조건 (PROPERTY_005). 모두 선택값이고, 보낸 조건만 모두 맞는 매물을 찾는다.
 	 * 금액은 원, 면적은 평 단위다. 보증금·월세는 화면의 범위 막대에 맞춰 최소·최대를 받고, 나머지는 최소만 받는다.
 	 * 쿼리 값을 생성자로 받는다 (예: ?propertyTypes=APARTMENT&propertyTypes=VILLA&maxDeposit=300000000).

@@ -10,6 +10,7 @@ import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -46,6 +47,10 @@ public class PropertyService {
 	private static final int PAGE_SIZE = 5;
 	// 매물 목록을 한 번에 가져오는 개수. 카드가 2·3·4열 어느 쪽이어도 줄이 맞는다 (PROPERTY_004)
 	private static final int LIST_SIZE = 12;
+	// 내 매물 목록 한 페이지의 개수. 화면이 표라서 10개씩 본다 (PROPERTY_013)
+	private static final int MY_PAGE_SIZE = 10;
+	// 최근 신청 순서. 같은 시각이면 신청 번호가 큰 것부터다 (PROPERTY_013)
+	private static final Sort MY_SORT = Sort.by(Sort.Direction.DESC, "createdAt", "brokerageRequestId");
 	// 최근 공개 순서. 같은 시각이면 번호가 큰 매물부터라 커서 비교와 순서가 같다 (PROPERTY_004)
 	private static final Sort LIST_SORT = Sort.by(Sort.Direction.DESC, "publishedAt", "propertyId");
 	// 매물 하나에 올릴 수 있는 사진 수. AS 사진 상한과 같다 (PROPERTY_010)
@@ -221,6 +226,32 @@ public class PropertyService {
 		Agent agent = agentRepository.findByUser_UserId(agentUser.getUserId()).orElse(null);
 		return PropertyDto.PublicDetailResponse.from(property, imageResponses,
 			PropertyDto.AgentInfoResponse.from(agentUser, agent));
+	}
+
+	/**
+	 * 임대인 본인이 중개를 신청한 매물을 최근 신청 순서로 페이지 단위로 조회한다 (PROPERTY_013).
+	 * 삭제한 매물은 빼고, 관리자가 숨긴 매물은 임대인이 고치거나 지울 수 있게 남긴다 (RISK_005).
+	 * 담당 중개사의 사무소 정보는 목록에 나온 중개사만 한 번에 조회한다.
+	 *
+	 * @param page 1부터 센다. 1보다 작으면 첫 페이지를 준다
+	 */
+	@Transactional(readOnly = true)
+	public PropertyDto.MyPropertyListResponse readMyProperties(Long landlordUserId, int page) {
+		Page<BrokerageRequest> requests = brokerageRequestRepository.findAllByLandlord_UserIdAndProperty_PropertyStatusNot(
+			landlordUserId, PropertyStatus.DELETED, PageRequest.of(Math.max(page, 1) - 1, MY_PAGE_SIZE, MY_SORT));
+		List<Long> agentUserIds = requests.stream().map(request -> request.getAgent().getUserId()).distinct().toList();
+		Map<Long, Agent> agentProfiles = new HashMap<>();
+		if (!agentUserIds.isEmpty()) {
+			brokerageRequestRepository.findAgentProfilesByUserIds(agentUserIds)
+				.forEach(agent -> agentProfiles.put(agent.getUser().getUserId(), agent));
+		}
+		return PropertyDto.MyPropertyListResponse.builder()
+			.properties(requests.map(request -> PropertyDto.MyPropertyItemResponse.from(request,
+				agentProfiles.get(request.getAgent().getUserId()))).getContent())
+			.page(requests.getNumber() + 1)
+			.totalPages(requests.getTotalPages())
+			.totalElements(requests.getTotalElements())
+			.build();
 	}
 
 	/**

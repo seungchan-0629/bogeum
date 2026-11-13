@@ -97,6 +97,8 @@ public class CustomSecurityConfig {
 				// 중개 신청은 일반 사용자가 하고, 중개사가 받아서 관리한다 (PROPERTY_002, PROPERTY_008)
 				// 매물 목록은 임대인·임차인(USER)과 중개사(AGENT)가 함께 본다 (PROPERTY_004, PROPERTY_009)
 				.requestMatchers(HttpMethod.GET, "/property").authenticated()
+				// 내 매물 목록은 중개를 신청하는 사용자만 본다. 아래 /property/* 규칙에 먼저 걸리지 않게 앞에 둔다 (PROPERTY_013)
+				.requestMatchers(HttpMethod.GET, "/property/mine").hasRole("USER")
 				// 공개 중인 매물 상세도 같은 사용자가 본다. *는 한 단계라 /property/*/details 규칙과 겹치지 않는다 (PROPERTY_003)
 				.requestMatchers(HttpMethod.GET, "/property/*").authenticated()
 				// 관심 매물은 집을 찾는 사용자만 담는다 (FAVORITE_001)
