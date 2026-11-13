@@ -23,6 +23,10 @@ public interface PropertyRepository extends JpaRepository<Property, Long>, JpaSp
 	@EntityGraph(attributePaths = "landlord")
 	Optional<Property> findByPropertyIdAndAgent_UserId(Long propertyId, Long agentUserId);
 
+	// 임대인 본인 매물만 찾는다. 중개사가 계약을 등록하는 중에 가격이 바뀌지 않도록 계약 등록과 같이 매물 행을 잠근다 (PROPERTY_006)
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	Optional<Property> findForUpdateByPropertyIdAndLandlord_UserId(Long propertyId, Long landlordUserId);
+
 	// 사진 추가처럼 개수를 세고 늘리는 작업은 매물 행을 잠가 동시 요청이 상한을 넘지 않게 한다 (PROPERTY_010)
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	Optional<Property> findForUpdateByPropertyIdAndAgent_UserId(Long propertyId, Long agentUserId);
