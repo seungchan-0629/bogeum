@@ -1,13 +1,20 @@
 package com.bogeum.domain.favorite;
 
+import java.util.Map;
+
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.bogeum.common.enums.PropertyStatus;
 import com.bogeum.domain.favorite.model.Favorite;
+import com.bogeum.domain.favorite.model.FavoriteDto;
 import com.bogeum.domain.property.PropertyException;
 import com.bogeum.domain.property.PropertyRepository;
+import com.bogeum.domain.property.PropertyService;
 import com.bogeum.domain.property.model.Property;
 import com.bogeum.domain.user.UserService;
 
@@ -17,8 +24,14 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class FavoriteService {
 
+	// 관심 매물 목록 한 페이지의 개수. 매물 찾기와 같아 카드가 2·3·4열 어느 쪽이어도 줄이 맞는다 (FAVORITE_003)
+	private static final int PAGE_SIZE = 12;
+	// 최근에 담은 순서. 같은 시각이면 관심 번호가 큰(나중에 담은) 것부터다
+	private static final Sort LIST_SORT = Sort.by(Sort.Direction.DESC, "createdAt", "favoritePropertyId");
+
 	private final FavoriteRepository favoriteRepository;
 	private final PropertyRepository propertyRepository;
+	private final PropertyService propertyService;
 	private final UserService userService;
 
 	/**
@@ -49,6 +62,32 @@ public class FavoriteService {
 				throw exception;
 			}
 		}
+	}
+
+	/**
+	 * 사용자 본인이 담은 관심 매물을 최근에 담은 순서로 페이지 단위로 조회한다 (FAVORITE_003).
+	 * 담은 뒤 계약 완료·숨김·삭제된 매물도 해제할 수 있게 목록에 남기고, 공개 중인지만 알린다.
+	 *
+	 * @param page 1부터 센다. 1보다 작으면 첫 페이지를 준다
+	 */
+	@Transactional(readOnly = true)
+	public FavoriteDto.FavoriteListResponse readFavorites(Long userId, int page) {
+		Page<Favorite> favorites = favoriteRepository.findAllByUser_UserId(userId,
+			PageRequest.of(Math.max(page, 1) - 1, PAGE_SIZE, LIST_SORT));
+		Map<Long, String> thumbnailUrls = propertyService.readThumbnailUrls(
+			favorites.map(Favorite::getProperty).getContent());
+		return FavoriteDto.FavoriteListResponse.from(favorites, thumbnailUrls);
+	}
+
+	/**
+	 * 사용자 본인이 담은 매물 번호를 전부 준다 (FAVORITE_003).
+	 * 목록은 페이지로 나뉘어 번호를 다 모을 수 없어서, 매물 찾기·상세가 처음부터 하트를 채울 때 이걸 쓴다.
+	 */
+	@Transactional(readOnly = true)
+	public FavoriteDto.FavoriteIdsResponse readFavoriteIds(Long userId) {
+		return FavoriteDto.FavoriteIdsResponse.builder()
+			.propertyIds(favoriteRepository.findPropertyIdsByUserId(userId))
+			.build();
 	}
 
 	/**

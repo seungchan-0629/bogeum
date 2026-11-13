@@ -166,14 +166,9 @@ public class PropertyService {
 			// 정렬은 Pageable에 함께 넣는다. sortBy()로 따로 주면 정렬 없는 Pageable이 그 정렬을 덮어쓴다
 			query -> query.slice(PageRequest.of(0, LIST_SIZE, LIST_SORT)));
 
-		Map<Long, String> thumbnailKeys = findThumbnailKeys(properties.getContent());
-		PropertyImageStorage storage = thumbnailKeys.isEmpty() ? null : storageProvider.getIfAvailable();
+		Map<Long, String> thumbnailUrls = readThumbnailUrls(properties.getContent());
 		List<PropertyDto.PropertyItemResponse> items = properties.stream()
-			.map(property -> {
-				String key = thumbnailKeys.get(property.getPropertyId());
-				return PropertyDto.PropertyItemResponse.from(property,
-					key == null || storage == null ? null : storage.createReadUrl(key));
-			})
+			.map(property -> PropertyDto.PropertyItemResponse.from(property, thumbnailUrls.get(property.getPropertyId())))
 			.toList();
 		Property last = properties.hasNext() ? properties.getContent().get(properties.getNumberOfElements() - 1) : null;
 		return PropertyDto.PropertyListResponse.builder()
@@ -184,6 +179,24 @@ public class PropertyService {
 				.cursorPropertyId(last.getPropertyId())
 				.build())
 			.build();
+	}
+
+	/**
+	 * 매물마다 대표 사진(순서가 가장 앞선 사진)의 조회 주소를 한 번에 만든다 (PROPERTY_004, FAVORITE_003).
+	 * 매물 목록과 관심 매물 목록이 같은 카드를 그려서 함께 쓴다. 사진을 매물마다 따로 조회하지 않는다.
+	 *
+	 * @return 매물 번호 → 대표 사진 주소. 사진이 없거나 저장소가 없는 매물은 들어 있지 않다
+	 */
+	@Transactional(readOnly = true)
+	public Map<Long, String> readThumbnailUrls(List<Property> properties) {
+		Map<Long, String> thumbnailKeys = findThumbnailKeys(properties);
+		PropertyImageStorage storage = thumbnailKeys.isEmpty() ? null : storageProvider.getIfAvailable();
+		if (storage == null) {
+			return Map.of();
+		}
+		Map<Long, String> urls = new HashMap<>();
+		thumbnailKeys.forEach((propertyId, key) -> urls.put(propertyId, storage.createReadUrl(key)));
+		return urls;
 	}
 
 	/**

@@ -5,11 +5,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -20,12 +23,17 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import com.bogeum.common.enums.PropertyStatus;
 import com.bogeum.common.exception.ErrorCode;
 import com.bogeum.domain.favorite.model.Favorite;
 import com.bogeum.domain.property.PropertyException;
 import com.bogeum.domain.property.PropertyRepository;
+import com.bogeum.domain.property.PropertyService;
 import com.bogeum.domain.property.model.Property;
 import com.bogeum.domain.user.UserService;
 import com.bogeum.domain.user.model.User;
@@ -39,6 +47,8 @@ class FavoriteServiceTest {
 	@Mock
 	private PropertyRepository propertyRepository;
 	@Mock
+	private PropertyService propertyService;
+	@Mock
 	private UserService userService;
 
 	private FavoriteService favoriteService;
@@ -47,7 +57,7 @@ class FavoriteServiceTest {
 
 	@BeforeEach
 	void setUp() {
-		favoriteService = new FavoriteService(favoriteRepository, propertyRepository, userService);
+		favoriteService = new FavoriteService(favoriteRepository, propertyRepository, propertyService, userService);
 	}
 
 	@Test
@@ -127,6 +137,58 @@ class FavoriteServiceTest {
 
 		verify(favoriteRepository).deleteByUserAndProperty(2L, 20L);
 		verifyNoInteractions(propertyRepository, userService);
+	}
+
+	@Test
+	@DisplayName("관심 매물 목록은 최근에 담은 순서로 12개씩 주고, 대표 사진과 공개 중인지 함께 담는다")
+	void readsFavorites() {
+		Property active = Property.builder().propertyId(20L).landlord(landlord).propertyStatus(PropertyStatus.ACTIVE).build();
+		Property contracted = Property.builder().propertyId(21L).landlord(landlord).propertyStatus(PropertyStatus.CONTRACTED).build();
+		var pageable = ArgumentCaptor.forClass(Pageable.class);
+		when(favoriteRepository.findAllByUser_UserId(eq(2L), pageable.capture())).thenAnswer(invocation -> new PageImpl<>(
+			List.of(Favorite.builder().user(user).property(active).build(),
+				Favorite.builder().user(user).property(contracted).build()),
+			invocation.getArgument(1), 14));
+		when(propertyService.readThumbnailUrls(List.of(active, contracted))).thenReturn(Map.of(20L, "https://s3/20.jpg"));
+
+		var response = favoriteService.readFavorites(2L, 2);
+
+		assertEquals(1, pageable.getValue().getPageNumber());
+		assertEquals(12, pageable.getValue().getPageSize());
+		assertEquals(Sort.by(Sort.Direction.DESC, "createdAt", "favoritePropertyId"), pageable.getValue().getSort());
+		assertEquals(List.of(20L, 21L),
+			response.getFavorites().stream().map(item -> item.getProperty().getPropertyId()).toList());
+		assertEquals("https://s3/20.jpg", response.getFavorites().get(0).getProperty().getThumbnailUrl());
+		assertEquals(null, response.getFavorites().get(1).getProperty().getThumbnailUrl());
+		assertEquals(true, response.getFavorites().get(0).getIsAvailable());
+		assertEquals(false, response.getFavorites().get(1).getIsAvailable());
+		assertEquals(2, response.getPage());
+		assertEquals(2, response.getTotalPages());
+		assertEquals(14L, response.getTotalElements());
+	}
+
+	@Test
+	@DisplayName("관심 매물 페이지가 1보다 작으면 첫 페이지를 준다")
+	void readsFirstPageWhenPageBelowOne() {
+		var pageable = ArgumentCaptor.forClass(Pageable.class);
+		when(favoriteRepository.findAllByUser_UserId(eq(2L), pageable.capture()))
+			.thenAnswer(invocation -> Page.empty(invocation.getArgument(1)));
+		when(propertyService.readThumbnailUrls(List.of())).thenReturn(Map.of());
+
+		var response = favoriteService.readFavorites(2L, 0);
+
+		assertEquals(0, pageable.getValue().getPageNumber());
+		assertEquals(List.of(), response.getFavorites());
+	}
+
+	@Test
+	@DisplayName("담은 매물 번호는 로그인 사용자 기준으로 전부 준다")
+	void readsFavoriteIds() {
+		when(favoriteRepository.findPropertyIdsByUserId(2L)).thenReturn(List.of(54L, 31L));
+
+		var response = favoriteService.readFavoriteIds(2L);
+
+		assertEquals(List.of(54L, 31L), response.getPropertyIds());
 	}
 
 	private Property givenActiveProperty() {

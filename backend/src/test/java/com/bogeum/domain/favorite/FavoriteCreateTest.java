@@ -19,6 +19,7 @@ import com.bogeum.common.enums.LeaseType;
 import com.bogeum.common.enums.PropertyStatus;
 import com.bogeum.common.enums.Role;
 import com.bogeum.domain.property.PropertyRepository;
+import com.bogeum.domain.property.PropertyService;
 import com.bogeum.domain.property.model.Property;
 import com.bogeum.domain.user.UserRepository;
 import com.bogeum.domain.user.UserService;
@@ -48,6 +49,9 @@ class FavoriteCreateTest {
 	// 회원 조회는 회원 기능의 일이라 저장한 회원을 그대로 돌려주게 한다
 	@MockitoBean
 	private UserService userService;
+	// 등록에는 쓰지 않는 매물 서비스 (관심 매물 목록의 대표 사진용)
+	@MockitoBean
+	private PropertyService propertyService;
 
 	@Test
 	@DisplayName("같은 매물을 여러 번 담아도 관심 매물은 한 줄만 남는다")
