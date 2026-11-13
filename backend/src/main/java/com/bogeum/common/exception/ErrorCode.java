@@ -35,6 +35,8 @@ public enum ErrorCode {
 	PROPERTY_NOT_PUBLISHABLE(HttpStatus.BAD_REQUEST, "매물 종류, 면적, 방 개수, 층, 전체 층과 사진 1장 이상이 있어야 공개할 수 있습니다."),
 	// 계약 정보 등록 (PROPERTY_011)
 	PROPERTY_NOT_CONTRACTABLE(HttpStatus.CONFLICT, "공개 중인 매물만 계약 정보를 등록할 수 있습니다."),
+	// 임대인 매물 수정 (PROPERTY_006)
+	PROPERTY_NOT_UPDATABLE(HttpStatus.CONFLICT, "계약이 끝난 매물은 수정할 수 없습니다."),
 	INVALID_CONTRACT_TENANT(HttpStatus.BAD_REQUEST, "이 매물로 상담한 임차인 중에서 선택해 주세요."),
 	INVALID_CONTRACT_PRICE(HttpStatus.BAD_REQUEST, "임대 형식에 맞게 보증금, 월세와 월 납부일을 입력해 주세요."),
 	INVALID_CONTRACT_PERIOD(HttpStatus.BAD_REQUEST, "계약 시작일은 종료일보다 앞이어야 합니다."),
