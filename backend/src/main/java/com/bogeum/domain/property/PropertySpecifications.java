@@ -61,11 +61,6 @@ final class PropertySpecifications {
 			if (!words(search.getSubway()).isEmpty()) {
 				predicates.add(contains(cb, root.get("nearbySubwayStation"), search.getSubway().trim()));
 			}
-			// 메인 검색창: 낱말마다 주소나 지하철역 중 한 곳에 들어 있으면 된다
-			for (String word : words(search.getKeyword())) {
-				predicates.add(cb.or(contains(cb, root.get("roadAddress"), word),
-					contains(cb, root.get("nearbySubwayStation"), word)));
-			}
 			return cb.and(predicates.toArray(Predicate[]::new));
 		};
 	}

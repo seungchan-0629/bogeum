@@ -151,17 +151,14 @@ class PropertySearchTest {
 	}
 
 	@Test
-	@DisplayName("검색어는 낱말마다 주소나 지하철역 중 한 곳에 있으면 되고, %·_는 일반 글자로 찾는다")
-	void filtersByKeyword() {
-		Long mapo = save(property -> property.roadAddress("서울특별시 마포구 마포대로 237")
-			.nearbySubwayStation("공덕역")).getPropertyId();
-		save(property -> property.roadAddress("서울특별시 용산구 한강대로 68").nearbySubwayStation("삼각지역"));
+	@DisplayName("지역·지하철역 글자의 %·_는 일반 글자로 찾아 모든 매물로 번지지 않는다")
+	void searchesWildcardsAsPlainText() {
+		save(property -> property.roadAddress("서울특별시 마포구 마포대로 237").nearbySubwayStation("공덕역"));
 
-		assertEquals(List.of(mapo), search(builder -> builder.keyword("마포 공덕역")));
-		assertEquals(List.of(mapo), search(builder -> builder.keyword("공덕")));
-		assertEquals(List.of(), search(builder -> builder.keyword("마포 삼각지역")));
-		assertEquals(List.of(), search(builder -> builder.keyword("%")));
-		assertEquals(List.of(), search(builder -> builder.keyword("_")));
+		assertEquals(List.of(), search(builder -> builder.region("%")));
+		assertEquals(List.of(), search(builder -> builder.region("_")));
+		assertEquals(List.of(), search(builder -> builder.subway("%")));
+		assertEquals(List.of(), search(builder -> builder.subway("_")));
 	}
 
 	@Test

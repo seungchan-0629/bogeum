@@ -198,10 +198,6 @@ public class PropertyDto {
 		@Size(max = 50, message = "지하철역은 50자까지 입력해 주세요.")
 		private String subway;
 
-		// 메인 검색창의 검색어. 낱말마다 주소나 지하철역 중 한 곳에 들어 있어야 한다
-		@Size(max = 50, message = "검색어는 50자까지 입력해 주세요.")
-		private String keyword;
-
 		@AssertTrue(message = "보증금 최소값은 최대값보다 클 수 없습니다.")
 		public boolean isDepositRangeValid() {
 			return minDeposit == null || maxDeposit == null || minDeposit.compareTo(maxDeposit) <= 0;
