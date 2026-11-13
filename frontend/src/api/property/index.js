@@ -18,10 +18,12 @@ export async function addPropertyImages(propertyId, files) {
   return data
 }
 
-// PROPERTY_004 공개 매물 목록. 최근 공개 순서로 12개씩 준다
-// 첫 목록은 cursor 없이, 다음 목록은 앞 응답의 nextCursor({ cursorPublishedAt, cursorPropertyId })를 그대로 보낸다
-export async function getProperties(cursor, signal) {
-  const { data } = await api.get('/property', { ...PROPERTY_CONFIG, params: cursor ?? {}, signal })
+// PROPERTY_004·005 공개 매물 목록·검색. 최근 공개 순서로 12개씩 준다
+// - search: 검색 조건 쿼리 그대로 ({ leaseTypes: 'JEONSE,MONTHLY', region: '서울 강남구', minDeposit: '100000000' … })
+//   여러 개 고른 값은 쉼표로 이어 보낸다. axios 기본은 propertyTypes[]=…라 서버가 읽지 못한다
+// - cursor: 첫 목록은 비우고, 다음 목록은 앞 응답의 nextCursor({ cursorPublishedAt, cursorPropertyId })를 그대로 보낸다
+export async function getProperties(search, cursor, signal) {
+  const { data } = await api.get('/property', { ...PROPERTY_CONFIG, params: { ...search, ...cursor }, signal })
   return data
 }
 
