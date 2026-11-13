@@ -178,6 +178,27 @@ public class Property {
 	}
 
 	/**
+	 * 임대인이 신청한 거래 조건(거래 유형·보증금·월세)을 바꾼다 (PROPERTY_006).
+	 * 공개 중에도 가격을 조정할 수 있고, 관리자가 숨긴 매물은 고치라는 요청을 받으므로 고칠 수 있다(숨김은 그대로).
+	 * 주소는 다른 집이 되므로 바꾸지 않는다. 가격 규칙(전세·월세)은 서비스가 중개 신청과 같은 규칙으로 먼저 검사한다.
+	 *
+	 * @throws PropertyException 계약이 끝났거나 삭제된 매물인 경우
+	 */
+	public void updateLeaseTerms(LeaseType leaseType, BigDecimal deposit, BigDecimal monthlyRent) {
+		if (!isUpdatableByLandlord()) {
+			throw PropertyException.notUpdatable();
+		}
+		this.leaseType = leaseType;
+		this.deposit = deposit;
+		this.monthlyRent = monthlyRent;
+	}
+
+	// 계약된 가격은 바꿀 수 없고, 삭제한 매물은 목록에서도 빠져 있다 (PROPERTY_006)
+	public boolean isUpdatableByLandlord() {
+		return propertyStatus != PropertyStatus.CONTRACTED && propertyStatus != PropertyStatus.DELETED;
+	}
+
+	/**
 	 * 상세 정보와 사진은 공개 전(REQUESTED)에만 바꿀 수 있다. 공개 직전 화면에서 수정할 수 없다고 안내한다 (PROPERTY_010).
 	 *
 	 * @throws PropertyException 이미 공개 등으로 신청 상태가 아닌 매물인 경우
