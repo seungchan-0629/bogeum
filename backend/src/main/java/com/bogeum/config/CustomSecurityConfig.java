@@ -97,6 +97,8 @@ public class CustomSecurityConfig {
 				.requestMatchers(HttpMethod.GET, "/property").authenticated()
 				// 공개 중인 매물 상세도 같은 사용자가 본다. *는 한 단계라 /property/*/details 규칙과 겹치지 않는다 (PROPERTY_003)
 				.requestMatchers(HttpMethod.GET, "/property/*").authenticated()
+				// 관심 매물은 집을 찾는 사용자만 담는다 (FAVORITE_001)
+				.requestMatchers(HttpMethod.PUT, "/favorites/*").hasRole("USER")
 				.requestMatchers(HttpMethod.POST, "/property/brokerage-requests").hasRole("USER")
 				.requestMatchers(HttpMethod.GET, "/property/brokerage-requests/received").access(approvedAgent)
 				.requestMatchers(HttpMethod.POST, "/property/brokerage-requests/*/accept").access(approvedAgent)
