@@ -57,6 +57,14 @@ public class PropertyController {
 		return propertyService.readPublicProperty(propertyId);
 	}
 
+	// 임대인이 본인이 중개를 신청한 매물과 진행 상태를 최근 신청 순서로 10개씩 본다 (PROPERTY_013)
+	// 글자 주소(/mine)가 숫자 자리(/{propertyId})보다 먼저 맞춰져서 상세 조회와 섞이지 않는다
+	@GetMapping("/mine")
+	public PropertyDto.MyPropertyListResponse readMyProperties(@AuthenticationPrincipal LoginUser loginUser,
+			@RequestParam(value = "page", defaultValue = "1") int page) {
+		return propertyService.readMyProperties(loginUser.getUserId(), page);
+	}
+
 	// 승인된 중개사가 본인에게 온 중개 신청을 '새 신청'(REQUESTED)·'수락한 신청'(ACCEPTED)으로 나눠 본다 (PROPERTY_012)
 	@GetMapping("/brokerage-requests/received")
 	public PropertyDto.BrokerageListResponse readBrokerageRequests(@AuthenticationPrincipal LoginUser loginUser,
