@@ -157,7 +157,7 @@ class PropertyControllerTest {
 				.param("minMonthlyRent", "0").param("maxMonthlyRent", "800000")
 				.param("minArea", "10.5").param("minHouseholdCount", "100").param("minParkingCount", "1")
 				.param("minFloor", "-1").param("minRoomCount", "2")
-				.param("region", "서울 강남구").param("subway", "역삼").param("keyword", "마포 공덕역"))
+				.param("region", "서울 강남구").param("subway", "역삼"))
 			.andExpect(status().isOk());
 
 		var value = search.getValue();
@@ -174,7 +174,6 @@ class PropertyControllerTest {
 		assertEquals(2, value.getMinRoomCount());
 		assertEquals("서울 강남구", value.getRegion());
 		assertEquals("역삼", value.getSubway());
-		assertEquals("마포 공덕역", value.getKeyword());
 	}
 
 	@ParameterizedTest
@@ -189,9 +188,23 @@ class PropertyControllerTest {
 		verifyNoInteractions(propertyService);
 	}
 
+	@Test
+	@DisplayName("지운 검색어(keyword) 쿼리가 와도 오류 없이 무시하고 목록을 조회한다")
+	void ignoresRemovedKeyword() throws Exception {
+		var search = ArgumentCaptor.forClass(PropertyDto.SearchRequest.class);
+		when(propertyService.readProperties(search.capture(), isNull(), isNull()))
+			.thenReturn(PropertyDto.PropertyListResponse.builder().properties(List.of()).hasNext(false).build());
+
+		mockMvc.perform(get("/property").param("keyword", "마포 공덕역"))
+			.andExpect(status().isOk());
+
+		assertEquals(null, search.getValue().getRegion());
+		assertEquals(null, search.getValue().getSubway());
+	}
+
 	@ParameterizedTest
-	@ValueSource(strings = {"region", "subway", "keyword"})
-	@DisplayName("지역·지하철역·검색어가 50자를 넘으면 서비스 호출 전에 400으로 거절한다")
+	@ValueSource(strings = {"region", "subway"})
+	@DisplayName("지역·지하철역이 50자를 넘으면 서비스 호출 전에 400으로 거절한다")
 	void rejectsTooLongText(String name) throws Exception {
 		mockMvc.perform(get("/property").param(name, "가".repeat(51)))
 			.andExpect(status().isBadRequest())
