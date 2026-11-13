@@ -40,6 +40,8 @@ public enum ErrorCode {
 	INVALID_CONTRACT_PERIOD(HttpStatus.BAD_REQUEST, "계약 시작일은 종료일보다 앞이어야 합니다."),
 	INVALID_CONTRACTED_AT(HttpStatus.BAD_REQUEST, "계약일은 오늘이나 지난 날짜로, 계약 종료일 전으로 입력해 주세요."),
 	CONTRACT_STORAGE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "계약서를 저장할 수 없습니다. 잠시 후 다시 시도해 주세요."),
+	// 관심 매물 (FAVORITE_001)
+	FAVORITE_OWN_PROPERTY(HttpStatus.BAD_REQUEST, "본인이 중개를 신청한 매물은 관심 매물로 등록할 수 없습니다."),
 	INVALID_PROFILE(HttpStatus.BAD_REQUEST, "전화번호 또는 새 비밀번호와 확인값을 확인해 주세요. 비밀번호는 UTF-8 기준 72바이트까지 가능합니다."),
 	CURRENT_PASSWORD_MISMATCH(HttpStatus.BAD_REQUEST, "현재 비밀번호를 확인해 주세요."),
 	INVALID_SIGNUP(HttpStatus.BAD_REQUEST, "가입 정보와 필수 동의를 확인해 주세요."),
