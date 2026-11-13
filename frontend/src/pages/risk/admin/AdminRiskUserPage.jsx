@@ -49,7 +49,12 @@ function AdminRiskUserPage() {
   }
 
   const columns = [
-    { label: '이름', render: (row) => <strong>{row.name}</strong> },
+    { label: '이름', render: (row) => (
+      <div className="flex flex-col gap-1 whitespace-nowrap">
+        <strong>{row.name}</strong>
+        <span className="text-xs text-gray-500">ID {row.userId}</span>
+      </div>
+    ) },
     { label: '사유 유형', render: (row) => {
       const reason = RISK_REASONS[row.reasonType] ?? { label: '사유 확인 필요', tone: 'gray' }
       return <StatusBadge tone={reason.tone}>{reason.label}</StatusBadge>

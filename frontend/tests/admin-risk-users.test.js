@@ -68,6 +68,23 @@ test('실제 위험정보 필드·총 건수·서버 페이지를 표시하고 �
   assert.doesNotMatch(html, /위험 사용자 등록|>수정<|위험 정보 후보|결제 내역|등록일|김보금/)
 })
 
+test('긴 이름과 회원 ID를 같은 셀에 줄바꿈 없이 세로로 표시한다', () => {
+  const name = '이름이 긴 위험 사용자'
+  const userIds = [2001, 2002]
+  const html = renderList({ riskUsers: userIds.map((userId, index) => risk(101 + index, { name, userId })) })
+  const nameCells = [...html.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/g)]
+    .map((match) => match[1]).filter((cell) => cell.includes(name))
+  assert.equal(nameCells.length, 2)
+  for (const [index, cell] of nameCells.entries()) {
+    assert.match(cell, /<div class="[^"]*\bflex-col\b[^"]*\bwhitespace-nowrap\b[^"]*">/)
+    assert.ok(cell.includes(`<strong>${name}</strong>`))
+    assert.match(cell, /<span class="[^"]*\btext-xs\b[^"]*\btext-gray-500\b[^"]*">ID \d+<\/span>/)
+    assert.ok(cell.includes(`>ID ${userIds[index]}</span>`))
+    assert.doesNotMatch(cell, /<a\b|<button\b|<dialog\b/)
+  }
+  assert.match(html, /overflow-x-auto/)
+})
+
 test('위험 사유 6개를 한국어로 표시한다', () => {
   const reasons = {
     RENT_UNPAID: '월세 미지급', RENT_OVERDUE: '연체', DEPOSIT_UNPAID: '보증금 미지급',
