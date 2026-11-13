@@ -24,10 +24,11 @@ import lombok.NoArgsConstructor;
 
 /**
  * 관심 매물. 같은 매물은 중복 등록되지 않는다 (FAVORITE_001)
+ * 계약 전에 집을 찾는 사용자(USER)가 담는다. 임대인·임차인은 계약에서 정해져서 tenant가 아니라 user로 둔다
  */
 @Entity
 @Table(name = "favorite_property", uniqueConstraints = {
-	@UniqueConstraint(columnNames = {"tenant_id", "property_id"})
+	@UniqueConstraint(columnNames = {"user_id", "property_id"})
 })
 @Getter
 @Builder
@@ -40,8 +41,8 @@ public class Favorite {
 	private Long favoritePropertyId;
 
 	@ManyToOne(fetch = FetchType.LAZY)
-	@JoinColumn(name = "tenant_id", nullable = false)
-	private User tenant;
+	@JoinColumn(name = "user_id", nullable = false)
+	private User user;
 
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "property_id", nullable = false)
