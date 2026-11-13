@@ -15,7 +15,7 @@ import { useAuthStore } from '../../stores/authStore.js'
 import { useFavoriteToggle } from '../../hooks/useFavoriteToggle.js'
 import { ROLES } from '../../constants/auth.js'
 import { getProperties } from '../../api/property/index.js'
-import { getPropertyTypeLabel } from '../../utils/format.js'
+import { toCardProperty } from '../../utils/propertyCard.js'
 
 // 조건을 바꾸고 이만큼 더 바꾸지 않으면 다시 찾는다. 글자를 칠 때마다·막대를 끄는 동안 요청이 쏟아지지 않게 한다
 const APPLY_DELAY_MS = 300
@@ -57,19 +57,6 @@ function toSearchParams(filter) {
   })
   return params
 }
-
-// 목록 API 응답을 카드 모양으로 바꾼다. 금액은 원 → 만원, 면적은 평
-const toCardProperty = (property) => ({
-  propertyId: property.propertyId,
-  thumbnailUrl: property.thumbnailUrl,
-  propertyType: getPropertyTypeLabel(property.propertyType),
-  leaseType: property.leaseType,
-  deposit: property.deposit / 10000,
-  monthlyRent: property.monthlyRent / 10000,
-  area: property.areaPyeong,
-  address: property.roadAddress,
-  nearbySubway: property.nearbySubwayStation,
-})
 
 function PropertyListPage() {
   const user = useAuthStore((state) => state.user)
