@@ -32,6 +32,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -940,6 +941,67 @@ class PropertyServiceTest {
 	}
 
 	// 실제 조회 결과처럼 요청받은 페이지와 전체 개수로 Page를 만들어 돌려준다
+	@Test
+	@DisplayName("내 매물 목록은 삭제한 매물을 빼고 최근 신청 순서로 10개씩 주고, 담당 중개사 사무소를 한 번에 붙인다")
+	void readsMyProperties() {
+		User agentUser = User.builder().userId(101L).name("김중개").build();
+		User otherAgentUser = User.builder().userId(102L).name("이중개").build();
+		Property waiting = Property.builder().propertyId(20L).landlord(landlord).leaseType(LeaseType.MONTHLY)
+			.deposit(BigDecimal.valueOf(10_000_000)).monthlyRent(BigDecimal.valueOf(700_000)).roadAddress(MAPO_ADDRESS)
+			.detailAddress("302호").propertyStatus(PropertyStatus.REQUESTED).build();
+		Property hidden = Property.builder().propertyId(21L).landlord(landlord).leaseType(LeaseType.JEONSE)
+			.deposit(BigDecimal.valueOf(300_000_000)).roadAddress(MAPO_ADDRESS).propertyStatus(PropertyStatus.HIDDEN).build();
+		var pageable = ArgumentCaptor.forClass(Pageable.class);
+		when(brokerageRequestRepository.findAllByLandlord_UserIdAndProperty_PropertyStatusNot(eq(1L),
+				eq(PropertyStatus.DELETED), pageable.capture()))
+			.thenAnswer(invocation -> new PageImpl<>(List.of(
+				BrokerageRequest.builder().brokerageRequestId(10L).property(waiting).landlord(landlord).agent(agentUser)
+					.isDesignated(true).brokerageStatus(BrokerageStatus.REQUESTED).build(),
+				BrokerageRequest.builder().brokerageRequestId(11L).property(hidden).landlord(landlord).agent(otherAgentUser)
+					.isDesignated(false).brokerageStatus(BrokerageStatus.ACCEPTED).build()),
+				invocation.getArgument(2), 12));
+		when(brokerageRequestRepository.findAgentProfilesByUserIds(List.of(101L, 102L)))
+			.thenReturn(List.of(Agent.builder().user(agentUser).officeName("망원 행복공인중개사사무소").build()));
+
+		var response = propertyService.readMyProperties(1L, 2);
+
+		assertEquals(1, pageable.getValue().getPageNumber());
+		assertEquals(10, pageable.getValue().getPageSize());
+		assertEquals(Sort.by(Sort.Direction.DESC, "createdAt", "brokerageRequestId"), pageable.getValue().getSort());
+		var first = response.getProperties().get(0);
+		assertEquals(20L, first.getPropertyId());
+		assertEquals(10L, first.getBrokerageRequestId());
+		assertEquals("302호", first.getDetailAddress());
+		assertEquals(BigDecimal.valueOf(700_000), first.getMonthlyRent());
+		assertEquals(BrokerageStatus.REQUESTED, first.getBrokerageStatus());
+		assertEquals(PropertyStatus.REQUESTED, first.getPropertyStatus());
+		assertEquals("김중개", first.getAgentName());
+		assertEquals("망원 행복공인중개사사무소", first.getOfficeName());
+		assertTrue(first.getIsDesignated());
+		var second = response.getProperties().get(1);
+		assertEquals(PropertyStatus.HIDDEN, second.getPropertyStatus());
+		// 사무소 정보가 없는 중개사는 이름만 보여 준다
+		assertEquals("이중개", second.getAgentName());
+		assertNull(second.getOfficeName());
+		assertEquals(2, response.getPage());
+		assertEquals(2, response.getTotalPages());
+		assertEquals(12L, response.getTotalElements());
+	}
+
+	@Test
+	@DisplayName("내 매물이 없으면 중개사 사무소를 조회하지 않고 빈 목록을 준다")
+	void readsEmptyMyProperties() {
+		when(brokerageRequestRepository.findAllByLandlord_UserIdAndProperty_PropertyStatusNot(eq(1L),
+				eq(PropertyStatus.DELETED), any()))
+			.thenAnswer(invocation -> Page.empty(invocation.getArgument(2)));
+
+		var response = propertyService.readMyProperties(1L, 0);
+
+		assertEquals(List.of(), response.getProperties());
+		assertEquals(1, response.getPage());
+		verify(brokerageRequestRepository, never()).findAgentProfilesByUserIds(any());
+	}
+
 	private ArgumentCaptor<Pageable> givenBrokerageRequests(BrokerageStatus brokerageStatus, long totalElements) {
 		var pageable = ArgumentCaptor.forClass(Pageable.class);
 		when(brokerageRequestRepository.findAllByAgent_UserIdAndBrokerageStatus(eq(101L), eq(brokerageStatus),

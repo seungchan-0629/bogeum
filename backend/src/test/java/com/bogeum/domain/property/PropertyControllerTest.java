@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -255,6 +256,44 @@ class PropertyControllerTest {
 		mockMvc.perform(get("/property/999"))
 			.andExpect(status().isNotFound())
 			.andExpect(jsonPath("$.code").value("PROPERTY_NOT_FOUND"));
+	}
+
+	@Test
+	@DisplayName("내 매물 목록은 로그인 사용자 기준으로 조회하고 진행 상태·담당 중개사·상세주소·페이지 정보를 반환한다")
+	void readsMyProperties() throws Exception {
+		when(propertyService.readMyProperties(1L, 2)).thenReturn(PropertyDto.MyPropertyListResponse.builder()
+			.properties(List.of(PropertyDto.MyPropertyItemResponse.builder().propertyId(20L).brokerageRequestId(10L)
+				.roadAddress("서울특별시 마포구 월드컵로 61").detailAddress("302호").leaseType(LeaseType.MONTHLY)
+				.deposit(new BigDecimal("10000000")).monthlyRent(new BigDecimal("700000"))
+				.brokerageStatus(BrokerageStatus.ACCEPTED).propertyStatus(PropertyStatus.HIDDEN)
+				.agentName("김중개").officeName("망원 행복공인중개사사무소").isDesignated(false)
+				.requestedAt(LocalDateTime.of(2026, 11, 13, 10, 0)).build()))
+			.page(2).totalPages(2).totalElements(11L).build());
+
+		mockMvc.perform(get("/property/mine").param("page", "2"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.properties[0].propertyId").value(20))
+			.andExpect(jsonPath("$.properties[0].detailAddress").value("302호"))
+			.andExpect(jsonPath("$.properties[0].brokerageStatus").value("ACCEPTED"))
+			.andExpect(jsonPath("$.properties[0].propertyStatus").value("HIDDEN"))
+			.andExpect(jsonPath("$.properties[0].agentName").value("김중개"))
+			.andExpect(jsonPath("$.properties[0].officeName").value("망원 행복공인중개사사무소"))
+			.andExpect(jsonPath("$.properties[0].isDesignated").value(false))
+			.andExpect(jsonPath("$.properties[0].requestedAt").value("2026-11-13T10:00:00"))
+			.andExpect(jsonPath("$.page").value(2))
+			.andExpect(jsonPath("$.totalElements").value(11));
+	}
+
+	@Test
+	@DisplayName("내 매물 목록 페이지를 보내지 않으면 첫 페이지를 조회하고, 상세 조회(/{propertyId})와 섞이지 않는다")
+	void readsFirstPageOfMyProperties() throws Exception {
+		when(propertyService.readMyProperties(1L, 1)).thenReturn(PropertyDto.MyPropertyListResponse.builder()
+			.properties(List.of()).page(1).totalPages(0).totalElements(0L).build());
+
+		mockMvc.perform(get("/property/mine"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.properties").isEmpty());
+		verify(propertyService, never()).readPublicProperty(any());
 	}
 
 	@Test
