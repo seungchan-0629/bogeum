@@ -120,6 +120,15 @@ class FavoriteServiceTest {
 		assertThrows(DataIntegrityViolationException.class, () -> favoriteService.createFavorite(2L, 20L));
 	}
 
+	@Test
+	@DisplayName("관심 매물 해제는 매물 상태를 보지 않고 로그인 사용자의 그 매물만 지운다")
+	void deletesFavorite() {
+		favoriteService.deleteFavorite(2L, 20L);
+
+		verify(favoriteRepository).deleteByUserAndProperty(2L, 20L);
+		verifyNoInteractions(propertyRepository, userService);
+	}
+
 	private Property givenActiveProperty() {
 		Property property = Property.builder().propertyId(20L).landlord(landlord).propertyStatus(PropertyStatus.ACTIVE).build();
 		when(propertyRepository.findByPropertyIdAndPropertyStatus(20L, PropertyStatus.ACTIVE)).thenReturn(Optional.of(property));

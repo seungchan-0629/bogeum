@@ -3,6 +3,7 @@ package com.bogeum.domain.favorite;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -106,6 +107,18 @@ class FavoriteControllerTest {
 	void rejectsInvalidPropertyId() throws Exception {
 		mockMvc.perform(put("/favorites/abc"))
 			.andExpect(status().isBadRequest());
+		mockMvc.perform(delete("/favorites/abc"))
+			.andExpect(status().isBadRequest());
 		verifyNoInteractions(favoriteService);
+	}
+
+	@Test
+	@DisplayName("관심 매물 해제는 로그인 사용자 기준으로 처리하고 본문 없이 204를 반환한다")
+	void deletesFavorite() throws Exception {
+		mockMvc.perform(delete("/favorites/20"))
+			.andExpect(status().isNoContent())
+			.andExpect(content().string(""));
+
+		verify(favoriteService).deleteFavorite(2L, 20L);
 	}
 }
