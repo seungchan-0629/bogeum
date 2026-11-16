@@ -1,5 +1,7 @@
 package com.bogeum.domain.contract;
 
+import java.util.List;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -12,4 +14,7 @@ public interface ContractRepository extends JpaRepository<Contract, Long> {
 	// 중개 이력에 매물 주소와 임대인·임차인 이름을 보여 줘서 함께 가져온다 (AGENT_003)
 	@EntityGraph(attributePaths = {"property", "landlord", "tenant"})
 	Page<Contract> findAllByAgent_UserId(Long agentUserId, Pageable pageable);
+
+	@EntityGraph(attributePaths = {"property"})
+	List<Contract> findAllByTenant_UserIdOrderByContractedAtDescContractIdDesc(Long tenantUserId);
 }
