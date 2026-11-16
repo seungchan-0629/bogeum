@@ -114,6 +114,13 @@ public class ContractService {
 		return ContractDto.ContractListResponse.from(contractRepository.findAllByAgent_UserId(agentUserId, pageable));
 	}
 
+	/** 내 집 관리에서 본인이 임차인인 계약을 최근 계약일 순으로 조회한다. */
+	@Transactional(readOnly = true)
+	public List<ContractDto.TenantContractResponse> readTenantContracts(Long tenantUserId) {
+		return contractRepository.findAllByTenant_UserIdOrderByContractedAtDescContractIdDesc(tenantUserId)
+			.stream().map(ContractDto.TenantContractResponse::from).toList();
+	}
+
 	/**
 	 * 중개사가 맡은 매물의 계약 등록 화면 첫 값을 조회한다 (PROPERTY_011).
 	 * 임대인은 중개를 신청한 매물의 임대인이고, 임차인 후보는 이 매물로 본인과 상담한 채팅방의 문의자다.
