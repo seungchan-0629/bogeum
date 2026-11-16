@@ -65,6 +65,27 @@ final class PropertySpecifications {
 		};
 	}
 
+	/**
+	 * 추천 후보: 공개 중이고 관심 지역 중 하나나 관심 지하철역 중 하나에 맞는 매물. 본인 매물은 뺀다 (RECOMMEND_001).
+	 * 지역·역을 맞추는 규칙은 검색과 같다. 관심 지역·역이 없으면 공개 중인 매물 전체가 후보다.
+	 */
+	static Specification<Property> recommendCandidates(List<String> regions, List<String> stations, Long excludedLandlordId) {
+		return (root, query, cb) -> {
+			List<Predicate> interests = new ArrayList<>();
+			for (String region : regions) {
+				interests.add(cb.and(words(region).stream()
+					.map(word -> contains(cb, root.get("roadAddress"), word))
+					.toArray(Predicate[]::new)));
+			}
+			for (String station : stations) {
+				interests.add(contains(cb, root.get("nearbySubwayStation"), station.trim()));
+			}
+			Predicate published = cb.and(cb.equal(root.get("propertyStatus"), PropertyStatus.ACTIVE),
+				cb.notEqual(root.get("landlord").get("userId"), excludedLandlordId));
+			return interests.isEmpty() ? published : cb.and(published, cb.or(interests.toArray(Predicate[]::new)));
+		};
+	}
+
 	// 최소 이상, 최대 이하. 비교 연산은 NULL이면 거짓이라 값이 비어 있는 매물은 자연히 빠진다
 	private static <T extends Comparable<? super T>> void addRange(List<Predicate> predicates, CriteriaBuilder cb,
 			Expression<T> path, T min, T max) {
