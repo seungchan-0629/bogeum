@@ -193,6 +193,19 @@ public class Property {
 		this.monthlyRent = monthlyRent;
 	}
 
+	/**
+	 * 임대인이 매물을 삭제한다. 행·사진·중개 신청·채팅 내역은 남기고 상태만 바꾼다 (PROPERTY_007, CHAT_009).
+	 * 삭제한 매물은 공개 목록·상세와 내 매물 목록에서 빠지고, 관심 매물에는 공개가 끝난 매물로 남는다.
+	 *
+	 * @throws PropertyException 계약이 끝난 매물인 경우. 계약·월세·AS가 이 매물에 이어져 있다
+	 */
+	public void delete() {
+		if (propertyStatus == PropertyStatus.CONTRACTED) {
+			throw PropertyException.notDeletable();
+		}
+		this.propertyStatus = PropertyStatus.DELETED;
+	}
+
 	// 계약된 가격은 바꿀 수 없고, 삭제한 매물은 목록에서도 빠져 있다 (PROPERTY_006)
 	public boolean isUpdatableByLandlord() {
 		return propertyStatus != PropertyStatus.CONTRACTED && propertyStatus != PropertyStatus.DELETED;
