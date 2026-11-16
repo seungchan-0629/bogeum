@@ -90,6 +90,8 @@ public class CustomSecurityConfig {
 				.requestMatchers(publicRequests).permitAll()
 				.requestMatchers("/error").permitAll()
 				.requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+				.requestMatchers(HttpMethod.GET, "/admin/rents/payments").hasRole("ADMIN")
+				.requestMatchers(HttpMethod.HEAD, "/admin/rents/payments").hasRole("ADMIN")
 				.requestMatchers(HttpMethod.GET, "/admin/agents").hasRole("ADMIN")
 				.requestMatchers(HttpMethod.HEAD, "/admin/agents").hasRole("ADMIN")
 				.requestMatchers(HttpMethod.GET, "/admin/risk-users").hasRole("ADMIN")
