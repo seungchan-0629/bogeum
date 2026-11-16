@@ -16,13 +16,13 @@ const TRANSFER_STATUS = {
 
 const formatDateTime = (value) => value ? value.replace('T', ' ').slice(0, 16) : '-'
 
-function TransferHistory({ type, userId }) {
+function TransferHistory({ type, userId, propertyId }) {
   const [page, setPage] = useState(0)
   const label = type === 'withdrawals' ? '출금' : '송금'
   const list = useInfiniteQuery({
-    queryKey: ['rent-transfers', userId, type],
+    queryKey: ['rent-transfers', userId, type, propertyId ?? null],
     queryFn: async ({ pageParam, signal }) => (await api.get(`/openbanking/transfers/${type}/me`, {
-      params: { size: PAGE_SIZE, cursor: pageParam ?? undefined },
+      params: { size: PAGE_SIZE, cursor: pageParam ?? undefined, propertyId: propertyId ?? undefined },
       signal,
     })).data,
     initialPageParam: null,
@@ -87,9 +87,9 @@ function TransferHistory({ type, userId }) {
   )
 }
 
-function TransferHistoryTable({ type }) {
+function TransferHistoryTable({ type, propertyId }) {
   const userId = useAuthStore((state) => state.user?.userId)
-  return <TransferHistory key={`${userId}:${type}`} type={type} userId={userId} />
+  return <TransferHistory key={`${userId}:${type}:${propertyId ?? 'all'}`} type={type} userId={userId} propertyId={propertyId} />
 }
 
 export default TransferHistoryTable
