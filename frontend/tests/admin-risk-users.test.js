@@ -79,7 +79,8 @@ test('실제 위험정보 필드·총 건수·서버 페이지를 표시하고 �
   assert.match(html, /whitespace-pre-wrap break-words/)
   assert.match(html, /aria-current="page"[^>]*>2<\/button>/)
   assert.match(html, />3<\/button>/)
-  assert.doesNotMatch(html, />수정<|위험 정보 후보|결제 내역|등록일|김보금/)
+  assert.equal((html.match(/>수정<\/button>/g) ?? []).length, 2)
+  assert.doesNotMatch(html, /위험 정보 후보|결제 내역|등록일|김보금/)
 })
 
 test('긴 이름과 회원 ID를 같은 셀에 줄바꿈 없이 세로로 표시한다', () => {
