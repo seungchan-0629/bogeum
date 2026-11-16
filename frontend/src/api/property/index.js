@@ -54,9 +54,16 @@ export async function updateMyProperty(propertyId, request) {
   await api.put(`/property/mine/${propertyId}`, request, PROPERTY_CONFIG)
 }
 
+// PROPERTY_007 내 매물 삭제. 상태만 삭제로 바뀌고 성공하면 본문 없이 204를 준다
+// 계약이 끝난 매물은 409(PROPERTY_NOT_DELETABLE), 없거나 이미 삭제한 매물은 404다
+export async function deleteMyProperty(propertyId) {
+  await api.delete(`/property/mine/${propertyId}`, PROPERTY_CONFIG)
+}
+
 // PROPERTY_012 나에게 온 중개 신청 목록. status(REQUESTED·ACCEPTED)별로 한 페이지 5개씩, page는 1부터
-export async function getReceivedBrokerageRequests(status, page = 1, signal) {
-  const { data } = await api.get('/property/brokerage-requests/received', { ...PROPERTY_CONFIG, params: { status, page }, signal })
+// 임대인이 삭제한 매물은 새 신청에서 빠지고, 수락한 신청에는 기록으로 남는다. excludeDeleted면 수락한 신청에서도 뺀다 (PROPERTY_007)
+export async function getReceivedBrokerageRequests(status, page = 1, signal, excludeDeleted = false) {
+  const { data } = await api.get('/property/brokerage-requests/received', { ...PROPERTY_CONFIG, params: { status, page, excludeDeleted }, signal })
   return data
 }
 

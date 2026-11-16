@@ -1,7 +1,8 @@
 // [페이지] 내 계약 관리 (중개사 전용 메뉴) — /agent/contracts
 // 수락한 매물마다 진행 단계(중개 수락 → 매물 공개 → 계약 완료)를 보여주고 다음 할 일로 보낸다
 // 요구사항: PROPERTY_010 (매물 상세 정보·사진 업로드), PROPERTY_011 (계약 정보 업로드)
-// API: 수락한 신청 목록 GET /property/brokerage-requests/received?status=ACCEPTED&page= (PROPERTY_012) — 한 페이지 5개
+// API: 수락한 신청 목록 GET /property/brokerage-requests/received?status=ACCEPTED&page=&excludeDeleted=true (PROPERTY_012) — 한 페이지 5개
+//      임대인이 삭제한 매물은 빼고 받는다 (PROPERTY_007)
 //      계약을 등록하면 매물이 계약 완료(CONTRACTED)가 되어, 이 목록의 매물 상태만으로 3단계를 보여줄 수 있다
 import { useState } from 'react'
 import { Link } from 'react-router'
@@ -15,11 +16,10 @@ import { getReceivedBrokerageRequests } from '../../api/property/index.js'
 const STEPS = ['중개 수락', '매물 공개', '계약 완료']
 // 매물 상태(PropertyStatus)별 진행 단계(1~3). 공개 전(REQUESTED)은 임시 저장 여부와 관계없이 1단계다
 const STEP_BY_STATUS = { REQUESTED: 1, ACTIVE: 2, CONTRACTED: 3 }
-// 관리자가 숨겼거나 삭제된 매물은 진행할 일이 없어 단계와 버튼 대신 표시만 한다
-// 숨김은 다시 보일 수 있어 주황색, 삭제는 더 이상 진행할 수 없는 매물이라 빨간색으로 구분한다
+// 관리자가 숨긴 매물은 진행할 일이 없어 단계와 버튼 대신 표시만 한다. 다시 보일 수 있어 주황색이다
+// 임대인이 삭제한 매물은 서버가 빼고 준다
 const CLOSED_STATUSES = {
   HIDDEN: { label: '관리자 숨김', tone: 'amber' },
-  DELETED: { label: '삭제됨', tone: 'red' },
 }
 
 // "2026-11-06T19:47:48" → "11.06"
@@ -74,10 +74,11 @@ function StepProgress({ title, step }) {
 
 function AgentContractListPage() {
   const [page, setPage] = useState(1)
-  // 중개 신청 화면의 '수락한 신청' 탭과 같은 key라서, 거기서 수락하면 이 목록도 다시 불러온다
+  // 임대인이 삭제한 매물은 진행할 일이 없어 빼고 본다 (PROPERTY_007)
+  // 삭제한 매물이 남는 '수락한 신청' 탭과 내용이 달라 key를 나누되, 앞부분이 같아 거기서 수락하면 이 목록도 다시 불러온다
   const list = useQuery({
-    queryKey: ['brokerage-requests', 'ACCEPTED', page],
-    queryFn: ({ signal }) => getReceivedBrokerageRequests('ACCEPTED', page, signal),
+    queryKey: ['brokerage-requests', 'ACCEPTED', 'in-progress', page],
+    queryFn: ({ signal }) => getReceivedBrokerageRequests('ACCEPTED', page, signal, true),
   })
   const requests = list.data?.requests ?? []
 

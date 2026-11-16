@@ -4,17 +4,17 @@
 // 요구사항: PROPERTY_013 (목록), PROPERTY_006 (수정 → /my-properties/:propertyId/edit, 계약 완료는 월세·AS로), PROPERTY_007 (삭제, 확인 창)
 // API:
 // - 목록: GET /property/mine?page= — 최근 신청 순서로 10개씩, 삭제한 매물은 빠지고 숨긴 매물은 남는다
-// - 삭제: DELETE /api/v1/properties/{propertyId} (BE-022)
+// - 삭제: DELETE /property/mine/{propertyId} — 상태만 삭제로 바뀌고, 계약이 끝난 매물은 지울 수 없다
 import { useState } from 'react'
 import { Link } from 'react-router'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import PageHeader from '../../components/common/PageHeader.jsx'
 import StatusBadge from '../../components/common/StatusBadge.jsx'
 import DataTable from '../../components/common/DataTable.jsx'
 import Pagination from '../../components/common/Pagination.jsx'
 import ConfirmModal from '../../components/common/ConfirmModal.jsx'
 import { useAuthStore } from '../../stores/authStore.js'
-import { getMyProperties } from '../../api/property/index.js'
+import { deleteMyProperty, getMyProperties } from '../../api/property/index.js'
 import { formatLeasePrice } from '../../utils/format.js'
 
 // 진행 단계: 서버가 주는 중개 신청 상태(중개사가 수락했는지)와 매물 상태(공개·계약했는지)를 합쳐 하나로 보여 준다
@@ -49,6 +49,7 @@ const addressOf = (row) => `${row.roadAddress} ${row.detailAddress ?? ''}`.trim(
 
 function MyPropertyListPage() {
   const user = useAuthStore((state) => state.user)
+  const queryClient = useQueryClient()
   const [page, setPage] = useState(1)
   // 다른 화면(중개 신청 등)에 갔다 오면 새로 불러와서, 방금 신청한 매물이 맨 위에 나온다
   const list = useQuery({
@@ -57,15 +58,23 @@ function MyPropertyListPage() {
   })
   const rows = list.data?.properties ?? []
   const hasHidden = rows.some((row) => row.propertyStatus === 'HIDDEN')
-  const [removedIds, setRemovedIds] = useState(() => new Set())
   const [deleteTarget, setDeleteTarget] = useState(null)
 
-  // TODO: DELETE /api/v1/properties/{propertyId} (BE-022) 성공 후 목록을 다시 불러온다 (PROPERTY_007)
-  // 지금은 삭제 API가 없어 화면에서만 뺀다. 새로고침하면 다시 보인다
-  // 삭제되면 관련 채팅방은 읽기 전용(CHAT_009), 관심 등록한 임차인에게 알림(NOTIFY_020)은 서버가 처리
-  const handleDelete = () => {
-    setRemovedIds((prev) => new Set(prev).add(deleteTarget.propertyId))
+  // 확인 창을 먼저 닫아 [삭제]를 두 번 눌러 같은 매물을 또 지우지 않게 한다 (PROPERTY_007)
+  // TODO: 관련 채팅방 읽기 전용(CHAT_009)·관심 등록자 알림(NOTIFY_020)이 생기면 확인 창 문구에 더한다
+  const handleDelete = async () => {
+    const { propertyId } = deleteTarget
     setDeleteTarget(null)
+    try {
+      await deleteMyProperty(propertyId)
+      window.alert('삭제되었습니다.')
+      // 이 쪽의 마지막 매물을 지웠으면 빈 쪽 대신 앞 쪽을 보여 준다
+      if (rows.length === 1 && page > 1) setPage(page - 1)
+    } catch (error) {
+      window.alert(error.response?.data?.message || '서버에 연결할 수 없습니다.')
+    }
+    // 실패해도 다른 화면에서 이미 지웠을 수 있어 목록을 새로 맞춘다
+    await queryClient.invalidateQueries({ queryKey: ['my-properties'] })
   }
 
   const columns = [
@@ -123,7 +132,7 @@ function MyPropertyListPage() {
       {list.isSuccess && (
         <DataTable
           columns={columns}
-          rows={rows.filter((row) => !removedIds.has(row.propertyId))}
+          rows={rows}
           rowKey="propertyId"
           emptyMessage={
             <span className="flex flex-col items-center gap-3">
@@ -142,7 +151,7 @@ function MyPropertyListPage() {
       {deleteTarget && (
         <ConfirmModal
           title="이 매물을 삭제할까요?"
-          description={`${addressOf(deleteTarget)} — 삭제하면 관련 채팅방은 읽기 전용이 되고, 관심 등록한 임차인에게 알림이 가요.`}
+          description={`${addressOf(deleteTarget)} — 삭제하면 매물 목록과 담당 중개사의 진행 목록에서 빠지고, 되돌릴 수 없어요.`}
           confirmLabel="삭제"
           onConfirm={handleDelete}
           onClose={() => setDeleteTarget(null)}
