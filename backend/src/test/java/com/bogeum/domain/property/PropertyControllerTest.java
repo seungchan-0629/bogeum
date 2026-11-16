@@ -50,6 +50,7 @@ import com.bogeum.common.enums.PropertyStatus;
 import com.bogeum.common.enums.PropertyType;
 import com.bogeum.common.enums.Role;
 import com.bogeum.domain.property.model.PropertyDto;
+import com.bogeum.domain.recommend.RecommendService;
 import com.bogeum.domain.user.model.User;
 import com.bogeum.domain.user.model.UserDto.LoginUser;
 
@@ -78,6 +79,8 @@ class PropertyControllerTest {
 
 	@MockitoBean
 	private PropertyService propertyService;
+	@MockitoBean
+	private RecommendService recommendService;
 
 	@Autowired
 	PropertyControllerTest(MockMvc mockMvc) {
@@ -256,6 +259,41 @@ class PropertyControllerTest {
 		mockMvc.perform(get("/property/999"))
 			.andExpect(status().isNotFound())
 			.andExpect(jsonPath("$.code").value("PROPERTY_NOT_FOUND"));
+		verify(recommendService, never()).recordView(any(), any());
+	}
+
+	@Test
+	@DisplayName("첫 목록 검색은 로그인 사용자와 검색한 지역·지하철역을 추천용으로 남긴다")
+	void recordsSearchOnFirstPage() throws Exception {
+		when(propertyService.readProperties(any(PropertyDto.SearchRequest.class), isNull(), isNull()))
+			.thenReturn(PropertyDto.PropertyListResponse.builder().properties(List.of()).hasNext(false).build());
+
+		mockMvc.perform(get("/property").param("region", "서울 마포구").param("subway", "합정"))
+			.andExpect(status().isOk());
+		verify(recommendService).recordSearch(1L, "서울 마포구", "합정", true);
+	}
+
+	@Test
+	@DisplayName("스크롤로 다음 목록을 부르면 첫 목록이 아닌 검색으로 알린다")
+	void recordsSearchAsNextPage() throws Exception {
+		when(propertyService.readProperties(any(PropertyDto.SearchRequest.class), any(LocalDateTime.class), eq(31L)))
+			.thenReturn(PropertyDto.PropertyListResponse.builder().properties(List.of()).hasNext(false).build());
+
+		mockMvc.perform(get("/property").param("region", "서울 마포구")
+				.param("cursorPublishedAt", "2026-11-12T10:00:30").param("cursorPropertyId", "31"))
+			.andExpect(status().isOk());
+		verify(recommendService).recordSearch(1L, "서울 마포구", null, false);
+	}
+
+	@Test
+	@DisplayName("공개 매물 상세를 보면 로그인 사용자와 매물을 추천용으로 남긴다")
+	void recordsViewAfterReadingPublicProperty() throws Exception {
+		when(propertyService.readPublicProperty(20L)).thenReturn(
+			PropertyDto.PublicDetailResponse.builder().propertyId(20L).build());
+
+		mockMvc.perform(get("/property/20"))
+			.andExpect(status().isOk());
+		verify(recommendService).recordView(1L, 20L);
 	}
 
 	@Test
