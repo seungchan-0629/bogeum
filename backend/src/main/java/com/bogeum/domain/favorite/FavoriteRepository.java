@@ -1,5 +1,6 @@
 package com.bogeum.domain.favorite;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.data.domain.Page;
@@ -10,7 +11,9 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.bogeum.common.enums.PropertyStatus;
 import com.bogeum.domain.favorite.model.Favorite;
+import com.bogeum.domain.recommend.model.PropertyCount;
 
 public interface FavoriteRepository extends JpaRepository<Favorite, Long> {
 
@@ -24,6 +27,18 @@ public interface FavoriteRepository extends JpaRepository<Favorite, Long> {
 	// 내가 담은 매물 번호 전부. 화면이 처음부터 하트를 채워 보여 줄 때 쓴다 (FAVORITE_003)
 	@Query("SELECT f.property.propertyId FROM Favorite f WHERE f.user.userId = :userId")
 	List<Long> findPropertyIdsByUserId(@Param("userId") Long userId);
+
+	// 사용자가 최근 담은 매물. 매물의 주소·지하철역으로 추천할 관심 지역을 정한다 (RECOMMEND_001)
+	@EntityGraph(attributePaths = "property")
+	List<Favorite> findAllByUser_UserIdAndCreatedAtAfter(Long userId, LocalDateTime since);
+
+	// 공개 중인 매물별 관심 수. 추천의 인기 점수에 쓴다 (RECOMMEND_001)
+	@Query("""
+		SELECT f.property.propertyId AS propertyId, COUNT(f) AS count FROM Favorite f
+		WHERE f.property.propertyStatus = :status
+		GROUP BY f.property.propertyId
+		""")
+	List<PropertyCount> countFavoritesByProperty(@Param("status") PropertyStatus status);
 
 	// 사용자 본인의 관심 매물만 한 번에 지운다. 담지 않았으면 0줄이 지워지고 그대로 끝난다 (FAVORITE_002)
 	// 메서드 이름 방식(deleteBy…)은 먼저 조회한 뒤 하나씩 지워 쿼리가 두 번 나가서 직접 쓴다
