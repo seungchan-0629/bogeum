@@ -206,6 +206,19 @@ public class PropertyService {
 	}
 
 	/**
+	 * 매물 추천 후보를 최근 공개 순서로 조회한다 (RECOMMEND_001).
+	 * 관심 지역·지하철역 중 하나에 맞는 공개 매물이고, 관심 지역·역이 없으면 공개 매물 전체에서 찾는다. 본인 매물은 뺀다.
+	 * 순위는 추천 쪽에서 인기 점수로 다시 매긴다. 검색 규칙을 매물 패키지 밖으로 꺼내지 않으려고 여기서 찾는다.
+	 */
+	@Transactional(readOnly = true)
+	public List<Property> readRecommendCandidates(List<String> regions, List<String> stations, Long excludedLandlordId,
+			int limit) {
+		return propertyRepository.findBy(
+			PropertySpecifications.recommendCandidates(regions, stations, excludedLandlordId),
+			query -> query.slice(PageRequest.of(0, limit, LIST_SORT))).getContent();
+	}
+
+	/**
 	 * 공개 중(ACTIVE)인 매물의 상세 정보, 사진, 담당 중개사를 조회한다 (PROPERTY_003).
 	 * 사용자는 담당 중개사에게 채팅으로 문의한다. 저장소가 없으면 사진 주소만 비우고 조회는 막지 않는다.
 	 *
