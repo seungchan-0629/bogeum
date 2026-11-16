@@ -40,6 +40,11 @@ public interface BrokerageRequestRepository extends JpaRepository<BrokerageReque
 	Page<BrokerageRequest> findAllByAgent_UserIdAndBrokerageStatus(Long agentUserId, BrokerageStatus brokerageStatus,
 		Pageable pageable);
 
+	// 임대인이 삭제한 매물을 빼고 본다. 새 신청과 내 계약 관리에 쓴다 (PROPERTY_007)
+	@EntityGraph(attributePaths = {"property", "landlord"})
+	Page<BrokerageRequest> findAllByAgent_UserIdAndBrokerageStatusAndProperty_PropertyStatusNot(Long agentUserId,
+		BrokerageStatus brokerageStatus, PropertyStatus excludedStatus, Pageable pageable);
+
 	// 중개사 본인에게 온 신청만 찾는다. 남의 신청은 없는 것과 같이 다룬다
 	@EntityGraph(attributePaths = "property")
 	Optional<BrokerageRequest> findByBrokerageRequestIdAndAgent_UserId(Long brokerageRequestId, Long agentUserId);
