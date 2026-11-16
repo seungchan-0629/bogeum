@@ -24,6 +24,12 @@ public interface BrokerageRequestRepository extends JpaRepository<BrokerageReque
 	Page<BrokerageRequest> findAllByLandlord_UserIdAndProperty_PropertyStatusNot(Long landlordUserId,
 		PropertyStatus excludedStatus, Pageable pageable);
 
+	// 임대인 본인의 매물 한 건과 그 중개 신청. 수정 화면 첫 값에 진행 상태까지 보여 줘서 신청 기준으로 찾는다 (PROPERTY_006)
+	// 남의 매물·삭제한 매물은 없는 것과 같이 다룬다
+	@EntityGraph(attributePaths = "property")
+	Optional<BrokerageRequest> findByProperty_PropertyIdAndLandlord_UserIdAndProperty_PropertyStatusNot(Long propertyId,
+		Long landlordUserId, PropertyStatus excludedStatus);
+
 	// 목록에 나온 중개사들의 사무소 정보를 한 번에 가져온다. 매물마다 따로 조회하지 않게 한다 (PROPERTY_013)
 	// 중개사 프로필 저장소(agent 패키지)를 고치지 않으려고, 목록을 만드는 이 저장소에 둔다
 	@Query("SELECT a FROM Agent a WHERE a.user.userId IN :agentUserIds")

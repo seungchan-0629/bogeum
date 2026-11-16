@@ -65,6 +65,13 @@ public class PropertyController {
 		return propertyService.readMyProperties(loginUser.getUserId(), page);
 	}
 
+	// 임대인이 본인 매물의 수정 화면 첫 값을 본다 (PROPERTY_006)
+	@GetMapping("/mine/{propertyId}")
+	public PropertyDto.MyPropertyDetailResponse readMyProperty(@AuthenticationPrincipal LoginUser loginUser,
+			@PathVariable("propertyId") Long propertyId) {
+		return propertyService.readMyProperty(loginUser.getUserId(), propertyId);
+	}
+
 	// 승인된 중개사가 본인에게 온 중개 신청을 '새 신청'(REQUESTED)·'수락한 신청'(ACCEPTED)으로 나눠 본다 (PROPERTY_012)
 	@GetMapping("/brokerage-requests/received")
 	public PropertyDto.BrokerageListResponse readBrokerageRequests(@AuthenticationPrincipal LoginUser loginUser,
@@ -85,6 +92,14 @@ public class PropertyController {
 	public PropertyDto.AcceptResponse acceptBrokerageRequest(@AuthenticationPrincipal LoginUser loginUser,
 			@PathVariable("brokerageRequestId") Long brokerageRequestId) {
 		return propertyService.acceptBrokerageRequest(loginUser.getUserId(), brokerageRequestId);
+	}
+
+	// 임대인이 본인 매물의 거래 유형·보증금·월세를 바꾼다 (PROPERTY_006)
+	@PutMapping("/mine/{propertyId}")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	public void updateMyProperty(@AuthenticationPrincipal LoginUser loginUser,
+			@PathVariable("propertyId") Long propertyId, @Valid @RequestBody PropertyDto.LeaseTermsRequest request) {
+		propertyService.updateMyProperty(loginUser.getUserId(), propertyId, request);
 	}
 
 	// 승인된 중개사가 맡은 매물의 상세 정보를 임시 저장한다 (PROPERTY_010)

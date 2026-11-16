@@ -255,6 +255,20 @@ public class PropertyService {
 	}
 
 	/**
+	 * 임대인 본인 매물의 수정 화면 첫 값을 조회한다 (PROPERTY_006).
+	 *
+	 * @throws PropertyException 없거나 남의 매물, 삭제한 매물인 경우
+	 */
+	@Transactional(readOnly = true)
+	public PropertyDto.MyPropertyDetailResponse readMyProperty(Long landlordUserId, Long propertyId) {
+		BrokerageRequest request = brokerageRequestRepository
+			.findByProperty_PropertyIdAndLandlord_UserIdAndProperty_PropertyStatusNot(propertyId, landlordUserId,
+				PropertyStatus.DELETED)
+			.orElseThrow(PropertyException::propertyNotFound);
+		return PropertyDto.MyPropertyDetailResponse.from(request);
+	}
+
+	/**
 	 * 중개사 본인에게 온 중개 신청을 상태별로 페이지 단위로 조회한다 (PROPERTY_012).
 	 * 새 신청은 신청한 순서, 수락한 신청은 수락한 순서로 최신이 위에 온다.
 	 *
@@ -300,6 +314,21 @@ public class PropertyService {
 			.orElseThrow(PropertyException::brokerageRequestNotFound);
 		brokerageRequest.accept();
 		return PropertyDto.AcceptResponse.from(brokerageRequest);
+	}
+
+	/**
+	 * 임대인이 본인 매물의 거래 유형·보증금·월세를 바꾼다. 주소는 바꾸지 않는다 (PROPERTY_006).
+	 * 바뀐 값은 같은 매물 행을 쓰는 매물 목록·상세에 바로 보인다.
+	 *
+	 * @throws PropertyException 없거나 남의 매물, 삭제한 매물, 계약이 끝난 매물, 가격이 임대 형식에 맞지 않는 경우
+	 */
+	@Transactional
+	public void updateMyProperty(Long landlordUserId, Long propertyId, PropertyDto.LeaseTermsRequest request) {
+		Property property = propertyRepository.findForUpdateByPropertyIdAndLandlord_UserId(propertyId, landlordUserId)
+			.filter(found -> found.getPropertyStatus() != PropertyStatus.DELETED)
+			.orElseThrow(PropertyException::propertyNotFound);
+		BigDecimal rent = validateLeasePrice(request.getLeaseType(), request.getDeposit(), request.getMonthlyRent());
+		property.updateLeaseTerms(request.getLeaseType(), request.getDeposit(), rent);
 	}
 
 	/**
