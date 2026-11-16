@@ -11,6 +11,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.bogeum.common.enums.BrokerageStatus;
 import com.bogeum.domain.property.model.PropertyDto;
+import com.bogeum.domain.recommend.RecommendService;
 import com.bogeum.domain.user.model.UserDto.LoginUser;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,7 @@ import lombok.RequiredArgsConstructor;
 public class PropertyController {
 
 	private final PropertyService propertyService;
+	private final RecommendService recommendService;
 
 	// 임대인이 매물 정보와 희망 중개사(선택)를 보내 중개를 신청한다 (PROPERTY_002)
 	@PostMapping("/brokerage-requests")
@@ -43,18 +45,28 @@ public class PropertyController {
 	// 로그인한 사용자가 공개 중인 매물을 최근 공개 순서로 스크롤하며 본다 (PROPERTY_004)
 	// 첫 목록은 커서 없이, 다음 목록은 같은 검색 조건에 응답의 nextCursor 값을 그대로 더해 보낸다
 	// 검색 조건(매물 종류, 임대 형식, 가격, 면적 등)을 쿼리로 보내면 모두 맞는 매물만 본다 (PROPERTY_005)
+	// 검색한 지역·지하철역은 매물 추천에 쓰려고 남긴다 (RECOMMEND_001)
 	@GetMapping
-	public PropertyDto.PropertyListResponse readProperties(@Valid @ModelAttribute PropertyDto.SearchRequest search,
+	public PropertyDto.PropertyListResponse readProperties(@AuthenticationPrincipal LoginUser loginUser,
+			@Valid @ModelAttribute PropertyDto.SearchRequest search,
 			@RequestParam(value = "cursorPublishedAt", required = false)
 			@DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime cursorPublishedAt,
 			@RequestParam(value = "cursorPropertyId", required = false) Long cursorPropertyId) {
-		return propertyService.readProperties(search, cursorPublishedAt, cursorPropertyId);
+		PropertyDto.PropertyListResponse response = propertyService.readProperties(search, cursorPublishedAt,
+			cursorPropertyId);
+		recommendService.recordSearch(loginUser.getUserId(), search.getRegion(), search.getSubway(),
+			cursorPublishedAt == null && cursorPropertyId == null);
+		return response;
 	}
 
 	// 로그인한 사용자가 공개 중인 매물의 상세 정보·사진·담당 중개사를 본다 (PROPERTY_003)
+	// 본 매물은 매물 추천의 관심 지역과 인기 집계에 쓰려고 남긴다 (RECOMMEND_001)
 	@GetMapping("/{propertyId}")
-	public PropertyDto.PublicDetailResponse readPublicProperty(@PathVariable("propertyId") Long propertyId) {
-		return propertyService.readPublicProperty(propertyId);
+	public PropertyDto.PublicDetailResponse readPublicProperty(@AuthenticationPrincipal LoginUser loginUser,
+			@PathVariable("propertyId") Long propertyId) {
+		PropertyDto.PublicDetailResponse response = propertyService.readPublicProperty(propertyId);
+		recommendService.recordView(loginUser.getUserId(), propertyId);
+		return response;
 	}
 
 	// 임대인이 본인이 중개를 신청한 매물과 진행 상태를 최근 신청 순서로 10개씩 본다 (PROPERTY_013)

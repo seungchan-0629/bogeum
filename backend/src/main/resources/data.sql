@@ -26,6 +26,7 @@ TRUNCATE TABLE user_block;
 TRUNCATE TABLE chat_message;
 TRUNCATE TABLE chat_room;
 TRUNCATE TABLE favorite_property;
+TRUNCATE TABLE search_log;
 TRUNCATE TABLE property_view_log;
 TRUNCATE TABLE brokerage_request;
 TRUNCATE TABLE property_image;
@@ -1200,6 +1201,33 @@ INSERT INTO property_view_log (property_view_log_id, user_id, property_id, viewe
     (364, 42, 19, '2026-10-22 10:05:03'),
     (365, 77, 18, '2026-10-22 13:05:35'),
     (366, 60, 53, '2026-10-23 06:15:10');
+
+-- ============================================================
+-- 11-1. SearchLog (매물 찾기 검색 기록) - 14건
+-- 조회 기록이 많은 임차인이 실제로 본 동네·지하철역을 검색한 것으로 둔다 (RECOMMEND_001)
+-- ============================================================
+INSERT INTO search_log (search_log_id, user_id, region, subway_station, searched_at) VALUES
+    (1, 67, '서울 동작구', NULL, '2026-10-05 21:14:00'),
+    (2, 67, '서울 동작구', '장승배기', '2026-10-12 22:03:00'),
+    (3, 67, NULL, '노량진', '2026-10-19 20:41:00'),
+    (4, 64, '서울 양천구', NULL, '2026-10-02 12:30:00'),
+    (5, 64, NULL, '오목교', '2026-10-15 13:05:00'),
+    (6, 62, '경기 수원시', NULL, '2026-09-28 19:22:00'),
+    (7, 62, '수원 영통구', '광교중앙', '2026-10-09 18:47:00'),
+    (8, 62, '서울 동작구', NULL, '2026-10-20 09:15:00'),
+    (9, 56, '서울 광진구', '건대입구', '2026-10-01 23:10:00'),
+    (10, 56, '경기 성남시', '정자', '2026-10-17 11:40:00'),
+    (11, 75, '서울 금천구', NULL, '2026-10-08 08:25:00'),
+    (12, 75, NULL, '독산', '2026-10-21 08:02:00'),
+    (13, 74, '서울 양천구', '오목교', '2026-10-14 17:33:00'),
+    (14, 74, '서울 서초구', NULL, '2026-10-22 16:58:00');
+
+-- 매물 추천 기록 날짜 (RECOMMEND_001). 추천은 최근 30일 기록만 쓰는데, 기준 시각(2026-10-23)이 지나면 모두 30일 밖으로 밀려난다
+-- 넣을 때마다 기준 시각이 오늘이 되도록 조회·검색 기록을 함께 옮긴다. 기록 사이 간격은 그대로다
+-- WHERE는 MySQL Workbench의 안전 업데이트 모드에서도 실행되도록 기본 키로 건다
+SET @recommend_shift_days = GREATEST(DATEDIFF(NOW(), '2026-10-23'), 0);
+UPDATE property_view_log SET viewed_at = viewed_at + INTERVAL @recommend_shift_days DAY WHERE property_view_log_id > 0;
+UPDATE search_log SET searched_at = searched_at + INTERVAL @recommend_shift_days DAY WHERE search_log_id > 0;
 
 -- ============================================================
 -- 12. FavoriteProperty (관심 매물) - 100건
