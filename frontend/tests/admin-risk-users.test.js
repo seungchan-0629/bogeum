@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import { after, before, test } from 'node:test'
 import { createElement } from 'react'
+import { createFormControl } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryRouter, RouterProvider } from 'react-router'
@@ -11,6 +13,9 @@ let server
 let api
 let auth
 let createAdminRiskUser
+let createRiskUserUpdateSchema
+let updateAdminRiskUser
+let RiskUserEditModal
 let riskUserSchema
 let getAdminRiskUsers
 let AdminRiskUserPage
@@ -33,6 +38,9 @@ before(async () => {
   auth = await server.ssrLoadModule('/src/utils/jwtUtil.js')
   api = auth.api
   createAdminRiskUser = (await server.ssrLoadModule('/src/api/admin/index.js')).createAdminRiskUser
+  createRiskUserUpdateSchema = (await server.ssrLoadModule('/src/pages/risk/admin/riskUserForm.js')).createRiskUserUpdateSchema
+  updateAdminRiskUser = (await server.ssrLoadModule('/src/api/admin/index.js')).updateAdminRiskUser
+  RiskUserEditModal = (await server.ssrLoadModule('/src/pages/risk/admin/RiskUserEditModal.jsx')).default
   riskUserSchema = (await server.ssrLoadModule('/src/pages/risk/admin/riskUserForm.js')).riskUserSchema
   getAdminRiskUsers = (await server.ssrLoadModule('/src/api/admin/index.js')).getAdminRiskUsers
   AdminRiskUserPage = (await server.ssrLoadModule('/src/pages/risk/admin/AdminRiskUserPage.jsx')).default
@@ -71,7 +79,8 @@ test('실제 위험정보 필드·총 건수·서버 페이지를 표시하고 �
   assert.match(html, /whitespace-pre-wrap break-words/)
   assert.match(html, /aria-current="page"[^>]*>2<\/button>/)
   assert.match(html, />3<\/button>/)
-  assert.doesNotMatch(html, />수정<|위험 정보 후보|결제 내역|등록일|김보금/)
+  assert.equal((html.match(/>수정<\/button>/g) ?? []).length, 2)
+  assert.doesNotMatch(html, /위험 정보 후보|결제 내역|등록일|김보금/)
 })
 
 test('긴 이름과 회원 ID를 같은 셀에 줄바꿈 없이 세로로 표시한다', () => {
@@ -322,3 +331,220 @@ test('상세 내용은 공백·줄바꿈을 보존하고 ASCII·한글·이모�
     assert.deepEqual(result.error.issues[0].path, ['detail'])
   }
 })
+
+test('수정 모달의 접근성·읽기 전용 식별 정보·입력 구조를 표시한다 (SSR)', () => {
+  store.getInitialState().user = admin
+  const client = new QueryClient()
+  try {
+    for (const detail of [null, '', '  첫 줄\n둘째 줄  ']) {
+      const html = renderToStaticMarkup(createElement(QueryClientProvider, { client },
+        createElement(RiskUserEditModal, { riskUser: risk(101, { detail }), adminId: admin.userId, onClose() {}, onUpdated() {} })))
+      assert.match(html, /role="dialog" aria-modal="true"/)
+      assert.match(html, /id="risk-edit-name" readOnly="" value="조회 대상"/)
+      assert.match(html, /id="risk-edit-user-id" readOnly="" value="20"/)
+      assert.match(html, /<option value="RENT_UNPAID">월세 미지급<\/option>/)
+      assert.match(html, /id="risk-edit-update-reason"/)
+      assert.match(html, /취소/)
+    }
+  } finally { client.clear() }
+})
+
+test('수정 검증은 6종 사유·수정 사유 필수 및 255자 경계를 검사하고 원문을 보존한다', () => {
+  const schema = createRiskUserUpdateSchema(risk(101))
+  const valid = { reasonType: 'RENT_OVERDUE', detail: '  첫 줄\n둘째 줄  ', updateReason: '  확인\n정정  ' }
+  assert.deepEqual(schema.parse(valid), valid)
+  for (const reasonType of ['RENT_UNPAID', 'RENT_OVERDUE', 'DEPOSIT_UNPAID', 'FALSE_LISTING', 'NO_PROPERTY_IMAGE', 'AGENT_CHANGE_HISTORY']) {
+    assert.equal(schema.safeParse({ ...valid, reasonType }).success, true)
+  }
+  for (const reasonType of ['', 'MORTGAGE_RISK', 'toString', null]) {
+    assert.equal(schema.safeParse({ ...valid, reasonType }).success, false)
+  }
+  for (const updateReason of ['', ' \n\t ', '가'.repeat(256), 'a'.repeat(256), '😀'.repeat(128)]) {
+    assert.equal(schema.safeParse({ ...valid, updateReason }).success, false)
+  }
+  assert.equal(schema.parse({ ...valid, updateReason: '가'.repeat(255) }).updateReason.length, 255)
+  assert.equal(schema.parse({ ...valid, updateReason: '😀'.repeat(127) + '가' }).updateReason.length, 255)
+})
+
+test('수정 상세도 ASCII·한글·이모지 UTF-8 65,535바이트 경계를 적용한다', () => {
+  const schema = createRiskUserUpdateSchema(risk(101))
+  const valid = { reasonType: 'RENT_OVERDUE', updateReason: '증빙 확인' }
+  for (const detail of ['a'.repeat(65535), '가'.repeat(21845), '😀'.repeat(16383) + '가']) {
+    assert.equal(schema.parse({ ...valid, detail }).detail, detail)
+  }
+  for (const detail of ['a'.repeat(65536), '가'.repeat(21846), '😀'.repeat(16384)]) {
+    assert.equal(schema.safeParse({ ...valid, detail }).success, false)
+  }
+})
+
+test('수정 요청은 null·빈 문자열·공백·줄바꿈 원문을 보존하고 명시적인 비우기만 삭제한다', () => {
+  for (const detail of [null, '', '  \n ', '  첫 줄\n둘째 줄  ']) {
+    const schema = createRiskUserUpdateSchema(risk(101, { detail }))
+    const input = { reasonType: 'RENT_OVERDUE', detail: detail ?? '', updateReason: '확인' }
+    assert.equal(schema.parse(input).detail, detail)
+    assert.equal(schema.safeParse({ ...input, reasonType: 'RENT_UNPAID' }).success, false, '사유·상세가 같으면 차단')
+  }
+  const schema = createRiskUserUpdateSchema(risk(101))
+  assert.equal(schema.parse({ reasonType: 'RENT_UNPAID', detail: '', updateReason: '상세 삭제' }).detail, '')
+  assert.equal(schema.safeParse({ reasonType: 'RENT_OVERDUE', updateReason: '확인' }).success, false, 'detail 생략을 허용하지 않는다')
+})
+
+test('PATCH API는 riskInfoId 경로·최종 본문과 공통 JWT·CSRF를 유지한다', async () => {
+  const originalApi = api.defaults.adapter
+  const originalPublic = auth.publicApi.defaults.adapter
+  const originalWindow = globalThis.window
+  const originalDocument = globalThis.document
+  globalThis.window = { location: { protocol: 'http:' } }
+  globalThis.document = { cookie: '' }
+  auth.publicApi.defaults.adapter = async (config) => ({
+    status: 200, headers: {}, config,
+    data: config.url === '/auth/csrf'
+      ? { headerName: 'X-XSRF-TOKEN', token: 'risk-update-csrf' }
+      : { user: admin, accessToken: 'risk-update-access', refreshToken: 'test-refresh', refreshExpiresAt: '2030-01-01T00:00:00Z' },
+  })
+  let expected
+  let failure
+  let calls = 0
+  api.defaults.adapter = async (config) => {
+    calls += 1
+    assert.equal(config.method, 'patch')
+    assert.equal(config.url, '/api/admin/risk-users/101')
+    assert.deepEqual(JSON.parse(config.data), expected)
+    assert.equal(config.headers.get('Authorization'), 'Bearer risk-update-access')
+    assert.equal(config.headers.get('X-XSRF-TOKEN'), 'risk-update-csrf')
+    assert.equal(config.withCredentials, true)
+    if (failure) {
+      const error = new Error('서버 오류')
+      error.config = config
+      error.response = { status: failure.status, data: { message: '입력 확인', code: failure.code } }
+      throw error
+    }
+    return { status: 200, data: risk(101, expected), headers: {}, config }
+  }
+  try {
+    await auth.login('admin@example.test', 'test-password')
+    for (const detail of [null, '', '  첫 줄\n둘째 줄  ']) {
+      expected = { reasonType: 'RENT_OVERDUE', detail, updateReason: '  증빙 확인  ' }
+      assert.deepEqual(await updateAdminRiskUser({ riskInfoId: 101, ...expected, userId: 999 }), risk(101, expected))
+    }
+    for (const [status, code] of [[400, 'INVALID_REQUEST'], [403, 'CSRF_INVALID'], [403, 'ACCESS_DENIED'], [404, 'RISK_INFO_NOT_FOUND'], [409, 'RISK_ALREADY_REGISTERED'], [409, 'RISK_NOT_EDITABLE']]) {
+      failure = { status, code }
+      await assert.rejects(updateAdminRiskUser({ riskInfoId: 101, ...expected }), (error) => error.response.status === status && error.response.data.code === code)
+      assert.deepEqual(store.getState().user, admin, '업무 오류는 관리자 세션을 유지한다')
+    }
+    assert.equal(calls, 9, '업무 오류 요청을 자동 재전송하지 않는다')
+  } finally {
+    api.defaults.adapter = originalApi
+    auth.publicApi.defaults.adapter = originalPublic
+    if (originalWindow === undefined) delete globalThis.window
+    else globalThis.window = originalWindow
+    if (originalDocument === undefined) delete globalThis.document
+    else globalThis.document = originalDocument
+  }
+})
+
+test('실제 RHF blur·change 흐름에서 CRLF·CR 원문과 편집 의도를 구분한다', async () => {
+  for (const detail of ['A\r\nB', 'A\rB', 'A\nB', '  \r\n  ', null, '']) {
+    const original = risk(101, { detail })
+    let detailEdited = false
+    const form = createFormControl({
+      defaultValues: { reasonType: original.reasonType, detail: detail ?? '', updateReason: '확인' },
+      resolver: zodResolver(createRiskUserUpdateSchema(original, () => detailEdited)),
+    })
+    const field = form.register('detail', { onChange: () => { detailEdited = true } })
+    const submit = async () => {
+      let result
+      await form.handleSubmit((values) => { result = { values } }, (errors) => { result = { errors } })()
+      return result
+    }
+    // textarea의 API 값처럼 정규화한 값을 RHF의 실제 blur 핸들러에 전달한다.
+    const domValue = (detail ?? '').replace(/\r\n?/g, '\n')
+    await field.onBlur({ type: 'blur', target: { name: 'detail', value: domValue } })
+    assert.equal(detailEdited, false, '포커스 이탈은 실제 편집이 아니다')
+    assert.equal((await submit()).errors.detail.message, '위험 사유 또는 상세 내용을 변경해 주세요.')
+    form.setValue('reasonType', 'RENT_OVERDUE')
+    assert.equal((await submit()).values.detail, detail, '사유만 변경하면 원문을 전송한다')
+    await field.onChange({ type: 'change', target: { name: 'detail', value: '  수정\n내용  ' } })
+    assert.equal(detailEdited, true)
+    assert.equal((await submit()).values.detail, '  수정\n내용  ')
+    await field.onChange({ type: 'change', target: { name: 'detail', value: '' } })
+    assert.equal((await submit()).values.detail, detail === null ? null : '', '명시적 삭제 정책 유지')
+  }
+})
+
+const updateAuthScenarios = [
+  { name: 'AUTH_REQUIRED는 갱신 없이 세션 종료', code: 'AUTH_REQUIRED', patches: 1, refreshes: 0, loggedIn: false, status: 401 },
+  { name: 'ACCESS_TOKEN_INVALID는 갱신 없이 세션 종료', code: 'ACCESS_TOKEN_INVALID', patches: 1, refreshes: 0, loggedIn: false, status: 401 },
+  { name: '만료 후 갱신 성공은 같은 PATCH를 새 JWT로 1회 재시도', code: 'ACCESS_TOKEN_EXPIRED', patches: 2, refreshes: 1, loggedIn: true },
+  { name: '갱신 401은 세션 종료하고 PATCH를 반복하지 않음', code: 'ACCESS_TOKEN_EXPIRED', refreshStatus: 401, patches: 1, refreshes: 1, loggedIn: false, status: 401 },
+  { name: '갱신 서버 장애는 세션 유지·PATCH 반복 없음', code: 'ACCESS_TOKEN_EXPIRED', refreshStatus: 503, patches: 1, refreshes: 1, loggedIn: true, status: 503 },
+  { name: '갱신 후 재만료는 추가 갱신 없이 세션 종료', code: 'ACCESS_TOKEN_EXPIRED', retryCode: 'ACCESS_TOKEN_EXPIRED', patches: 2, refreshes: 1, loggedIn: false, status: 401 },
+  { name: '갱신 후 업무 오류는 세션을 유지하고 오류 전달', code: 'ACCESS_TOKEN_EXPIRED', retryCode: 'RISK_ALREADY_REGISTERED', patches: 2, refreshes: 1, loggedIn: true, status: 409 },
+]
+
+for (const scenario of updateAuthScenarios) {
+  test('수정 인증: ' + scenario.name, async () => {
+    const originalApi = api.defaults.adapter
+    const originalPublic = auth.publicApi.defaults.adapter
+    const originalWindow = globalThis.window
+    const originalDocument = globalThis.document
+    globalThis.window = { location: { protocol: 'http:' } }
+    globalThis.document = { cookie: '' }
+    const body = { reasonType: 'RENT_OVERDUE', detail: 'A\r\nB', updateReason: '증빙 확인' }
+    let patches = 0
+    let refreshes = 0
+    const reject = (config, status, code) => {
+      const error = new Error(code)
+      error.config = config
+      error.response = { status, data: { code, message: code } }
+      throw error
+    }
+    auth.publicApi.defaults.adapter = async (config) => {
+      if (config.url === '/auth/csrf') return { status: 200, data: { headerName: 'X-XSRF-TOKEN', token: 'update-csrf' }, config, headers: {} }
+      if (config.url === '/auth/refresh') {
+        refreshes += 1
+        assert.deepEqual(JSON.parse(config.data), { refreshToken: 'update-refresh' })
+        if (scenario.refreshStatus) reject(config, scenario.refreshStatus, scenario.refreshStatus === 401 ? 'REFRESH_TOKEN_INVALID' : 'UNAVAILABLE')
+      } else {
+        assert.equal(config.url, '/auth/login')
+      }
+      return { status: 200, config, headers: {}, data: {
+        user: admin, accessToken: refreshes ? 'update-refreshed' : 'update-original',
+        refreshToken: 'update-refresh', refreshExpiresAt: '2030-01-01T00:00:00Z',
+      } }
+    }
+    api.defaults.adapter = async (config) => {
+      patches += 1
+      assert.equal(config.method, 'patch')
+      assert.equal(config.url, '/api/admin/risk-users/101')
+      assert.deepEqual(JSON.parse(config.data), body, '재시도에도 원문과 요청 본문 유지')
+      assert.equal(config.headers.get('X-XSRF-TOKEN'), 'update-csrf')
+      assert.equal(config.headers.get('Authorization'), patches === 1 ? 'Bearer update-original' : 'Bearer update-refreshed')
+      if (patches === 1) reject(config, 401, scenario.code)
+      assert.equal(config._retry, true)
+      if (scenario.retryCode) reject(config, scenario.status, scenario.retryCode)
+      return { status: 200, data: risk(101, body), config, headers: {} }
+    }
+    try {
+      await auth.login('admin@example.test', 'test-password')
+      const result = updateAdminRiskUser({ riskInfoId: 101, ...body })
+      if (scenario.status) {
+        await assert.rejects(result, (error) => error.response.status === scenario.status
+          && error.response.data.code === (scenario.refreshStatus === 401 ? 'REFRESH_TOKEN_INVALID'
+            : scenario.refreshStatus === 503 ? 'UNAVAILABLE' : scenario.retryCode || scenario.code))
+      } else {
+        assert.deepEqual(await result, risk(101, body))
+      }
+      assert.equal(patches, scenario.patches)
+      assert.equal(refreshes, scenario.refreshes)
+      assert.deepEqual(store.getState().user, scenario.loggedIn ? admin : null)
+    } finally {
+      api.defaults.adapter = originalApi
+      auth.publicApi.defaults.adapter = originalPublic
+      if (originalWindow === undefined) delete globalThis.window
+      else globalThis.window = originalWindow
+      if (originalDocument === undefined) delete globalThis.document
+      else globalThis.document = originalDocument
+    }
+  })
+}

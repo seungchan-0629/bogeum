@@ -1,9 +1,10 @@
-// RISK_001·002: 관리자 위험 사용자 등록 및 유형별 목록·이름 검색·서버 페이징.
-// 증빙은 키 기록 여부만 표시하며 수정·후보 조회·파일 열람은 별도 기능이다.
+// RISK_001·002·003: 관리자 위험 사용자 등록·조회·수정.
+// 증빙은 키 기록 여부만 표시하며 후보 조회·파일 열람은 별도 기능이다.
 import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import RiskUserEditModal from './RiskUserEditModal.jsx'
 import { RISK_REASONS, riskUserSchema } from './riskUserForm.js'
 import { createAdminRiskUser, getAdminRiskUsers } from '../../../api/admin/index.js'
 import { useAuthStore } from '../../../stores/authStore.js'
@@ -36,6 +37,7 @@ function AdminRiskUserContent({ user }) {
   const [page, setPage] = useState(1)
   const [formOpen, setFormOpen] = useState(false)
   const [confirmation, setConfirmation] = useState(null)
+  const [editing, setEditing] = useState(null)
   const [success, setSuccess] = useState('')
   const submitLock = useRef(false)
   const { register, handleSubmit, reset, formState: { errors } } = useForm({
@@ -89,6 +91,16 @@ function AdminRiskUserContent({ user }) {
     registration.mutate(confirmation)
   }
 
+  const finishUpdate = (updated, values) => {
+    setEditing(null)
+    setUserType(RISK_REASONS[values.reasonType].userType)
+    setKeyword('')
+    setPage(1)
+    setSuccess('회원 ID ' + updated.userId + '의 위험 정보를 수정했어요. 목록은 생성일 순으로 표시됩니다.')
+    // 기존·변경 유형의 모든 검색·페이지를 포함해 현재 관리자 범위만 갱신한다.
+    queryClient.invalidateQueries({ queryKey: ['admin-risk-users', user.userId] })
+  }
+
   const columns = [
     { label: '이름', render: (row) => (
       <div className="flex flex-col gap-1 whitespace-nowrap">
@@ -103,6 +115,10 @@ function AdminRiskUserContent({ user }) {
     { label: '상세 내용', render: (row) => <span className="whitespace-pre-wrap break-words">{row.detail?.trim() ? row.detail : '-'}</span> },
     { label: '근거 자료', render: (row) => row.hasEvidence ? '있음' : '없음' },
     { label: '생성일', render: (row) => row.createdAt?.slice(0, 10) || '-' },
+    { label: '관리', render: (row) => (
+      <button type="button" className="btn-secondary" disabled={registration.isPending || !!confirmation}
+        onClick={() => { setEditing(row); setSuccess('') }}>수정</button>
+    ) },
   ]
   const errorMessage = registration.error?.response?.data?.message
     || (registration.error?.response?.status === 401 ? '다시 로그인해 주세요.'
@@ -148,6 +164,8 @@ function AdminRiskUserContent({ user }) {
           <p>위험 사유: <strong>{RISK_REASONS[confirmation.reasonType].label}</strong></p>
         </ConfirmModal>
       )}
+      {editing && <RiskUserEditModal key={editing.riskInfoId} riskUser={editing} adminId={user.userId}
+        onClose={() => setEditing(null)} onUpdated={finishUpdate} />}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <Tabs label="대상" items={USER_TYPE_TABS} value={userType} onChange={changeType} />
         <SearchInput label="이름 검색" placeholder="이름으로 검색" value={keyword} onChange={changeSearch} />

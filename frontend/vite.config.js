@@ -25,6 +25,11 @@ export default defineConfig({
         ...backendProxy,
         rewrite: (path) => path.replace(/^\/api\/admin\/risk-users/, '/admin/risk-users'),
       },
+      // RISK_003: 숫자 ID 한 건만 변환한다. /extra와 ID 뒤 하위 경로는 제외한다.
+      '^/api/admin/risk-users/[0-9]+(?:\\?|$)': {
+        ...backendProxy,
+        rewrite: (path) => path.replace(/^\/api\/admin\/risk-users/, '/admin/risk-users'),
+      },
       '/api': backendProxy,
       // 매물 목록 API(/property, /property?cursor...)만 정확히 넘긴다. 화면 주소 /properties는 Vite가 처리한다 (PROPERTY_004)
       '^/property(\\?.*)?$': backendProxy,
