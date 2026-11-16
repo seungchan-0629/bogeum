@@ -14,7 +14,7 @@ test('계좌 콜백·관리자 화면은 API 프록시를 거치지 않고 프�
   try {
     await server.listen()
     const origin = `http://127.0.0.1:${server.httpServer.address().port}`
-    for (const path of ['/mypage/openbanking/callback?code=test&state=test', '/admin/properties', '/admin/agents', '/admin/risk-users', '/admin/risk-users?type=TENANT']) {
+    for (const path of ['/mypage/openbanking/callback?code=test&state=test', '/admin/rent', '/admin/rent?keyword=test', '/admin/properties', '/admin/agents', '/admin/risk-users', '/admin/risk-users?type=TENANT']) {
       const response = await fetch(origin + path, { headers: { Accept: 'text/html' } })
       assert.equal(response.status, 200)
       assert.match(response.headers.get('content-type'), /text\/html/)
@@ -174,6 +174,49 @@ test('로그인·회원 조회·기존 API를 프록시로 연속 호출해도 �
         path === '/auth/login' ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' } : {})
       assert.equal(response.status, 200)
       assert.deepEqual(await response.json(), { ok: true })
+    }
+  } finally {
+    await server.close()
+    backend.closeAllConnections()
+    await new Promise((resolve) => backend.close(resolve))
+  }
+})
+
+test('월세 납부 API만 변환하고 검색·페이지·JWT 및 비대상 경로를 보존한다', { timeout: 15000 }, async () => {
+  const backend = createHttpServer((request, response) => {
+    response.writeHead(200, { 'Content-Type': 'application/json' })
+    response.end(JSON.stringify({ url: request.url, authorization: request.headers.authorization }))
+  })
+  backend.listen(0, '127.0.0.1')
+  await once(backend, 'listening')
+  const key = '^/api/admin/rents/payments(?:\\?|$)'
+  const keys = Object.keys(config.server.proxy)
+  assert.ok(config.server.proxy[key])
+  assert.ok(keys.indexOf(key) < keys.indexOf('/api'))
+  const proxy = Object.fromEntries(Object.entries(config.server.proxy).map(([path, value]) => [
+    path, { ...value, target: 'http://127.0.0.1:' + backend.address().port },
+  ]))
+  const server = await createServer({
+    ...config, configFile: false,
+    server: { ...config.server, host: '127.0.0.1', port: 0, hmr: false, proxy },
+  })
+  try {
+    await server.listen()
+    const origin = 'http://127.0.0.1:' + server.httpServer.address().port
+    const params = { tenantId: '22', keyword: '보금 %_', page: '2' }
+    const response = await fetch(origin + '/api/admin/rents/payments?' + new URLSearchParams(params), {
+      headers: { Authorization: 'Bearer test-admin' },
+    })
+    assert.equal(response.status, 200)
+    const received = await response.json()
+    const url = new URL(received.url, origin)
+    assert.equal(url.pathname, '/admin/rents/payments')
+    assert.deepEqual(Object.fromEntries(url.searchParams), params)
+    assert.equal(received.authorization, 'Bearer test-admin')
+    assert.equal((await (await fetch(origin + '/api/admin/rents/payments')).json()).url, '/admin/rents/payments')
+    for (const path of ['/api/admin/rents/payments/extra', '/api/admin/rents/payments-other',
+      '/api/admin/rents/failures', '/api/v1/agents/me', '/openbanking/admin/institution-token']) {
+      assert.equal((await (await fetch(origin + path)).json()).url, path)
     }
   } finally {
     await server.close()

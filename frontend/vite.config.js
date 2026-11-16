@@ -30,6 +30,11 @@ export default defineConfig({
         ...backendProxy,
         rewrite: (path) => path.replace(/^\/api\/admin\/risk-users/, '/admin/risk-users'),
       },
+      // RENT_001: /admin/rent 화면은 보존하고 납부 조회 API만 변환한다.
+      '^/api/admin/rents/payments(?:\\?|$)': {
+        ...backendProxy,
+        rewrite: (path) => path.replace(/^\/api\/admin\/rents\/payments/, '/admin/rents/payments'),
+      },
       '/api': backendProxy,
       // 매물 목록 API(/property, /property?cursor...)만 정확히 넘긴다. 화면 주소 /properties는 Vite가 처리한다 (PROPERTY_004)
       '^/property(\\?.*)?$': backendProxy,
