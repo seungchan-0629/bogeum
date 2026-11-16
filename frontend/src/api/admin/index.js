@@ -24,6 +24,12 @@ export async function updateAdminRiskUser({ riskInfoId, reasonType, detail, upda
   return data
 }
 
+// RENT_001: 실제 BE GET /admin/rents/payments. 인증은 공통 api를 재사용한다.
+export async function getAdminRentPayments(keyword, page, signal) {
+  const { data } = await api.get('/api/admin/rents/payments', { params: { keyword, page }, signal })
+  return data
+}
+
 export async function getInstitutionToken() {
   const { data } = await api.get('/openbanking/admin/institution-token')
   return data

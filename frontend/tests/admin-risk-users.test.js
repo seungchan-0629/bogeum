@@ -172,7 +172,7 @@ function renderAdmin(path, user = admin) {
   client.setQueryData(['admin-institution-token'], {
     usable: true, issued: true, maskedToken: 'MASKED-TOKEN', clientUseCode: 'TEST-CODE',
   })
-  const hiddenPaths = ['properties', 'rent', 'risk-properties', 'chats', 'notifications']
+  const hiddenPaths = ['properties', 'risk-properties', 'chats', 'notifications']
   const router = createMemoryRouter([{
     path: '/admin', element: createElement(AdminLayout),
     children: [
@@ -219,7 +219,7 @@ test('미로그인·일반 사용자·중개사는 캐시가 있어도 관리자
 
 test('위험 사용자 접근 허용 후에도 다른 미제공 관리자 메뉴와 화면은 계속 차단한다', () => {
   const html = renderAdmin('/admin/risk-users')
-  for (const path of ['properties', 'rent', 'risk-properties', 'chats', 'notifications']) {
+  for (const path of ['properties', 'risk-properties', 'chats', 'notifications']) {
     assert.ok(!html.includes(`href="/admin/${path}"`), path)
     assert.doesNotMatch(renderAdmin(`/admin/${path}`), /미제공 관리자 화면/)
   }
