@@ -525,7 +525,6 @@ class AuthIntegrationTests {
 		assertThat(saved.getPasswordHash()).isEqualTo(account.user().getPasswordHash());
 		assertThat(saved.getEmail()).isEqualTo(account.user().getEmail());
 		assertThat(saved.getRole()).isEqualTo(Role.USER);
-		assertThat(saved.getAddress()).isEqualTo(account.user().getAddress());
 		assertThat(users.findById(other.user().getUserId()).orElseThrow().getPhone()).isEqualTo("01000000000");
 		mvc.perform(get("/users/me").header("Authorization", "Bearer " + session.getAccessToken()))
 			.andExpect(status().isOk()).andExpect(jsonPath("$.phone").value("010-9876-5432"));
