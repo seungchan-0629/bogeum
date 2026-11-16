@@ -1,6 +1,7 @@
 package com.bogeum.domain.risk;
 
 import java.util.Collection;
+import java.util.Optional;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -15,6 +16,10 @@ import com.bogeum.common.enums.RiskTargetType;
 import com.bogeum.domain.risk.model.RiskInfo;
 
 public interface RiskRepository extends JpaRepository<RiskInfo, Long> {
+
+	/** 수정 후 트랜잭션 밖에서 응답을 변환할 때도 대상 회원을 사용할 수 있도록 함께 조회한다. */
+	@EntityGraph(attributePaths = "targetUser")
+	Optional<RiskInfo> findByRiskInfoIdAndTargetType(Long riskInfoId, RiskTargetType targetType);
 
 	boolean existsByTargetTypeAndTargetUser_UserIdAndReasonTypeAndRiskStatus(RiskTargetType targetType,
 		Long userId, RiskReason reasonType, RiskStatus riskStatus);

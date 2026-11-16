@@ -95,4 +95,11 @@ public class RiskInfo {
 	@UpdateTimestamp
 	@Column(nullable = false)
 	private LocalDateTime updatedAt;
+
+	/** 검증된 사용자 위험 사유·상세 내용과 최신 수정 사유만 반영한다 (RISK_003). */
+	public void updateUserInfo(RiskReason reasonType, String detail, String updateReason) {
+		this.reasonType = reasonType;
+		this.detail = detail;
+		this.updateReason = updateReason;
+	}
 }

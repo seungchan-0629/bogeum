@@ -3,6 +3,8 @@ package com.bogeum.domain.risk;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -35,5 +37,13 @@ public class AdminRiskController {
 	public RiskDto.UserListRes readRiskUsers(@RequestParam(defaultValue = "") String type,
 			@RequestParam(defaultValue = "") String keyword, @RequestParam(defaultValue = "1") int page) {
 		return RiskDto.UserListRes.from(riskService.readRiskUsers(type, keyword, page));
+	}
+
+	/** 등록된 사용자 위험정보 한 건을 정정한다. 대상 회원·최초 등록자·상태는 보존한다 (#46). */
+	@PatchMapping("/admin/risk-users/{riskInfoId}")
+	public RiskDto.UserItemRes updateRiskUser(@AuthenticationPrincipal LoginUser loginUser,
+			@PathVariable("riskInfoId") Long riskInfoId, @Valid @RequestBody RiskDto.UserUpdateReq request) {
+		return RiskDto.UserItemRes.from(riskService.updateRiskUser(loginUser.getUserId(), riskInfoId,
+			request.getReasonType(), request.getDetail(), request.getUpdateReason()));
 	}
 }

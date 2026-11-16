@@ -7,6 +7,9 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum ErrorCode {
+	// 관리자 위험 사용자 수정 (RISK_003)
+	RISK_INFO_NOT_FOUND(HttpStatus.NOT_FOUND, "사용자 위험정보를 찾을 수 없습니다."),
+	RISK_NOT_EDITABLE(HttpStatus.CONFLICT, "등록된 사용자 위험정보만 수정할 수 있습니다."),
 	// 관리자 위험 사용자 신규 등록 (RISK_001)
 	RISK_USER_NOT_FOUND(HttpStatus.NOT_FOUND, "등록할 회원을 찾을 수 없습니다."),
 	RISK_ALREADY_REGISTERED(HttpStatus.CONFLICT, "이미 같은 사유로 등록된 위험 사용자입니다."),
