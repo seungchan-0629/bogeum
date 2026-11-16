@@ -6,6 +6,7 @@ import com.bogeum.domain.contract.ContractException;
 import com.bogeum.domain.favorite.FavoriteException;
 import com.bogeum.domain.property.PropertyException;
 import com.bogeum.domain.openbanking.OpenBankingException;
+import com.bogeum.domain.rent.RentException;
 import com.bogeum.domain.risk.RiskException;
 
 import org.springframework.http.ResponseEntity;
@@ -22,6 +23,11 @@ import com.bogeum.domain.user.UserException;
 /** 컨트롤러의 검증 오류와 사용자 인증 실패를 공통 JSON 응답으로 변환한다. */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+	@ExceptionHandler(RentException.class)
+	public ResponseEntity<ErrorResponse> handleRentException(RentException exception) {
+		return toResponse(exception.getErrorCode());
+	}
 
 	@ExceptionHandler(RiskException.class)
 	public ResponseEntity<ErrorResponse> handleRiskException(RiskException exception) {
