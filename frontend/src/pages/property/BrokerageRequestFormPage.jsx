@@ -2,18 +2,20 @@
 // - /my-properties/new                 새 중개 신청 (PROPERTY_002)
 // - /my-properties/:propertyId/edit    기존 매물 수정 (PROPERTY_006) — 같은 화면을 기존 값이 채워진 상태로 쓴다
 // API:
-// - 신청: POST /property/brokerage-requests (BE-020) — 거래 유형, 가격, 주소, 희망 중개사(없으면 랜덤)
-// - 수정: PUT/PATCH /api/v1/properties/{propertyId} (BE-021)
-// - 수정 화면 첫 값: GET /api/v1/properties/{propertyId} (BE-019)
+// - 신청: POST /property/brokerage-requests — 거래 유형, 가격, 주소, 희망 중개사(없으면 랜덤)
+// - 수정 화면 첫 값: GET /property/mine/{propertyId}
+// - 수정: PUT /property/mine/{propertyId} — 거래 유형·가격만 바꾼다. 주소가 바뀌면 다른 집이라 삭제 후 새로 신청한다
 import { useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
-import { useNavigate, useParams } from 'react-router'
+import { Link, useNavigate, useParams } from 'react-router'
+import { useQuery } from '@tanstack/react-query'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import clsx from 'clsx'
 import PageHeader from '../../components/common/PageHeader.jsx'
 import { Field, TextInput } from '../../components/common/FormControls.jsx'
-import { createBrokerageRequest } from '../../api/property/index.js'
+import { useAuthStore } from '../../stores/authStore.js'
+import { createBrokerageRequest, getMyProperty, updateMyProperty } from '../../api/property/index.js'
 import { searchRoadAddress } from '../../utils/postcode.js'
 
 const LEASE_TYPES = [
@@ -25,7 +27,8 @@ const LEASE_TYPES = [
 // 화면은 만원 단위로 받고, 서버에는 원 단위로 보낸다
 const MANWON = 10000
 
-const amountText = z.string().trim().regex(/^\d*$/, '숫자만 입력해 주세요.')
+// 서버는 원 단위 15자리까지 받아서 만원 단위로는 11자리까지다
+const amountText = z.string().trim().regex(/^\d*$/, '숫자만 입력해 주세요.').max(11, '금액이 너무 커요.')
 
 // 서버도 같은 규칙으로 다시 검사한다 (INVALID_LEASE_PRICE)
 const brokerageSchema = z
@@ -48,9 +51,16 @@ const brokerageSchema = z
     if (values.leaseType === 'MONTHLY' && !(Number(values.monthlyRent) > 0)) addIssue('monthlyRent', '월세를 0보다 크게 입력해 주세요.')
   })
 
-// TODO: 수정 화면이면 GET /api/v1/properties/{propertyId} (BE-019) 응답으로 채운다
-const SAMPLE_EDIT_VALUES = { leaseType: 'JEONSE', deposit: '32000', monthlyRent: '', roadAddress: '서울 마포구 공덕동 45', detailAddress: '1203호' }
 const NEW_VALUES = { leaseType: 'MONTHLY', deposit: '', monthlyRent: '', roadAddress: '', detailAddress: '' }
+
+// 수정 화면 첫 값. 서버는 원 단위라 만원으로 바꾸고, 전세는 월세 칸을 비운다
+const toFormValues = (property) => ({
+  leaseType: property.leaseType,
+  deposit: String(property.deposit / MANWON),
+  monthlyRent: property.leaseType === 'MONTHLY' ? String(property.monthlyRent / MANWON) : '',
+  roadAddress: property.roadAddress,
+  detailAddress: property.detailAddress ?? '',
+})
 
 function ChoiceButton({ isSelected, onClick, children }) {
   return (
@@ -69,9 +79,11 @@ function ErrorText({ error }) {
   return error ? <p className="text-sm text-red-600">{error.message}</p> : null
 }
 
-function BrokerageRequestFormPage() {
-  const { propertyId } = useParams()
-  const isEdit = Boolean(propertyId)
+// property가 있으면 수정, 없으면 새 신청
+function BrokerageForm({ property }) {
+  const isEdit = Boolean(property)
+  // 계약이 끝난 매물은 보여 주기만 한다. 목록에서는 월세·AS로 보내지만 주소로 직접 들어올 수 있다
+  const isLocked = isEdit && !property.isUpdatable
   const navigate = useNavigate()
   const [wantsAgent, setWantsAgent] = useState(false)
   const {
@@ -82,7 +94,7 @@ function BrokerageRequestFormPage() {
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: zodResolver(brokerageSchema),
-    defaultValues: isEdit ? SAMPLE_EDIT_VALUES : NEW_VALUES,
+    defaultValues: isEdit ? toFormValues(property) : NEW_VALUES,
   })
   const leaseType = useWatch({ control, name: 'leaseType' })
   // 매매는 아직 신청할 수 없어 아래 입력 칸을 모두 막는다
@@ -90,25 +102,23 @@ function BrokerageRequestFormPage() {
 
   // 성공하면 내 매물 목록으로 돌아간다. 신청이 생기면 중개사에게 알림(NOTIFY_022)은 서버가 보낸다
   const onSubmit = async (values) => {
-    // TODO: 수정은 PUT/PATCH /api/v1/properties/{propertyId} (BE-021)
-    if (isEdit) {
-      navigate('/my-properties')
-      return
+    const price = {
+      leaseType: values.leaseType,
+      deposit: Number(values.deposit) * MANWON,
+      monthlyRent: values.leaseType === 'MONTHLY' ? Number(values.monthlyRent) * MANWON : 0,
     }
     try {
-      // TODO: 중개사 검색 API가 생기면 직접 지정한 중개사의 agentId를 함께 보낸다. 지금은 서버가 배정한다
-      await createBrokerageRequest({
-        leaseType: values.leaseType,
-        deposit: Number(values.deposit) * MANWON,
-        monthlyRent: values.leaseType === 'MONTHLY' ? Number(values.monthlyRent) * MANWON : 0,
-        roadAddress: values.roadAddress,
-        detailAddress: values.detailAddress || null,
-      })
+      if (isEdit) {
+        await updateMyProperty(property.propertyId, price)
+      } else {
+        // TODO: 중개사 검색 API가 생기면 직접 지정한 중개사의 agentId를 함께 보낸다. 지금은 서버가 배정한다
+        await createBrokerageRequest({ ...price, roadAddress: values.roadAddress, detailAddress: values.detailAddress || null })
+      }
     } catch (error) {
       window.alert(error.response?.data?.message || '서버에 연결할 수 없습니다.')
       return
     }
-    window.alert('중개 신청이 완료되었어요.')
+    window.alert(isEdit ? '수정되었어요.' : '중개 신청이 완료되었어요.')
     navigate('/my-properties')
   }
 
@@ -122,12 +132,14 @@ function BrokerageRequestFormPage() {
   }
 
   return (
-    <div className="page-container">
-      <PageHeader
-        title={isEdit ? '매물 수정' : '매물 중개 신청'}
-        description={isEdit ? '바꿀 항목만 고쳐 주세요.' : '조건과 주소를 입력하면 중개사에게 신청돼요.'}
-      />
-      <form onSubmit={handleSubmit(onSubmit)} noValidate className="card flex max-w-2xl flex-col gap-5">
+    <form onSubmit={handleSubmit(onSubmit)} noValidate className="card flex max-w-2xl flex-col gap-5">
+      {isLocked && <p role="status" className="text-sm text-gray-600">계약이 끝난 매물은 수정할 수 없어요.</p>}
+      {/* 숨김은 관리자가 확인 중인 매물이다. 고쳐도 숨김은 그대로고 다시 공개는 관리자가 한다 (RISK_005) */}
+      {isEdit && property.propertyStatus === 'HIDDEN' && (
+        <p className="text-sm text-amber-800">수정해도 숨김은 유지되고, 관리자가 확인한 뒤 다시 공개돼요.</p>
+      )}
+
+      <fieldset disabled={isLocked} className={clsx('flex min-w-0 flex-col gap-5', isLocked && '[&_button]:cursor-not-allowed [&_input]:bg-gray-100 [&_input]:text-gray-500')}>
         <fieldset className="flex flex-col gap-2">
           <legend className="mb-2 text-sm font-medium text-gray-700">거래 유형</legend>
           <div className="flex gap-2">
@@ -165,17 +177,31 @@ function BrokerageRequestFormPage() {
             </div>
           )}
 
-          <Field label="주소" htmlFor="brokerage-address">
-            <div className="flex gap-2">
-              <TextInput id="brokerage-address" readOnly placeholder="주소 검색을 눌러 주세요" onClick={handleAddressSearch} {...register('roadAddress')} />
-              <button type="button" onClick={handleAddressSearch} className="btn-secondary h-12 shrink-0">주소 검색</button>
+          {/* 수정 화면의 주소는 보여 주기만 한다. 주소가 바뀌면 다른 집이라 서버도 받지 않는다 */}
+          {isEdit ? (
+            <div className="flex flex-col gap-5 [&_input]:bg-gray-100 [&_input]:text-gray-500">
+              <Field label="주소" htmlFor="brokerage-address" hint="주소를 바꾸려면 삭제 후 새로 신청해 주세요.">
+                <TextInput id="brokerage-address" readOnly {...register('roadAddress')} />
+              </Field>
+              <Field label="상세 주소" htmlFor="brokerage-address-detail">
+                <TextInput id="brokerage-address-detail" readOnly {...register('detailAddress')} />
+              </Field>
             </div>
-            <ErrorText error={errors.roadAddress} />
-          </Field>
-          <Field label="상세 주소" htmlFor="brokerage-address-detail">
-            <TextInput id="brokerage-address-detail" placeholder="동·호수 (선택)" {...register('detailAddress')} />
-            <ErrorText error={errors.detailAddress} />
-          </Field>
+          ) : (
+            <>
+              <Field label="주소" htmlFor="brokerage-address">
+                <div className="flex gap-2">
+                  <TextInput id="brokerage-address" readOnly placeholder="주소 검색을 눌러 주세요" onClick={handleAddressSearch} {...register('roadAddress')} />
+                  <button type="button" onClick={handleAddressSearch} className="btn-secondary h-12 shrink-0">주소 검색</button>
+                </div>
+                <ErrorText error={errors.roadAddress} />
+              </Field>
+              <Field label="상세 주소" htmlFor="brokerage-address-detail">
+                <TextInput id="brokerage-address-detail" placeholder="동·호수 (선택)" {...register('detailAddress')} />
+                <ErrorText error={errors.detailAddress} />
+              </Field>
+            </>
+          )}
 
           {!isEdit && (
             <fieldset className="flex flex-col gap-2">
@@ -195,9 +221,46 @@ function BrokerageRequestFormPage() {
             </fieldset>
           )}
         </fieldset>
+      </fieldset>
 
+      {isLocked ? (
+        <Link to="/my-properties" className="btn-secondary h-12">내 매물로</Link>
+      ) : (
         <button type="submit" disabled={isSubmitting || isSale} className="btn-primary h-12 disabled:opacity-60">{isEdit ? '수정 저장' : '중개 신청하기'}</button>
-      </form>
+      )}
+    </form>
+  )
+}
+
+function BrokerageRequestFormPage() {
+  const { propertyId } = useParams()
+  const isEdit = Boolean(propertyId)
+  const user = useAuthStore((state) => state.user)
+  // 폼은 처음 그릴 때의 값으로 채워져서, 지난번에 남은 값 대신 늘 새로 불러온 값으로 그린다
+  const property = useQuery({
+    queryKey: ['my-property', user?.userId, propertyId],
+    queryFn: ({ signal }) => getMyProperty(propertyId, signal),
+    enabled: isEdit,
+    gcTime: 0,
+    // 없는 매물(404)은 다시 시도해도 같아서 바로 안내한다
+    retry: (failureCount, error) => error.response?.status !== 404 && failureCount < 3,
+  })
+
+  return (
+    <div className="page-container">
+      <PageHeader
+        title={isEdit ? '매물 수정' : '매물 중개 신청'}
+        description={isEdit ? '거래 유형과 가격만 바꿀 수 있어요.' : '조건과 주소를 입력하면 중개사에게 신청돼요.'}
+      />
+      {!isEdit && <BrokerageForm />}
+      {isEdit && property.isPending && <p role="status">매물 정보를 불러오고 있어요.</p>}
+      {isEdit && property.isError && (
+        <div role="alert" className="flex flex-col items-start gap-3">
+          <p>{property.error.response?.status === 404 ? '매물을 찾을 수 없어요.' : '매물 정보를 불러오지 못했어요.'}</p>
+          <Link to="/my-properties" className="btn-secondary btn-sm">내 매물로</Link>
+        </div>
+      )}
+      {isEdit && property.isSuccess && <BrokerageForm property={property.data} />}
     </div>
   )
 }
