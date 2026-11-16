@@ -1,12 +1,13 @@
 // [페이지] 중개 신청 (중개사) — /agent/requests
 // 임대인이 보낸 중개 신청을 보고 수락한다. 수락하면 임대인과의 채팅방이 생긴다 (CHAT_002, BE-037 서버 처리)
-// 요구사항: PROPERTY_008 (중개 신청 수락), PROPERTY_012 (중개 신청 목록), NOTIFY_022 (신청 알림)
+// 요구사항: PROPERTY_008 (중개 신청 수락), PROPERTY_012 (중개 신청 목록), NOTIFY_022 (신청 알림), PROPERTY_007 (임대인이 삭제한 매물 표시)
 // API:
 // - 목록: GET /property/brokerage-requests/received?status=&page= (PROPERTY_012) — 상태별, 한 페이지 5개
 // - 수락: POST /property/brokerage-requests/{brokerageRequestId}/accept (BE-024)
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import clsx from 'clsx'
 import PageHeader from '../../components/common/PageHeader.jsx'
 import StatusBadge from '../../components/common/StatusBadge.jsx'
 import PhotoPlaceholder from '../../components/common/PhotoPlaceholder.jsx'
@@ -75,30 +76,37 @@ function AgentRequestListPage() {
       {list.isError && <p role="alert">중개 신청을 불러오지 못했어요.</p>}
       {list.isSuccess && (
         <ul className="flex flex-col gap-3">
-          {requests.map((request) => (
-            <li key={request.brokerageRequestId} className="card flex flex-wrap items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <PhotoPlaceholder className="size-16 shrink-0" />
-                <div className="flex flex-col">
-                  <span className="flex items-center gap-2">
-                    <strong className="text-[17px]">{request.roadAddress} {request.detailAddress}</strong>
-                    {request.isDesignated && <StatusBadge tone="blue">나를 지정</StatusBadge>}
-                  </span>
-                  <span>{formatLeasePrice(toManwonPrice(request))}</span>
-                  <span className="text-sm text-gray-500">
-                    임대인 {request.landlordName} · {formatDate(request.createdAt)} 신청
-                    {request.acceptedAt && ` · ${formatDate(request.acceptedAt)} 수락`}
-                    {!request.isDesignated && ' · 랜덤 배정'}
-                  </span>
+          {requests.map((request) => {
+            // 임대인이 삭제한 매물은 수락한 신청에만 기록으로 남는다. 진행할 일이 없어 흐리게 보이고 버튼이 없다 (PROPERTY_007)
+            const isDeleted = request.propertyStatus === 'DELETED'
+            return (
+              <li key={request.brokerageRequestId} className={clsx('card flex flex-wrap items-center justify-between gap-4', isDeleted && 'bg-gray-50 text-gray-500')}>
+                <div className="flex items-center gap-4">
+                  <PhotoPlaceholder className={clsx('size-16 shrink-0', isDeleted && 'opacity-50')} />
+                  <div className="flex flex-col">
+                    <span className="flex items-center gap-2">
+                      <strong className="text-[17px]">{request.roadAddress} {request.detailAddress}</strong>
+                      {isDeleted && <StatusBadge tone="red">삭제됨</StatusBadge>}
+                      {request.isDesignated && <StatusBadge tone="blue">나를 지정</StatusBadge>}
+                    </span>
+                    <span>{formatLeasePrice(toManwonPrice(request))}</span>
+                    <span className="text-sm text-gray-500">
+                      임대인 {request.landlordName} · {formatDate(request.createdAt)} 신청
+                      {request.acceptedAt && ` · ${formatDate(request.acceptedAt)} 수락`}
+                      {!request.isDesignated && ' · 랜덤 배정'}
+                    </span>
+                    {isDeleted && <span className="text-sm text-red-600">신청한 임대인이 매물을 삭제했습니다.</span>}
+                  </div>
                 </div>
-              </div>
-              {request.brokerageStatus === 'REQUESTED' ? (
-                <button type="button" onClick={() => handleAccept(request.brokerageRequestId)} className="btn-secondary">수락하기</button>
-              ) : (
-                <Link to="/agent/contracts" className="btn-secondary">내 계약 관리에서 보기</Link>
-              )}
-            </li>
-          ))}
+                {request.brokerageStatus === 'REQUESTED' && (
+                  <button type="button" onClick={() => handleAccept(request.brokerageRequestId)} className="btn-secondary">수락하기</button>
+                )}
+                {request.brokerageStatus === 'ACCEPTED' && !isDeleted && (
+                  <Link to="/agent/contracts" className="btn-secondary">내 계약 관리에서 보기</Link>
+                )}
+              </li>
+            )
+          })}
           {requests.length === 0 && (
             <li className="rounded-xl border border-dashed border-gray-300 px-6 py-10 text-center text-gray-600">{EMPTY_MESSAGES[tab]}</li>
           )}
