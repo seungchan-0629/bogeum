@@ -125,6 +125,7 @@ public class CustomSecurityConfig {
 				// 본인이 중개한 계약만 서비스 조회 조건으로 거른다 (AGENT_003)
 				.requestMatchers(HttpMethod.GET, "/contract-details").access(approvedAgent)
 				.requestMatchers(HttpMethod.GET, "/contract/candidates").access(approvedAgent)
+				.requestMatchers(HttpMethod.GET, "/api/tenants/me/contracts").hasRole("USER")
 				// 일반 회원의 접수만 허용하고 계약 임차인 여부는 AS 서비스에서 확인한다 (AS_001).
 				.requestMatchers(HttpMethod.POST, "/as-requests").hasRole("USER")
 				// 임대인·임차인은 같은 USER 역할이다. 매물 소유 여부는 AS 조회 조건에서 검사한다 (AS_002).

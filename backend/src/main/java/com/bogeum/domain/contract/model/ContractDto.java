@@ -129,6 +129,35 @@ public class ContractDto {
 		}
 	}
 
+	/** 내 집 관리에 표시할 임차인의 계약 매물과 실제 계약 조건. 금액은 원 단위다. */
+	@Getter
+	@Builder
+	public static class TenantContractResponse {
+
+		private Long contractId;
+		private Long propertyId;
+		private String roadAddress;
+		private String detailAddress;
+		private LeaseType leaseType;
+		private BigDecimal deposit;
+		private BigDecimal monthlyRent;
+		private Integer paymentDay;
+		private LocalDate startAt;
+		private LocalDate endAt;
+
+		/** 계약 당사자의 개인정보 없이 매물과 납부 조건만 반환한다. */
+		public static TenantContractResponse from(Contract contract) {
+			Property property = contract.getProperty();
+			return TenantContractResponse.builder()
+				.contractId(contract.getContractId()).propertyId(property.getPropertyId())
+				.roadAddress(property.getRoadAddress()).detailAddress(property.getDetailAddress())
+				.leaseType(contract.getLeaseType()).deposit(contract.getDeposit())
+				.monthlyRent(contract.getMonthlyRent()).paymentDay(contract.getPaymentDay())
+				.startAt(contract.getStartAt().toLocalDate()).endAt(contract.getEndAt().toLocalDate())
+				.build();
+		}
+	}
+
 	/** 중개 이력 목록과 페이지 정보. page는 화면의 페이지 번호와 같이 1부터 센다 (AGENT_003) */
 	@Getter
 	@Builder
