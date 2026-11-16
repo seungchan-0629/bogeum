@@ -19,6 +19,12 @@ export async function getContracts(page, signal) {
   return data
 }
 
+// 내 집 관리: 로그인한 사용자가 임차인인 계약을 최근 계약일 순으로 조회한다.
+export async function getTenantContracts(signal) {
+  const { data } = await api.get('/api/tenants/me/contracts', { signal })
+  return data
+}
+
 // PROPERTY_011 계약 등록 화면의 첫 값. 매물 거래 조건, 임대인(매물의 임대인), 임차인 후보(이 매물로 상담한 사람)를 준다
 export async function getContractCandidates(propertyId, signal) {
   const { data } = await api.get('/contract/candidates', { ...CONTRACT_CONFIG, params: { propertyId }, signal })
