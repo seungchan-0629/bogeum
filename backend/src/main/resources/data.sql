@@ -1,10 +1,4 @@
--- ============================================================
--- 보금 더미데이터
--- 기준: '요구사항 반영 테이블 명세서' / 기준 시각 2026-10-23
--- 실행 순서: FK 의존성 기준 정렬
--- 로그인: admin@bogeum.com / qwer1234, 그 외 LOCAL 계정({역할}NN@bogeum.com)도 비밀번호 qwer1234
---   landlord01~30 (user_id 2~31), tenant01~50 (32~81), agent01~10 (82~91)
---   소셜 전용 가입(tenant19~22)은 비밀번호가 없다
+
 -- ============================================================
 
 -- ============================================================
@@ -47,100 +41,100 @@ TRUNCATE TABLE user;
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- ============================================================
--- 1. User (관리자 1 / 임대인 30 / 임차인 50 / 중개사 10) - 91건
+-- 1. User (관리자 1 / 사용자 80 / 중개사 10) - 91건
 -- ============================================================
-INSERT INTO user (user_id, email, password_hash, name, phone, address, role, user_status, identity_verified_at, last_login_provider, created_at, updated_at) VALUES
-    (1, 'admin@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '관리자', '010-1000-0000', NULL, 'ADMIN', 'ACTIVE', '2024-08-01 09:01:00', 'LOCAL', '2024-08-01 09:00:00', '2024-08-01 09:00:00'),
-    (2, 'landlord01@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '이경민', '010-1100-0001', '서울특별시 강서구 공항대로 10', 'LANDLORD', 'ACTIVE', '2024-08-18 19:50:32', 'LOCAL', '2024-08-18 19:48:32', '2024-08-18 19:48:32'),
-    (3, 'landlord02@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '구예준', '010-1100-0002', '서울특별시 강남구 테헤란로 280', 'LANDLORD', 'ACTIVE', '2024-10-22 12:06:55', 'LOCAL', '2024-10-22 12:04:55', '2024-10-22 12:04:55'),
-    (4, 'landlord03@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '송채원', '010-1100-0003', '서울특별시 관악구 관악로 131', 'LANDLORD', 'ACTIVE', '2024-12-08 15:10:40', 'NAVER', '2024-12-08 15:08:40', '2024-12-08 15:08:40'),
-    (5, 'landlord04@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '최광수', '010-1100-0004', '서울특별시 노원구 동일로 95', 'LANDLORD', 'ACTIVE', '2025-01-31 10:28:11', 'LOCAL', '2025-01-31 10:24:11', '2025-01-31 10:24:11'),
-    (6, 'landlord05@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '안재희', '010-1100-0005', '서울특별시 은평구 통일로 295', 'LANDLORD', 'ACTIVE', '2025-02-11 09:16:54', 'LOCAL', '2025-02-11 09:12:54', '2025-02-11 09:12:54'),
-    (7, 'landlord06@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '정서연', '010-1100-0006', '서울특별시 마포구 마포대로 233', 'LANDLORD', 'ACTIVE', '2025-03-18 11:09:10', 'LOCAL', '2025-03-18 11:07:10', '2025-03-18 11:07:10'),
-    (8, 'landlord07@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '이태윤', '010-1100-0007', '서울특별시 강남구 테헤란로 263', 'LANDLORD', 'ACTIVE', '2025-05-23 12:45:50', 'LOCAL', '2025-05-23 12:42:50', '2025-05-23 12:42:50'),
-    (9, 'landlord08@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '황지영', '010-1100-0008', '서울특별시 송파구 올림픽로 178', 'LANDLORD', 'ACTIVE', '2025-06-26 18:17:32', 'KAKAO', '2025-06-26 18:15:32', '2025-06-26 18:15:32'),
-    (10, 'landlord09@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '주가은', '010-1100-0009', '서울특별시 금천구 시흥대로 323', 'LANDLORD', 'ACTIVE', '2025-06-16 09:12:26', 'LOCAL', '2025-06-16 09:09:26', '2025-06-16 09:09:26'),
-    (11, 'landlord10@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '배민재', '010-1100-0010', '서울특별시 동작구 상도로 338', 'LANDLORD', 'ACTIVE', '2025-09-10 18:12:26', 'LOCAL', '2025-09-10 18:08:26', '2025-09-10 18:08:26'),
-    (12, 'landlord11@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '배소율', '010-1100-0011', '서울특별시 서초구 반포대로 204', 'LANDLORD', 'ACTIVE', '2025-10-07 19:01:52', 'LOCAL', '2025-10-07 18:58:52', '2025-10-07 18:58:52'),
-    (13, 'landlord12@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '류성민', '010-1100-0012', '서울특별시 동작구 상도로 220', 'LANDLORD', 'ACTIVE', '2025-12-02 17:53:26', 'LOCAL', '2025-12-02 17:50:26', '2025-12-02 17:50:26'),
-    (14, 'landlord13@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '구상우', '010-1100-0013', '서울특별시 송파구 올림픽로 127', 'LANDLORD', 'ACTIVE', '2025-12-27 16:07:08', 'LOCAL', '2025-12-27 16:06:08', '2025-12-27 16:06:08'),
-    (15, 'landlord14@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '김정민', '010-1100-0014', '서울특별시 강남구 개포로 40', 'LANDLORD', 'ACTIVE', '2026-03-04 12:31:33', 'LOCAL', '2026-03-04 12:29:33', '2026-03-04 12:29:33'),
-    (16, 'landlord15@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '성채원', '010-1100-0015', '서울특별시 용산구 한강대로 96', 'LANDLORD', 'ACTIVE', '2026-04-29 15:02:46', 'LOCAL', '2026-04-29 14:58:46', '2026-04-29 14:58:46'),
-    (17, 'landlord16@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '고영희', '010-1100-0016', '서울특별시 서대문구 연희로 341', 'LANDLORD', 'ACTIVE', '2026-05-30 18:40:02', 'LOCAL', '2026-05-30 18:36:02', '2026-05-30 18:36:02'),
-    (18, 'landlord17@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '정지아', '010-1100-0017', '경기도 성남시 분당구 정자일로 144', 'LANDLORD', 'ACTIVE', '2026-05-22 21:01:56', 'LOCAL', '2026-05-22 20:57:56', '2026-05-22 20:57:56'),
-    (19, 'landlord18@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '홍재현', '010-1100-0018', '서울특별시 강서구 공항대로 319', 'LANDLORD', 'ACTIVE', '2026-04-15 11:40:18', 'LOCAL', '2026-04-15 11:37:18', '2026-04-15 11:37:18'),
-    (20, 'landlord19@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '이명숙', '010-1100-0019', '서울특별시 강동구 천호대로 31', 'LANDLORD', 'ACTIVE', '2026-01-26 16:45:43', 'LOCAL', '2026-01-26 16:44:43', '2026-01-26 16:44:43'),
-    (21, 'landlord20@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '성혜진', '010-1100-0020', '서울특별시 마포구 마포대로 215', 'LANDLORD', 'ACTIVE', '2026-06-29 14:17:58', 'LOCAL', '2026-06-29 14:13:58', '2026-06-29 14:13:58'),
-    (22, 'landlord21@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '고서윤', '010-1100-0021', '서울특별시 노원구 동일로 22', 'LANDLORD', 'ACTIVE', '2025-12-06 09:17:59', 'LOCAL', '2025-12-06 09:16:59', '2025-12-06 09:16:59'),
-    (23, 'landlord22@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '곽주원', '010-1100-0022', '서울특별시 마포구 독막로 345', 'LANDLORD', 'ACTIVE', '2026-02-16 18:49:15', 'LOCAL', '2026-02-16 18:46:15', '2026-02-16 18:46:15'),
-    (24, 'landlord23@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '김태호', '010-1100-0023', '서울특별시 강남구 도곡로 232', 'LANDLORD', 'ACTIVE', '2026-05-15 09:32:02', 'LOCAL', '2026-05-15 09:30:02', '2026-05-15 09:30:02'),
-    (25, 'landlord24@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '송도윤', '010-1100-0024', '서울특별시 송파구 올림픽로 233', 'LANDLORD', 'ACTIVE', '2026-03-14 16:19:29', 'LOCAL', '2026-03-14 16:18:29', '2026-03-14 16:18:29'),
-    (26, 'landlord25@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '민상우', '010-1100-0025', '서울특별시 성북구 동소문로 255', 'LANDLORD', 'ACTIVE', '2026-07-28 13:01:04', 'LOCAL', '2026-07-28 12:59:04', '2026-07-28 12:59:04'),
-    (27, 'landlord26@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '김민재', '010-1100-0026', '서울특별시 성북구 동소문로 57', 'LANDLORD', 'ACTIVE', '2026-07-14 18:55:28', 'LOCAL', '2026-07-14 18:51:28', '2026-07-14 18:51:28'),
-    (28, 'landlord27@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '윤채원', '010-1100-0027', '서울특별시 강남구 개포로 51', 'LANDLORD', 'ACTIVE', '2026-10-06 14:42:24', 'LOCAL', '2026-10-06 14:39:24', '2026-10-06 14:39:24'),
-    (29, 'landlord28@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '한수아', '010-1100-0028', '서울특별시 관악구 신림로 48', 'LANDLORD', 'ACTIVE', '2026-07-29 11:37:30', 'LOCAL', '2026-07-29 11:33:30', '2026-07-29 11:33:30'),
-    (30, 'landlord29@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '송영희', '010-1100-0029', '서울특별시 강남구 도곡로 312', 'LANDLORD', 'ACTIVE', '2026-06-30 18:18:14', 'LOCAL', '2026-06-30 18:16:14', '2026-06-30 18:16:14'),
-    (31, 'landlord30@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '배하준', '010-1100-0030', '서울특별시 광진구 능동로 228', 'LANDLORD', 'ACTIVE', '2026-05-06 18:41:45', 'LOCAL', '2026-05-06 18:39:45', '2026-05-06 18:39:45'),
-    (32, 'tenant01@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '진수진', '010-1200-0001', '경기도 수원시 영통구 광교중앙로25길 56 204호', 'TENANT', 'ACTIVE', '2024-09-11 16:08:37', 'LOCAL', '2024-09-11 16:06:37', '2024-09-11 16:06:37'),
-    (33, 'tenant02@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '민보람', '010-1200-0002', '서울특별시 영등포구 여의대방로21길 8 301호', 'TENANT', 'ACTIVE', '2024-10-31 09:51:38', 'LOCAL', '2024-10-31 09:49:38', '2024-10-31 09:49:38'),
-    (34, 'tenant03@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '최은정', '010-1200-0003', '서울특별시 용산구 한강대로 68 609호', 'TENANT', 'ACTIVE', '2024-12-17 10:24:01', 'LOCAL', '2024-12-17 10:23:01', '2024-12-17 10:23:01'),
-    (35, 'tenant04@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '이유진', '010-1200-0004', '서울특별시 동대문구 왕산로 290 112동 302호', 'TENANT', 'ACTIVE', '2025-01-25 14:20:20', 'LOCAL', '2025-01-25 14:19:20', '2025-01-25 14:19:20'),
-    (36, 'tenant05@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '민서진', '010-1200-0005', '서울특별시 양천구 목동동로 243 112동 704호', 'TENANT', 'ACTIVE', '2025-03-07 16:49:15', 'LOCAL', '2025-03-07 16:45:15', '2025-03-07 16:45:15'),
-    (37, 'tenant06@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '박영수', '010-1200-0006', '서울특별시 강남구 개포로20길 45 304호', 'TENANT', 'ACTIVE', '2025-02-27 19:36:57', 'LOCAL', '2025-02-27 19:33:57', '2025-02-27 19:33:57'),
-    (38, 'tenant07@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '구채원', '010-1200-0007', '서울특별시 서초구 반포대로 102 105동 1804호', 'TENANT', 'ACTIVE', '2024-12-15 19:36:23', 'LOCAL', '2024-12-15 19:32:23', '2024-12-15 19:32:23'),
-    (39, 'tenant08@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '윤민준', '010-1200-0008', '경기도 성남시 분당구 정자일로7길 74 203호', 'TENANT', 'ACTIVE', '2025-06-29 13:50:35', 'LOCAL', '2025-06-29 13:46:35', '2025-06-29 13:46:35'),
-    (40, 'tenant09@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '남영수', '010-1200-0009', '서울특별시 동작구 노량진로 81 1503호', 'TENANT', 'ACTIVE', '2024-09-11 19:46:15', 'LOCAL', '2024-09-11 19:42:15', '2024-09-11 19:42:15'),
-    (41, 'tenant10@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '이영수', '010-1200-0010', '서울특별시 강동구 천호대로23길 17 204호', 'TENANT', 'ACTIVE', '2025-09-15 18:17:18', 'LOCAL', '2025-09-15 18:15:18', '2025-09-15 18:15:18'),
-    (42, 'tenant11@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '오민준', '010-1200-0011', '서울특별시 양천구 목동동로25길 17 A동 202호', 'TENANT', 'ACTIVE', '2025-06-10 11:24:33', 'LOCAL', '2025-06-10 11:20:33', '2025-06-10 11:20:33'),
-    (43, 'tenant12@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '고지아', '010-1200-0012', '서울특별시 강서구 공항대로 305 504호', 'TENANT', 'ACTIVE', '2024-11-06 15:25:13', 'LOCAL', '2024-11-06 15:23:13', '2024-11-06 15:23:13'),
-    (44, 'tenant13@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '성다은', '010-1200-0013', '서울특별시 성동구 성수이로30길 9 203호', 'TENANT', 'ACTIVE', '2024-09-07 20:49:57', 'LOCAL', '2024-09-07 20:48:57', '2024-09-07 20:48:57'),
-    (45, 'tenant14@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '홍우진', '010-1200-0014', '서울특별시 송파구 송파대로 15 115동 1904호', 'TENANT', 'ACTIVE', '2024-11-07 11:01:43', 'LOCAL', '2024-11-07 10:57:43', '2024-11-07 10:57:43'),
-    (46, 'tenant15@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '정연우', '010-1200-0015', '서울특별시 구로구 디지털로 116 104동 901호', 'TENANT', 'ACTIVE', '2024-09-25 10:18:51', 'LOCAL', '2024-09-25 10:17:51', '2024-09-25 10:17:51'),
-    (47, 'tenant16@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '노윤서', '010-1200-0016', '서울특별시 영등포구 여의대방로 155 2001호', 'TENANT', 'ACTIVE', '2025-09-10 14:33:29', 'LOCAL', '2025-09-10 14:29:29', '2025-09-10 14:29:29'),
-    (48, 'tenant17@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '박명숙', '010-1200-0017', '서울특별시 동작구 노량진로4길 62 401호', 'TENANT', 'ACTIVE', '2024-11-07 18:24:41', 'LOCAL', '2024-11-07 18:20:41', '2024-11-07 18:20:41'),
-    (49, 'tenant18@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '최성훈', '010-1200-0018', '서울특별시 용산구 한강대로 107', 'TENANT', 'ACTIVE', '2025-07-07 13:17:07', 'LOCAL', '2025-07-07 13:14:07', '2025-07-07 13:14:07'),
-    (50, 'tenant19@bogeum.com', NULL, '강동현', '010-1200-0019', '서울특별시 노원구 동일로 316', 'TENANT', 'ACTIVE', '2025-05-05 12:00:12', 'KAKAO', '2025-05-05 11:58:12', '2025-05-05 11:58:12'),
-    (51, 'tenant20@bogeum.com', NULL, '배다은', '010-1200-0020', '서울특별시 용산구 한강대로 108', 'TENANT', 'ACTIVE', '2025-03-03 16:42:45', 'NAVER', '2025-03-03 16:40:45', '2025-03-03 16:40:45'),
-    (52, 'tenant21@bogeum.com', NULL, '민수아', '010-1200-0021', '서울특별시 관악구 신림로 83', 'TENANT', 'ACTIVE', '2026-04-12 20:42:08', 'KAKAO', '2026-04-12 20:39:08', '2026-04-12 20:39:08'),
-    (53, 'tenant22@bogeum.com', NULL, '주효진', '010-1200-0022', '서울특별시 서초구 서초대로 97', 'TENANT', 'ACTIVE', '2024-11-14 10:32:20', 'GOOGLE', '2024-11-14 10:28:20', '2024-11-14 10:28:20'),
-    (54, 'tenant23@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '하수아', '010-1200-0023', '서울특별시 강남구 개포로 146', 'TENANT', 'ACTIVE', '2024-11-10 09:44:51', 'KAKAO', '2024-11-10 09:43:51', '2024-11-10 09:43:51'),
-    (55, 'tenant24@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '정정민', '010-1200-0024', '서울특별시 동대문구 왕산로 248', 'TENANT', 'ACTIVE', '2025-06-04 20:11:07', 'KAKAO', '2025-06-04 20:07:07', '2025-06-04 20:07:07'),
-    (56, 'tenant25@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '정서진', '010-1200-0025', '서울특별시 양천구 목동동로 97', 'TENANT', 'ACTIVE', '2024-09-14 10:08:08', 'NAVER', '2024-09-14 10:05:08', '2024-09-14 10:05:08'),
-    (57, 'tenant26@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '이미영', '010-1200-0026', '서울특별시 성동구 성수이로 165', 'TENANT', 'ACTIVE', '2025-04-22 18:55:16', 'LOCAL', '2025-04-22 18:51:16', '2025-04-22 18:51:16'),
-    (58, 'tenant27@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '최재원', '010-1200-0027', '서울특별시 구로구 디지털로 320', 'TENANT', 'ACTIVE', '2024-12-16 10:17:03', 'LOCAL', '2024-12-16 10:15:03', '2024-12-16 10:15:03'),
-    (59, 'tenant28@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '민순자', '010-1200-0028', '서울특별시 마포구 월드컵로 156', 'TENANT', 'ACTIVE', '2025-08-14 20:20:31', 'LOCAL', '2025-08-14 20:18:31', '2025-08-14 20:18:31'),
-    (60, 'tenant29@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '최지아', '010-1200-0029', '서울특별시 구로구 디지털로 332', 'TENANT', 'ACTIVE', '2024-12-14 14:33:58', 'LOCAL', '2024-12-14 14:32:58', '2024-12-14 14:32:58'),
-    (61, 'tenant30@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '문민지', '010-1200-0030', '서울특별시 노원구 동일로 158', 'TENANT', 'ACTIVE', '2024-11-19 09:30:15', 'LOCAL', '2024-11-19 09:27:15', '2024-11-19 09:27:15'),
-    (62, 'tenant31@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '우태윤', '010-1200-0031', '서울특별시 마포구 독막로 59', 'TENANT', 'ACTIVE', '2025-04-16 14:58:57', 'LOCAL', '2025-04-16 14:57:57', '2025-04-16 14:57:57'),
-    (63, 'tenant32@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '김민준', '010-1200-0032', '서울특별시 관악구 관악로 11', 'TENANT', 'ACTIVE', '2025-04-06 12:01:25', 'LOCAL', '2025-04-06 11:58:25', '2025-04-06 11:58:25'),
-    (64, 'tenant33@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '고가은', '010-1200-0033', '서울특별시 서초구 반포대로 102', 'TENANT', 'ACTIVE', '2024-09-24 14:35:33', 'LOCAL', '2024-09-24 14:34:33', '2024-09-24 14:34:33'),
-    (65, 'tenant34@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '성형준', '010-1200-0034', '서울특별시 광진구 능동로 325', 'TENANT', 'ACTIVE', '2024-08-26 14:53:51', 'LOCAL', '2024-08-26 14:50:51', '2024-08-26 14:50:51'),
-    (66, 'tenant35@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '김나연', '010-1200-0035', '서울특별시 동작구 노량진로 163', 'TENANT', 'ACTIVE', '2025-07-27 14:15:02', 'LOCAL', '2025-07-27 14:12:02', '2025-07-27 14:12:02'),
-    (67, 'tenant36@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '전경민', '010-1200-0036', '서울특별시 강남구 개포로 202', 'TENANT', 'ACTIVE', '2026-03-17 14:36:59', 'LOCAL', '2026-03-17 14:35:59', '2026-03-17 14:35:59'),
-    (68, 'tenant37@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '유우진', '010-1200-0037', '서울특별시 영등포구 당산로 42', 'TENANT', 'ACTIVE', '2024-09-03 12:32:22', 'LOCAL', '2024-09-03 12:28:22', '2024-09-03 12:28:22'),
-    (69, 'tenant38@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '심혜원', '010-1200-0038', '서울특별시 강남구 개포로 200', 'TENANT', 'ACTIVE', '2025-09-16 18:00:17', 'LOCAL', '2025-09-16 17:58:17', '2025-09-16 17:58:17'),
-    (70, 'tenant39@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '민영호', '010-1200-0039', '서울특별시 서대문구 연희로 130', 'TENANT', 'ACTIVE', '2025-06-14 16:14:40', 'LOCAL', '2025-06-14 16:10:40', '2025-06-14 16:10:40'),
-    (71, 'tenant40@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '한지호', '010-1200-0040', '서울특별시 성북구 동소문로 258', 'TENANT', 'ACTIVE', '2025-07-28 10:06:39', 'LOCAL', '2025-07-28 10:05:39', '2025-07-28 10:05:39'),
-    (72, 'tenant41@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '남지후', '010-1200-0041', '경기도 수원시 영통구 광교중앙로 138', 'TENANT', 'ACTIVE', '2025-05-23 15:21:48', 'LOCAL', '2025-05-23 15:18:48', '2025-05-23 15:18:48'),
-    (73, 'tenant42@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '배진영', '010-1200-0042', '경기도 성남시 분당구 정자일로 31', 'TENANT', 'ACTIVE', '2024-11-08 16:41:06', 'LOCAL', '2024-11-08 16:40:06', '2024-11-08 16:40:06'),
-    (74, 'tenant43@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '양승우', '010-1200-0043', '서울특별시 영등포구 여의대방로 32', 'TENANT', 'ACTIVE', '2024-09-17 16:22:13', 'LOCAL', '2024-09-17 16:19:13', '2024-09-17 16:19:13'),
-    (75, 'tenant44@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '홍효진', '010-1200-0044', '서울특별시 성북구 동소문로 25', 'TENANT', 'ACTIVE', '2024-09-10 14:56:52', 'LOCAL', '2024-09-10 14:54:52', '2024-09-10 14:54:52'),
-    (76, 'tenant45@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '서재원', '010-1200-0045', '서울특별시 성동구 왕십리로 195', 'TENANT', 'ACTIVE', '2026-03-18 15:01:32', 'LOCAL', '2026-03-18 14:59:32', '2026-03-18 14:59:32'),
-    (77, 'tenant46@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '심우진', '010-1200-0046', '서울특별시 용산구 한강대로 149', 'TENANT', 'ACTIVE', '2026-10-13 18:16:52', 'LOCAL', '2026-10-13 18:14:52', '2026-10-13 18:14:52'),
-    (78, 'tenant47@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '윤다은', '010-1200-0047', '서울특별시 관악구 관악로 17', 'TENANT', 'ACTIVE', '2026-04-04 11:53:39', 'LOCAL', '2026-04-04 11:50:39', '2026-04-04 11:50:39'),
-    (79, 'tenant48@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '성건우', '010-1200-0048', '서울특별시 마포구 마포대로 251', 'TENANT', 'ACTIVE', '2024-12-18 13:50:00', 'LOCAL', '2024-12-18 13:46:00', '2024-12-18 13:46:00'),
-    (80, 'tenant49@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '김준서', '010-1200-0049', '서울특별시 성동구 성수이로 192', 'TENANT', 'WITHDRAWN', '2024-11-20 11:35:07', 'LOCAL', '2024-11-20 11:34:07', '2025-12-04 10:37:25'),
-    (81, 'tenant50@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '노광수', '010-1200-0050', '서울특별시 마포구 월드컵로 46', 'TENANT', 'WITHDRAWN', '2025-11-20 15:20:33', 'LOCAL', '2025-11-20 15:19:33', '2026-04-11 13:58:06'),
-    (82, 'agent01@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '권성훈', '010-1300-0001', '서울특별시 마포구 월드컵로 61 1층', 'AGENT', 'ACTIVE', '2024-08-10 02:13:17', 'LOCAL', '2024-08-10 02:11:17', '2024-08-10 02:11:17'),
-    (83, 'agent02@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '우진영', '010-1300-0002', '서울특별시 서대문구 연희로 129 1층', 'AGENT', 'ACTIVE', '2024-08-07 15:38:18', 'LOCAL', '2024-08-07 15:35:18', '2024-08-07 15:35:18'),
-    (84, 'agent03@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '홍상철', '010-1300-0003', '서울특별시 동작구 상도로 116 1층', 'AGENT', 'ACTIVE', '2024-08-03 05:10:41', 'LOCAL', '2024-08-03 05:06:41', '2024-08-03 05:06:41'),
-    (85, 'agent04@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '하하준', '010-1300-0004', '서울특별시 영등포구 여의대방로 192 1층', 'AGENT', 'ACTIVE', '2024-08-06 19:49:30', 'LOCAL', '2024-08-06 19:47:30', '2024-08-06 19:47:30'),
-    (86, 'agent05@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '이지유', '010-1300-0005', '서울특별시 강서구 공항대로 182 1층', 'AGENT', 'ACTIVE', '2024-08-06 23:21:29', 'LOCAL', '2024-08-06 23:17:29', '2024-08-06 23:17:29'),
-    (87, 'agent06@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '백태호', '010-1300-0006', '서울특별시 강남구 도곡로 116 1층', 'AGENT', 'ACTIVE', '2024-08-02 14:17:25', 'LOCAL', '2024-08-02 14:13:25', '2024-08-02 14:13:25'),
-    (88, 'agent07@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '이가은', '010-1300-0007', '서울특별시 서초구 반포대로 160 1층', 'AGENT', 'ACTIVE', '2024-08-05 23:35:13', 'LOCAL', '2024-08-05 23:34:13', '2024-08-05 23:34:13'),
-    (89, 'agent08@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '황수빈', '010-1300-0008', '서울특별시 강동구 천호대로 176 1층', 'AGENT', 'ACTIVE', '2024-08-04 17:42:37', 'LOCAL', '2024-08-04 17:38:37', '2024-08-04 17:38:37'),
-    (90, 'agent09@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '손나연', '010-1300-0009', '서울특별시 성동구 성수이로 234 1층', 'AGENT', 'ACTIVE', '2026-10-21 14:15:33', 'LOCAL', '2026-10-21 14:12:33', '2026-10-21 14:12:33'),
-    (91, 'agent10@bogeum.com', '{bcrypt}$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '손지민', '010-1300-0010', '서울특별시 노원구 동일로 275 1층', 'AGENT', 'ACTIVE', '2026-09-02 11:43:05', 'LOCAL', '2026-09-02 11:40:05', '2026-09-02 11:40:05');
+INSERT INTO user (user_id, email, password_hash, name, phone, role, user_status, identity_verified_at, last_login_provider, created_at, updated_at) VALUES
+    (1, 'admin@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '관리자', '01010000000', 'ADMIN', 'ACTIVE', '2024-08-01 09:01:00', 'LOCAL', '2024-08-01 09:00:00', '2024-08-01 09:00:00'),
+    (2, 'landlord01@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '이경민', '01011000001', 'USER', 'ACTIVE', '2024-08-18 19:50:32', 'LOCAL', '2024-08-18 19:48:32', '2024-08-18 19:48:32'),
+    (3, 'landlord02@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '구예준', '01011000002', 'USER', 'ACTIVE', '2024-10-22 12:06:55', 'LOCAL', '2024-10-22 12:04:55', '2024-10-22 12:04:55'),
+    (4, 'landlord03@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '송채원', '01011000003', 'USER', 'ACTIVE', '2024-12-08 15:10:40', 'NAVER', '2024-12-08 15:08:40', '2024-12-08 15:08:40'),
+    (5, 'landlord04@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '최광수', '01011000004', 'USER', 'ACTIVE', '2025-01-31 10:28:11', 'LOCAL', '2025-01-31 10:24:11', '2025-01-31 10:24:11'),
+    (6, 'landlord05@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '안재희', '01011000005', 'USER', 'ACTIVE', '2025-02-11 09:16:54', 'LOCAL', '2025-02-11 09:12:54', '2025-02-11 09:12:54'),
+    (7, 'landlord06@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '정서연', '01011000006', 'USER', 'ACTIVE', '2025-03-18 11:09:10', 'LOCAL', '2025-03-18 11:07:10', '2025-03-18 11:07:10'),
+    (8, 'landlord07@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '이태윤', '01011000007', 'USER', 'ACTIVE', '2025-05-23 12:45:50', 'LOCAL', '2025-05-23 12:42:50', '2025-05-23 12:42:50'),
+    (9, 'landlord08@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '황지영', '01011000008', 'USER', 'ACTIVE', '2025-06-26 18:17:32', 'KAKAO', '2025-06-26 18:15:32', '2025-06-26 18:15:32'),
+    (10, 'landlord09@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '주가은', '01011000009', 'USER', 'ACTIVE', '2025-06-16 09:12:26', 'LOCAL', '2025-06-16 09:09:26', '2025-06-16 09:09:26'),
+    (11, 'landlord10@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '배민재', '01011000010', 'USER', 'ACTIVE', '2025-09-10 18:12:26', 'LOCAL', '2025-09-10 18:08:26', '2025-09-10 18:08:26'),
+    (12, 'landlord11@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '배소율', '01011000011', 'USER', 'ACTIVE', '2025-10-07 19:01:52', 'LOCAL', '2025-10-07 18:58:52', '2025-10-07 18:58:52'),
+    (13, 'landlord12@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '류성민', '01011000012', 'USER', 'ACTIVE', '2025-12-02 17:53:26', 'LOCAL', '2025-12-02 17:50:26', '2025-12-02 17:50:26'),
+    (14, 'landlord13@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '구상우', '01011000013', 'USER', 'ACTIVE', '2025-12-27 16:07:08', 'LOCAL', '2025-12-27 16:06:08', '2025-12-27 16:06:08'),
+    (15, 'landlord14@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '김정민', '01011000014', 'USER', 'ACTIVE', '2026-03-04 12:31:33', 'LOCAL', '2026-03-04 12:29:33', '2026-03-04 12:29:33'),
+    (16, 'landlord15@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '성채원', '01011000015', 'USER', 'ACTIVE', '2026-04-29 15:02:46', 'LOCAL', '2026-04-29 14:58:46', '2026-04-29 14:58:46'),
+    (17, 'landlord16@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '고영희', '01011000016', 'USER', 'ACTIVE', '2026-05-30 18:40:02', 'LOCAL', '2026-05-30 18:36:02', '2026-05-30 18:36:02'),
+    (18, 'landlord17@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '정지아', '01011000017', 'USER', 'ACTIVE', '2026-05-22 21:01:56', 'LOCAL', '2026-05-22 20:57:56', '2026-05-22 20:57:56'),
+    (19, 'landlord18@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '홍재현', '01011000018', 'USER', 'ACTIVE', '2026-04-15 11:40:18', 'LOCAL', '2026-04-15 11:37:18', '2026-04-15 11:37:18'),
+    (20, 'landlord19@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '이명숙', '01011000019', 'USER', 'ACTIVE', '2026-01-26 16:45:43', 'LOCAL', '2026-01-26 16:44:43', '2026-01-26 16:44:43'),
+    (21, 'landlord20@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '성혜진', '01011000020', 'USER', 'ACTIVE', '2026-06-29 14:17:58', 'LOCAL', '2026-06-29 14:13:58', '2026-06-29 14:13:58'),
+    (22, 'landlord21@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '고서윤', '01011000021', 'USER', 'ACTIVE', '2025-12-06 09:17:59', 'LOCAL', '2025-12-06 09:16:59', '2025-12-06 09:16:59'),
+    (23, 'landlord22@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '곽주원', '01011000022', 'USER', 'ACTIVE', '2026-02-16 18:49:15', 'LOCAL', '2026-02-16 18:46:15', '2026-02-16 18:46:15'),
+    (24, 'landlord23@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '김태호', '01011000023', 'USER', 'ACTIVE', '2026-05-15 09:32:02', 'LOCAL', '2026-05-15 09:30:02', '2026-05-15 09:30:02'),
+    (25, 'landlord24@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '송도윤', '01011000024', 'USER', 'ACTIVE', '2026-03-14 16:19:29', 'LOCAL', '2026-03-14 16:18:29', '2026-03-14 16:18:29'),
+    (26, 'landlord25@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '민상우', '01011000025', 'USER', 'ACTIVE', '2026-07-28 13:01:04', 'LOCAL', '2026-07-28 12:59:04', '2026-07-28 12:59:04'),
+    (27, 'landlord26@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '김민재', '01011000026', 'USER', 'ACTIVE', '2026-07-14 18:55:28', 'LOCAL', '2026-07-14 18:51:28', '2026-07-14 18:51:28'),
+    (28, 'landlord27@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '윤채원', '01011000027', 'USER', 'ACTIVE', '2026-10-06 14:42:24', 'LOCAL', '2026-10-06 14:39:24', '2026-10-06 14:39:24'),
+    (29, 'landlord28@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '한수아', '01011000028', 'USER', 'ACTIVE', '2026-07-29 11:37:30', 'LOCAL', '2026-07-29 11:33:30', '2026-07-29 11:33:30'),
+    (30, 'landlord29@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '송영희', '01011000029', 'USER', 'ACTIVE', '2026-06-30 18:18:14', 'LOCAL', '2026-06-30 18:16:14', '2026-06-30 18:16:14'),
+    (31, 'landlord30@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '배하준', '01011000030', 'USER', 'ACTIVE', '2026-05-06 18:41:45', 'LOCAL', '2026-05-06 18:39:45', '2026-05-06 18:39:45'),
+    (32, 'tenant01@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '진수진', '01012000001', 'USER', 'ACTIVE', '2024-09-11 16:08:37', 'LOCAL', '2024-09-11 16:06:37', '2024-09-11 16:06:37'),
+    (33, 'tenant02@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '민보람', '01012000002', 'USER', 'ACTIVE', '2024-10-31 09:51:38', 'LOCAL', '2024-10-31 09:49:38', '2024-10-31 09:49:38'),
+    (34, 'tenant03@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '최은정', '01012000003', 'USER', 'ACTIVE', '2024-12-17 10:24:01', 'LOCAL', '2024-12-17 10:23:01', '2024-12-17 10:23:01'),
+    (35, 'tenant04@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '이유진', '01012000004', 'USER', 'ACTIVE', '2025-01-25 14:20:20', 'LOCAL', '2025-01-25 14:19:20', '2025-01-25 14:19:20'),
+    (36, 'tenant05@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '민서진', '01012000005', 'USER', 'ACTIVE', '2025-03-07 16:49:15', 'LOCAL', '2025-03-07 16:45:15', '2025-03-07 16:45:15'),
+    (37, 'tenant06@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '박영수', '01012000006', 'USER', 'ACTIVE', '2025-02-27 19:36:57', 'LOCAL', '2025-02-27 19:33:57', '2025-02-27 19:33:57'),
+    (38, 'tenant07@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '구채원', '01012000007', 'USER', 'ACTIVE', '2024-12-15 19:36:23', 'LOCAL', '2024-12-15 19:32:23', '2024-12-15 19:32:23'),
+    (39, 'tenant08@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '윤민준', '01012000008', 'USER', 'ACTIVE', '2025-06-29 13:50:35', 'LOCAL', '2025-06-29 13:46:35', '2025-06-29 13:46:35'),
+    (40, 'tenant09@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '남영수', '01012000009', 'USER', 'ACTIVE', '2024-09-11 19:46:15', 'LOCAL', '2024-09-11 19:42:15', '2024-09-11 19:42:15'),
+    (41, 'tenant10@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '이영수', '01012000010', 'USER', 'ACTIVE', '2025-09-15 18:17:18', 'LOCAL', '2025-09-15 18:15:18', '2025-09-15 18:15:18'),
+    (42, 'tenant11@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '오민준', '01012000011', 'USER', 'ACTIVE', '2025-06-10 11:24:33', 'LOCAL', '2025-06-10 11:20:33', '2025-06-10 11:20:33'),
+    (43, 'tenant12@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '고지아', '01012000012', 'USER', 'ACTIVE', '2024-11-06 15:25:13', 'LOCAL', '2024-11-06 15:23:13', '2024-11-06 15:23:13'),
+    (44, 'tenant13@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '성다은', '01012000013', 'USER', 'ACTIVE', '2024-09-07 20:49:57', 'LOCAL', '2024-09-07 20:48:57', '2024-09-07 20:48:57'),
+    (45, 'tenant14@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '홍우진', '01012000014', 'USER', 'ACTIVE', '2024-11-07 11:01:43', 'LOCAL', '2024-11-07 10:57:43', '2024-11-07 10:57:43'),
+    (46, 'tenant15@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '정연우', '01012000015', 'USER', 'ACTIVE', '2024-09-25 10:18:51', 'LOCAL', '2024-09-25 10:17:51', '2024-09-25 10:17:51'),
+    (47, 'tenant16@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '노윤서', '01012000016', 'USER', 'ACTIVE', '2025-09-10 14:33:29', 'LOCAL', '2025-09-10 14:29:29', '2025-09-10 14:29:29'),
+    (48, 'tenant17@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '박명숙', '01012000017', 'USER', 'ACTIVE', '2024-11-07 18:24:41', 'LOCAL', '2024-11-07 18:20:41', '2024-11-07 18:20:41'),
+    (49, 'tenant18@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '최성훈', '01012000018', 'USER', 'ACTIVE', '2025-07-07 13:17:07', 'LOCAL', '2025-07-07 13:14:07', '2025-07-07 13:14:07'),
+    (50, 'tenant19@bogeum.com', NULL, '강동현', '01012000019', 'USER', 'ACTIVE', '2025-05-05 12:00:12', 'KAKAO', '2025-05-05 11:58:12', '2025-05-05 11:58:12'),
+    (51, 'tenant20@bogeum.com', NULL, '배다은', '01012000020', 'USER', 'ACTIVE', '2025-03-03 16:42:45', 'NAVER', '2025-03-03 16:40:45', '2025-03-03 16:40:45'),
+    (52, 'tenant21@bogeum.com', NULL, '민수아', '01012000021', 'USER', 'ACTIVE', '2026-04-12 20:42:08', 'KAKAO', '2026-04-12 20:39:08', '2026-04-12 20:39:08'),
+    (53, 'tenant22@bogeum.com', NULL, '주효진', '01012000022', 'USER', 'ACTIVE', '2024-11-14 10:32:20', 'GOOGLE', '2024-11-14 10:28:20', '2024-11-14 10:28:20'),
+    (54, 'tenant23@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '하수아', '01012000023', 'USER', 'ACTIVE', '2024-11-10 09:44:51', 'KAKAO', '2024-11-10 09:43:51', '2024-11-10 09:43:51'),
+    (55, 'tenant24@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '정정민', '01012000024', 'USER', 'ACTIVE', '2025-06-04 20:11:07', 'KAKAO', '2025-06-04 20:07:07', '2025-06-04 20:07:07'),
+    (56, 'tenant25@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '정서진', '01012000025', 'USER', 'ACTIVE', '2024-09-14 10:08:08', 'NAVER', '2024-09-14 10:05:08', '2024-09-14 10:05:08'),
+    (57, 'tenant26@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '이미영', '01012000026', 'USER', 'ACTIVE', '2025-04-22 18:55:16', 'LOCAL', '2025-04-22 18:51:16', '2025-04-22 18:51:16'),
+    (58, 'tenant27@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '최재원', '01012000027', 'USER', 'ACTIVE', '2024-12-16 10:17:03', 'LOCAL', '2024-12-16 10:15:03', '2024-12-16 10:15:03'),
+    (59, 'tenant28@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '민순자', '01012000028', 'USER', 'ACTIVE', '2025-08-14 20:20:31', 'LOCAL', '2025-08-14 20:18:31', '2025-08-14 20:18:31'),
+    (60, 'tenant29@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '최지아', '01012000029', 'USER', 'ACTIVE', '2024-12-14 14:33:58', 'LOCAL', '2024-12-14 14:32:58', '2024-12-14 14:32:58'),
+    (61, 'tenant30@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '문민지', '01012000030', 'USER', 'ACTIVE', '2024-11-19 09:30:15', 'LOCAL', '2024-11-19 09:27:15', '2024-11-19 09:27:15'),
+    (62, 'tenant31@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '우태윤', '01012000031', 'USER', 'ACTIVE', '2025-04-16 14:58:57', 'LOCAL', '2025-04-16 14:57:57', '2025-04-16 14:57:57'),
+    (63, 'tenant32@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '김민준', '01012000032', 'USER', 'ACTIVE', '2025-04-06 12:01:25', 'LOCAL', '2025-04-06 11:58:25', '2025-04-06 11:58:25'),
+    (64, 'tenant33@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '고가은', '01012000033', 'USER', 'ACTIVE', '2024-09-24 14:35:33', 'LOCAL', '2024-09-24 14:34:33', '2024-09-24 14:34:33'),
+    (65, 'tenant34@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '성형준', '01012000034', 'USER', 'ACTIVE', '2024-08-26 14:53:51', 'LOCAL', '2024-08-26 14:50:51', '2024-08-26 14:50:51'),
+    (66, 'tenant35@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '김나연', '01012000035', 'USER', 'ACTIVE', '2025-07-27 14:15:02', 'LOCAL', '2025-07-27 14:12:02', '2025-07-27 14:12:02'),
+    (67, 'tenant36@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '전경민', '01012000036', 'USER', 'ACTIVE', '2026-03-17 14:36:59', 'LOCAL', '2026-03-17 14:35:59', '2026-03-17 14:35:59'),
+    (68, 'tenant37@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '유우진', '01012000037', 'USER', 'ACTIVE', '2024-09-03 12:32:22', 'LOCAL', '2024-09-03 12:28:22', '2024-09-03 12:28:22'),
+    (69, 'tenant38@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '심혜원', '01012000038', 'USER', 'ACTIVE', '2025-09-16 18:00:17', 'LOCAL', '2025-09-16 17:58:17', '2025-09-16 17:58:17'),
+    (70, 'tenant39@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '민영호', '01012000039', 'USER', 'ACTIVE', '2025-06-14 16:14:40', 'LOCAL', '2025-06-14 16:10:40', '2025-06-14 16:10:40'),
+    (71, 'tenant40@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '한지호', '01012000040', 'USER', 'ACTIVE', '2025-07-28 10:06:39', 'LOCAL', '2025-07-28 10:05:39', '2025-07-28 10:05:39'),
+    (72, 'tenant41@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '남지후', '01012000041', 'USER', 'ACTIVE', '2025-05-23 15:21:48', 'LOCAL', '2025-05-23 15:18:48', '2025-05-23 15:18:48'),
+    (73, 'tenant42@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '배진영', '01012000042', 'USER', 'ACTIVE', '2024-11-08 16:41:06', 'LOCAL', '2024-11-08 16:40:06', '2024-11-08 16:40:06'),
+    (74, 'tenant43@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '양승우', '01012000043', 'USER', 'ACTIVE', '2024-09-17 16:22:13', 'LOCAL', '2024-09-17 16:19:13', '2024-09-17 16:19:13'),
+    (75, 'tenant44@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '홍효진', '01012000044', 'USER', 'ACTIVE', '2024-09-10 14:56:52', 'LOCAL', '2024-09-10 14:54:52', '2024-09-10 14:54:52'),
+    (76, 'tenant45@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '서재원', '01012000045', 'USER', 'ACTIVE', '2026-03-18 15:01:32', 'LOCAL', '2026-03-18 14:59:32', '2026-03-18 14:59:32'),
+    (77, 'tenant46@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '심우진', '01012000046', 'USER', 'ACTIVE', '2026-10-13 18:16:52', 'LOCAL', '2026-10-13 18:14:52', '2026-10-13 18:14:52'),
+    (78, 'tenant47@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '윤다은', '01012000047', 'USER', 'ACTIVE', '2026-04-04 11:53:39', 'LOCAL', '2026-04-04 11:50:39', '2026-04-04 11:50:39'),
+    (79, 'tenant48@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '성건우', '01012000048', 'USER', 'ACTIVE', '2024-12-18 13:50:00', 'LOCAL', '2024-12-18 13:46:00', '2024-12-18 13:46:00'),
+    (80, 'tenant49@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '김준서', '01012000049', 'USER', 'WITHDRAWN', '2024-11-20 11:35:07', 'LOCAL', '2024-11-20 11:34:07', '2025-12-04 10:37:25'),
+    (81, 'tenant50@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '노광수', '01012000050', 'USER', 'WITHDRAWN', '2025-11-20 15:20:33', 'LOCAL', '2025-11-20 15:19:33', '2026-04-11 13:58:06'),
+    (82, 'agent01@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '권성훈', '01013000001', 'AGENT', 'ACTIVE', '2024-08-10 02:13:17', 'LOCAL', '2024-08-10 02:11:17', '2024-08-10 02:11:17'),
+    (83, 'agent02@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '우진영', '01013000002', 'AGENT', 'ACTIVE', '2024-08-07 15:38:18', 'LOCAL', '2024-08-07 15:35:18', '2024-08-07 15:35:18'),
+    (84, 'agent03@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '홍상철', '01013000003', 'AGENT', 'ACTIVE', '2024-08-03 05:10:41', 'LOCAL', '2024-08-03 05:06:41', '2024-08-03 05:06:41'),
+    (85, 'agent04@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '하하준', '01013000004', 'AGENT', 'ACTIVE', '2024-08-06 19:49:30', 'LOCAL', '2024-08-06 19:47:30', '2024-08-06 19:47:30'),
+    (86, 'agent05@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '이지유', '01013000005', 'AGENT', 'ACTIVE', '2024-08-06 23:21:29', 'LOCAL', '2024-08-06 23:17:29', '2024-08-06 23:17:29'),
+    (87, 'agent06@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '백태호', '01013000006', 'AGENT', 'ACTIVE', '2024-08-02 14:17:25', 'LOCAL', '2024-08-02 14:13:25', '2024-08-02 14:13:25'),
+    (88, 'agent07@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '이가은', '01013000007', 'AGENT', 'ACTIVE', '2024-08-05 23:35:13', 'LOCAL', '2024-08-05 23:34:13', '2024-08-05 23:34:13'),
+    (89, 'agent08@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '황수빈', '01013000008', 'AGENT', 'ACTIVE', '2024-08-04 17:42:37', 'LOCAL', '2024-08-04 17:38:37', '2024-08-04 17:38:37'),
+    (90, 'agent09@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '손나연', '01013000009', 'AGENT', 'ACTIVE', '2026-10-21 14:15:33', 'LOCAL', '2026-10-21 14:12:33', '2026-10-21 14:12:33'),
+    (91, 'agent10@bogeum.com', '$2a$10$GsdctJFTnM2SMCRJxGOF0ufQ.kq/9wGeIXZNbSoCHlTdzMT5UUotu', '손지민', '01013000010', 'AGENT', 'ACTIVE', '2026-09-02 11:43:05', 'LOCAL', '2026-09-02 11:40:05', '2026-09-02 11:40:05');
 
 -- ============================================================
 -- 2. SocialAccount (소셜 계정 연결) - 9건
@@ -432,7 +426,7 @@ INSERT INTO settlement_account (settlement_account_id, landlord_id, bank_code, a
     (23, 28, '081', 'ENC:N2YyNzg3M2UxNzg1OTE3YWRmODc3YjE3', '499-****-2017', '윤채원', '2026-10-17 20:00:36', '2026-10-17 20:00:36');
 
 -- ============================================================
--- 8. Property (매물) - 60건
+-- 8. Property (매물) - 62건
 -- ============================================================
 INSERT INTO property (property_id, landlord_id, agent_id, property_type, lease_type, deposit, monthly_rent, road_address, detail_address, area_pyeong, household_count, parking_count, floor, room_count, nearby_subway_station, property_status, created_at, updated_at) VALUES
     (1, 2, 89, 'MULTI_FAMILY', 'MONTHLY', 10000000, 400000, '경기도 수원시 영통구 광교중앙로25길 56', '204호', 7.47, 12, 5, 2, 1, '광교중앙역', 'CONTRACTED', '2024-09-01 10:18:05', '2024-10-11 13:45:12'),
@@ -496,9 +490,25 @@ INSERT INTO property (property_id, landlord_id, agent_id, property_type, lease_t
     (59, 28, NULL, NULL, 'JEONSE', 870000000, 0, '서울특별시 송파구 올림픽로 272', '109동 2203호', NULL, NULL, NULL, NULL, NULL, NULL, 'REQUESTED', '2026-10-15 20:52:06', '2026-10-15 20:52:06'),
     (60, 15, NULL, NULL, 'MONTHLY', 15000000, 800000, '서울특별시 마포구 독막로 332', '1604호', NULL, NULL, NULL, NULL, NULL, NULL, 'REQUESTED', '2026-10-18 11:37:30', '2026-10-18 11:37:30');
 
+-- 시나리오 추가: landlord11(12)이 내 매물의 모든 단계를 갖도록 수락 대기·매물 준비 중 매물을 더한다 (PROPERTY_013)
+-- 61은 중개사 수락 전이라 담당 중개사가 비어 있고, 62는 agent01(82)이 수락했지만 상세 정보를 올리기 전이다
+INSERT INTO property (property_id, landlord_id, agent_id, property_type, lease_type, deposit, monthly_rent, road_address, detail_address, area_pyeong, household_count, parking_count, floor, room_count, nearby_subway_station, property_status, created_at, updated_at) VALUES
+    (61, 12, NULL, NULL, 'MONTHLY', 20000000, 750000, '서울특별시 마포구 망원로 54', '301호', NULL, NULL, NULL, NULL, NULL, NULL, 'REQUESTED', '2026-10-21 10:20:00', '2026-10-21 10:20:00'),
+    (62, 12, 82, NULL, 'JEONSE', 250000000, 0, '서울특별시 마포구 월드컵북로 21', '502호', NULL, NULL, NULL, NULL, NULL, NULL, 'REQUESTED', '2026-10-19 14:05:00', '2026-10-20 10:30:00');
+
 -- 공개 시각 (PROPERTY_004). 더미 매물은 공개한 뒤 바뀐 기록이 없어 updated_at을 공개 시각으로 본다
 -- 계약·숨김·삭제 매물도 한 번 공개됐던 매물이라 함께 채운다. 공개 전(REQUESTED)은 비워 둔다
 UPDATE property SET published_at = updated_at WHERE property_status <> 'REQUESTED';
+
+-- 건물 전체 층 (PROPERTY_010). 층은 전체 층보다 클 수 없다. 공개 전(REQUESTED)은 층이 비어 있어 함께 비워 둔다
+-- 빌라·다가구는 4층 건물, 오피스텔·아파트는 해당 층보다 높은 건물로 둔다
+UPDATE property SET total_floor = CASE property_type
+		WHEN 'VILLA' THEN 4
+		WHEN 'MULTI_FAMILY' THEN 4
+		WHEN 'OFFICETEL' THEN GREATEST(floor + 5, 15)
+		WHEN 'APARTMENT' THEN GREATEST(floor + 5, 20)
+	END
+WHERE floor IS NOT NULL;
 
 -- ============================================================
 -- 9. PropertyImage (매물 사진) - 240건
@@ -748,7 +758,7 @@ INSERT INTO property_image (property_image_id, property_id, file_key, sort_order
     (240, 54, 'property-images/2026/09/c9e87e5045ccfc2bd632a6158acdc2f0.jpg', 2, '2026-09-25 15:21:37');
 
 -- ============================================================
--- 10. BrokerageRequest (중개 신청) - 60건
+-- 10. BrokerageRequest (중개 신청) - 62건
 -- ============================================================
 INSERT INTO brokerage_request (brokerage_request_id, property_id, landlord_id, agent_id, is_designated, brokerage_status, accepted_at, created_at) VALUES
     (1, 1, 2, 89, 1, 'ACCEPTED', '2024-09-02 08:18:05', '2024-09-01 10:18:05'),
@@ -811,6 +821,11 @@ INSERT INTO brokerage_request (brokerage_request_id, property_id, landlord_id, a
     (58, 58, 20, 86, 0, 'REQUESTED', NULL, '2026-10-15 15:13:20'),
     (59, 59, 28, 88, 0, 'REQUESTED', NULL, '2026-10-15 20:52:06'),
     (60, 60, 15, 89, 0, 'REQUESTED', NULL, '2026-10-18 11:37:30');
+
+-- 시나리오 추가: 매물 61(수락 대기)·62(매물 준비 중)의 중개 신청. agent01(82)이 새 신청과 준비 중 매물을 함께 갖는다 (PROPERTY_012)
+INSERT INTO brokerage_request (brokerage_request_id, property_id, landlord_id, agent_id, is_designated, brokerage_status, accepted_at, created_at) VALUES
+    (61, 61, 12, 82, 1, 'REQUESTED', NULL, '2026-10-21 10:20:00'),
+    (62, 62, 12, 82, 0, 'ACCEPTED', '2026-10-20 10:30:00', '2026-10-19 14:05:00');
 
 -- ============================================================
 -- 11. PropertyViewLog (매물 조회 이력) - 366건
@@ -1292,7 +1307,7 @@ INSERT INTO favorite_property (favorite_property_id, user_id, property_id, creat
     (100, 52, 23, '2026-10-22 14:59:26');
 
 -- ============================================================
--- 13. ChatRoom (채팅방) - 125건
+-- 13. ChatRoom (채팅방) - 126건
 -- ============================================================
 INSERT INTO chat_room (chat_room_id, property_id, room_type, inquirer_id, agent_id, chat_status, inquirer_last_read_message_id, agent_last_read_message_id, last_message_at, created_at) VALUES
     (1, 1, 'LANDLORD_AGENT', 2, 89, 'READ_ONLY', 22, 22, '2024-10-08 15:34:40', '2024-09-02 08:18:05'),
@@ -1422,8 +1437,12 @@ INSERT INTO chat_room (chat_room_id, property_id, room_type, inquirer_id, agent_
     (124, 54, 'TENANT_AGENT', 75, 84, 'ACTIVE', 704, 704, '2026-10-20 00:59:24', '2026-10-19 03:56:24'),
     (125, 47, 'TENANT_AGENT', 50, 86, 'ACTIVE', 708, 708, '2026-10-20 15:32:57', '2026-10-20 14:23:57');
 
+-- 시나리오 추가: 매물 62 중개 수락으로 생긴 임대인·중개사 채팅방 (CHAT_002)
+INSERT INTO chat_room (chat_room_id, property_id, room_type, inquirer_id, agent_id, chat_status, inquirer_last_read_message_id, agent_last_read_message_id, last_message_at, created_at) VALUES
+    (126, 62, 'LANDLORD_AGENT', 12, 82, 'ACTIVE', 711, 711, '2026-10-20 10:52:00', '2026-10-20 10:30:00');
+
 -- ============================================================
--- 14. ChatMessage (채팅 메시지) - 708건
+-- 14. ChatMessage (채팅 메시지) - 711건
 -- ============================================================
 INSERT INTO chat_message (chat_message_id, chat_room_id, sender_id, message_type, content, image_file_key, created_at) VALUES
     (1, 1, 89, 'TEXT', '안녕하세요, 천호 새봄공인중개사사무소 황수빈 중개사입니다. 수원시 영통구 광교중앙로25길 56 매물 중개 신청 확인했습니다.', NULL, '2024-09-02 08:23:05'),
@@ -2142,6 +2161,12 @@ INSERT INTO chat_message (chat_message_id, chat_room_id, sender_id, message_type
     (707, 125, 50, 'TEXT', '주차는 세대당 몇 대까지 가능한가요?', NULL, '2026-10-20 15:29:57'),
     (708, 125, 86, 'TEXT', '세대당 1대 무료이고 추가 차량은 월 3만원입니다.', NULL, '2026-10-20 15:32:57');
 
+-- 시나리오 추가: 채팅방 126(매물 62)의 수락 인사
+INSERT INTO chat_message (chat_message_id, chat_room_id, sender_id, message_type, content, image_file_key, created_at) VALUES
+    (709, 126, 82, 'TEXT', '안녕하세요, 망원 행복공인중개사사무소 권성훈 중개사입니다. 마포구 월드컵북로 21 매물 중개 신청 확인했습니다.', NULL, '2026-10-20 10:35:00'),
+    (710, 126, 12, 'TEXT', '네 안녕하세요. 잘 부탁드립니다.', NULL, '2026-10-20 10:44:00'),
+    (711, 126, 82, 'TEXT', '사진 촬영이랑 현장 확인 때문에 한번 방문하려고 하는데 언제가 편하실까요?', NULL, '2026-10-20 10:52:00');
+
 -- ============================================================
 -- 15. UserBlock (채팅 차단) - 3건
 -- ============================================================
@@ -2384,7 +2409,7 @@ INSERT INTO rent_payment (rent_payment_id, contract_id, seq, due_at, amount, ren
     (43, 3, 19, '2026-08-01 00:00:00', 1400000, 'PAID', 0, NULL, NULL, '2026-08-01 09:00:41', '2025-01-14 17:01:01', '2026-08-01 09:00:41'),
     (44, 3, 20, '2026-09-01 00:00:00', 1400000, 'PAID', 0, NULL, NULL, '2026-09-01 09:00:37', '2025-01-14 17:01:01', '2026-09-01 09:00:37'),
     (45, 3, 21, '2026-10-01 00:00:00', 1400000, 'PAID', 0, NULL, NULL, '2026-10-01 09:00:40', '2025-01-14 17:01:01', '2026-10-01 09:00:40'),
-    (46, 3, 22, '2026-11-01 00:00:00', 1400000, 'SCHEDULED', 0, NULL, NULL, NULL, '2025-01-14 17:01:01', '2025-01-14 17:01:01'),
+    (46, 3, 22, '2026-11-01 00:00:00', 1400000, 'PAID', 0, NULL, NULL, '2026-11-01 09:00:47', '2025-01-14 17:01:01', '2026-11-01 09:00:47'),
     (47, 3, 23, '2026-12-01 00:00:00', 1400000, 'SCHEDULED', 0, NULL, NULL, NULL, '2025-01-14 17:01:01', '2025-01-14 17:01:01'),
     (48, 3, 24, '2027-01-01 00:00:00', 1400000, 'SCHEDULED', 0, NULL, NULL, NULL, '2025-01-14 17:01:01', '2025-01-14 17:01:01'),
     (49, 4, 1, '2025-03-25 00:00:00', 1650000, 'PAID', 0, NULL, NULL, '2025-03-25 09:00:42', '2025-03-11 09:24:53', '2025-03-25 09:00:42'),
@@ -2406,7 +2431,7 @@ INSERT INTO rent_payment (rent_payment_id, contract_id, seq, due_at, amount, ren
     (65, 4, 17, '2026-07-25 00:00:00', 1650000, 'PAID', 0, NULL, NULL, '2026-07-25 09:00:26', '2025-03-11 09:24:53', '2026-07-25 09:00:26'),
     (66, 4, 18, '2026-08-25 00:00:00', 1650000, 'PAID', 0, NULL, NULL, '2026-08-25 09:00:15', '2025-03-11 09:24:53', '2026-08-25 09:00:15'),
     (67, 4, 19, '2026-09-25 00:00:00', 1650000, 'PAID', 0, NULL, NULL, '2026-09-25 09:00:13', '2025-03-11 09:24:53', '2026-09-25 09:00:13'),
-    (68, 4, 20, '2026-10-25 00:00:00', 1650000, 'SCHEDULED', 0, NULL, NULL, NULL, '2025-03-11 09:24:53', '2025-03-11 09:24:53'),
+    (68, 4, 20, '2026-10-25 00:00:00', 1650000, 'PAID', 0, NULL, NULL, '2026-10-25 09:00:39', '2025-03-11 09:24:53', '2026-10-25 09:00:39'),
     (69, 4, 21, '2026-11-25 00:00:00', 1650000, 'SCHEDULED', 0, NULL, NULL, NULL, '2025-03-11 09:24:53', '2025-03-11 09:24:53'),
     (70, 4, 22, '2026-12-25 00:00:00', 1650000, 'SCHEDULED', 0, NULL, NULL, NULL, '2025-03-11 09:24:53', '2025-03-11 09:24:53'),
     (71, 4, 23, '2027-01-25 00:00:00', 1650000, 'SCHEDULED', 0, NULL, NULL, NULL, '2025-03-11 09:24:53', '2025-03-11 09:24:53'),
@@ -2428,7 +2453,7 @@ INSERT INTO rent_payment (rent_payment_id, contract_id, seq, due_at, amount, ren
     (87, 6, 15, '2026-08-01 00:00:00', 650000, 'PAID', 0, NULL, NULL, '2026-08-01 09:00:20', '2025-05-15 17:51:38', '2026-08-01 09:00:20'),
     (88, 6, 16, '2026-09-01 00:00:00', 650000, 'PAID', 0, NULL, NULL, '2026-09-01 09:00:29', '2025-05-15 17:51:38', '2026-09-01 09:00:29'),
     (89, 6, 17, '2026-10-01 00:00:00', 650000, 'PAID', 0, NULL, NULL, '2026-10-01 09:00:45', '2025-05-15 17:51:38', '2026-10-01 09:00:45'),
-    (90, 6, 18, '2026-11-01 00:00:00', 650000, 'SCHEDULED', 0, NULL, NULL, NULL, '2025-05-15 17:51:38', '2025-05-15 17:51:38'),
+    (90, 6, 18, '2026-11-01 00:00:00', 650000, 'PAID', 0, NULL, NULL, '2026-11-01 09:00:58', '2025-05-15 17:51:38', '2026-11-01 09:00:58'),
     (91, 6, 19, '2026-12-01 00:00:00', 650000, 'SCHEDULED', 0, NULL, NULL, NULL, '2025-05-15 17:51:38', '2025-05-15 17:51:38'),
     (92, 6, 20, '2027-01-01 00:00:00', 650000, 'SCHEDULED', 0, NULL, NULL, NULL, '2025-05-15 17:51:38', '2025-05-15 17:51:38'),
     (93, 6, 21, '2027-02-01 00:00:00', 650000, 'SCHEDULED', 0, NULL, NULL, NULL, '2025-05-15 17:51:38', '2025-05-15 17:51:38'),
@@ -2452,7 +2477,7 @@ INSERT INTO rent_payment (rent_payment_id, contract_id, seq, due_at, amount, ren
     (110, 7, 14, '2026-08-15 00:00:00', 1750000, 'PAID', 0, NULL, NULL, '2026-08-15 09:00:42', '2025-06-28 12:45:22', '2026-08-15 09:00:42'),
     (111, 7, 15, '2026-09-15 00:00:00', 1750000, 'PAID', 0, NULL, NULL, '2026-09-15 09:00:41', '2025-06-28 12:45:22', '2026-09-15 09:00:41'),
     (112, 7, 16, '2026-10-15 00:00:00', 1750000, 'PAID', 0, NULL, NULL, '2026-10-15 09:00:26', '2025-06-28 12:45:22', '2026-10-15 09:00:26'),
-    (113, 7, 17, '2026-11-15 00:00:00', 1750000, 'SCHEDULED', 0, NULL, NULL, NULL, '2025-06-28 12:45:22', '2025-06-28 12:45:22'),
+    (113, 7, 17, '2026-11-15 00:00:00', 1750000, 'FAILED', 1, '2026-11-15 09:00:16', '2026-11-18 09:00:00', NULL, '2025-06-28 12:45:22', '2026-11-15 09:05:16'),
     (114, 7, 18, '2026-12-15 00:00:00', 1750000, 'SCHEDULED', 0, NULL, NULL, NULL, '2025-06-28 12:45:22', '2025-06-28 12:45:22'),
     (115, 7, 19, '2027-01-15 00:00:00', 1750000, 'SCHEDULED', 0, NULL, NULL, NULL, '2025-06-28 12:45:22', '2025-06-28 12:45:22'),
     (116, 7, 20, '2027-02-15 00:00:00', 1750000, 'SCHEDULED', 0, NULL, NULL, NULL, '2025-06-28 12:45:22', '2025-06-28 12:45:22'),
@@ -2474,7 +2499,7 @@ INSERT INTO rent_payment (rent_payment_id, contract_id, seq, due_at, amount, ren
     (132, 9, 12, '2026-08-05 00:00:00', 850000, 'PAID', 0, NULL, NULL, '2026-08-05 09:00:38', '2025-08-20 12:11:08', '2026-08-05 09:00:38'),
     (133, 9, 13, '2026-09-05 00:00:00', 850000, 'OVERDUE', 3, '2026-09-05 09:00:11', NULL, NULL, '2025-08-20 12:11:08', '2026-09-12 09:00:00'),
     (134, 9, 14, '2026-10-05 00:00:00', 850000, 'OVERDUE', 3, '2026-10-05 09:00:28', NULL, NULL, '2025-08-20 12:11:08', '2026-10-12 09:00:00'),
-    (135, 9, 15, '2026-11-05 00:00:00', 850000, 'SCHEDULED', 0, NULL, NULL, NULL, '2025-08-20 12:11:08', '2025-08-20 12:11:08'),
+    (135, 9, 15, '2026-11-05 00:00:00', 850000, 'OVERDUE', 3, '2026-11-05 09:00:09', NULL, NULL, '2025-08-20 12:11:08', '2026-11-12 09:00:00'),
     (136, 9, 16, '2026-12-05 00:00:00', 850000, 'SCHEDULED', 0, NULL, NULL, NULL, '2025-08-20 12:11:08', '2025-08-20 12:11:08'),
     (137, 9, 17, '2027-01-05 00:00:00', 850000, 'SCHEDULED', 0, NULL, NULL, NULL, '2025-08-20 12:11:08', '2025-08-20 12:11:08'),
     (138, 9, 18, '2027-02-05 00:00:00', 850000, 'SCHEDULED', 0, NULL, NULL, NULL, '2025-08-20 12:11:08', '2025-08-20 12:11:08'),
@@ -2496,7 +2521,7 @@ INSERT INTO rent_payment (rent_payment_id, contract_id, seq, due_at, amount, ren
     (154, 10, 10, '2026-08-01 00:00:00', 650000, 'PAID', 0, NULL, NULL, '2026-08-01 09:00:06', '2025-10-15 17:07:05', '2026-08-01 09:00:06'),
     (155, 10, 11, '2026-09-01 00:00:00', 650000, 'PAID', 0, NULL, NULL, '2026-09-01 09:00:29', '2025-10-15 17:07:05', '2026-09-01 09:00:29'),
     (156, 10, 12, '2026-10-01 00:00:00', 650000, 'PAID', 0, NULL, NULL, '2026-10-01 09:00:06', '2025-10-15 17:07:05', '2026-10-01 09:00:06'),
-    (157, 10, 13, '2026-11-01 00:00:00', 650000, 'SCHEDULED', 0, NULL, NULL, NULL, '2025-10-15 17:07:05', '2025-10-15 17:07:05'),
+    (157, 10, 13, '2026-11-01 00:00:00', 650000, 'PAID', 0, NULL, NULL, '2026-11-01 09:01:05', '2025-10-15 17:07:05', '2026-11-01 09:01:05'),
     (158, 10, 14, '2026-12-01 00:00:00', 650000, 'SCHEDULED', 0, NULL, NULL, NULL, '2025-10-15 17:07:05', '2025-10-15 17:07:05'),
     (159, 10, 15, '2027-01-01 00:00:00', 650000, 'SCHEDULED', 0, NULL, NULL, NULL, '2025-10-15 17:07:05', '2025-10-15 17:07:05'),
     (160, 10, 16, '2027-02-01 00:00:00', 650000, 'SCHEDULED', 0, NULL, NULL, NULL, '2025-10-15 17:07:05', '2025-10-15 17:07:05'),
@@ -2517,7 +2542,7 @@ INSERT INTO rent_payment (rent_payment_id, contract_id, seq, due_at, amount, ren
     (175, 12, 7, '2026-07-21 00:00:00', 750000, 'PAID', 0, NULL, NULL, '2026-07-21 09:00:40', '2026-01-11 11:59:10', '2026-07-21 09:00:40'),
     (176, 12, 8, '2026-08-21 00:00:00', 750000, 'PAID', 0, NULL, NULL, '2026-08-21 09:00:37', '2026-01-11 11:59:10', '2026-08-21 09:00:37'),
     (177, 12, 9, '2026-09-21 00:00:00', 750000, 'PAID', 0, NULL, NULL, '2026-09-21 09:00:08', '2026-01-11 11:59:10', '2026-09-21 09:00:08'),
-    (178, 12, 10, '2026-10-21 00:00:00', 750000, 'FAILED', 1, '2026-10-21 09:00:08', '2026-10-24 09:00:00', NULL, '2026-01-11 11:59:10', '2026-10-21 09:05:08'),
+    (178, 12, 10, '2026-10-21 00:00:00', 750000, 'PAID', 2, '2026-10-21 09:00:08', NULL, '2026-10-24 09:00:37', '2026-01-11 11:59:10', '2026-10-24 09:00:37'),
     (179, 12, 11, '2026-11-21 00:00:00', 750000, 'SCHEDULED', 0, NULL, NULL, NULL, '2026-01-11 11:59:10', '2026-01-11 11:59:10'),
     (180, 12, 12, '2026-12-21 00:00:00', 750000, 'SCHEDULED', 0, NULL, NULL, NULL, '2026-01-11 11:59:10', '2026-01-11 11:59:10'),
     (181, 12, 13, '2027-01-21 00:00:00', 750000, 'SCHEDULED', 0, NULL, NULL, NULL, '2026-01-11 11:59:10', '2026-01-11 11:59:10'),
@@ -2541,7 +2566,7 @@ INSERT INTO rent_payment (rent_payment_id, contract_id, seq, due_at, amount, ren
     (199, 13, 7, '2026-09-01 00:00:00', 1100000, 'PAID', 0, NULL, NULL, '2026-09-01 09:00:06', '2026-02-17 13:02:04', '2026-09-01 09:00:06'),
     (200, 13, 8, '2026-10-01 00:00:00', 1100000, 'PAID', 0, NULL, NULL, '2026-10-01 09:00:30', '2026-02-17 13:02:04', '2026-10-01 09:00:30');
 INSERT INTO rent_payment (rent_payment_id, contract_id, seq, due_at, amount, rent_payment_status, retry_count, first_failed_at, next_retry_at, paid_at, created_at, updated_at) VALUES
-    (201, 13, 9, '2026-11-01 00:00:00', 1100000, 'SCHEDULED', 0, NULL, NULL, NULL, '2026-02-17 13:02:04', '2026-02-17 13:02:04'),
+    (201, 13, 9, '2026-11-01 00:00:00', 1100000, 'PAID', 0, NULL, NULL, '2026-11-01 09:01:14', '2026-02-17 13:02:04', '2026-11-01 09:01:14'),
     (202, 13, 10, '2026-12-01 00:00:00', 1100000, 'SCHEDULED', 0, NULL, NULL, NULL, '2026-02-17 13:02:04', '2026-02-17 13:02:04'),
     (203, 13, 11, '2027-01-01 00:00:00', 1100000, 'SCHEDULED', 0, NULL, NULL, NULL, '2026-02-17 13:02:04', '2026-02-17 13:02:04'),
     (204, 13, 12, '2027-02-01 00:00:00', 1100000, 'SCHEDULED', 0, NULL, NULL, NULL, '2026-02-17 13:02:04', '2026-02-17 13:02:04'),
@@ -2561,7 +2586,7 @@ INSERT INTO rent_payment (rent_payment_id, contract_id, seq, due_at, amount, ren
     (218, 15, 2, '2026-08-01 00:00:00', 1600000, 'PAID', 0, NULL, NULL, '2026-08-01 09:00:44', '2026-06-17 09:50:26', '2026-08-01 09:00:44'),
     (219, 15, 3, '2026-09-01 00:00:00', 1600000, 'PAID', 0, NULL, NULL, '2026-09-01 09:00:25', '2026-06-17 09:50:26', '2026-09-01 09:00:25'),
     (220, 15, 4, '2026-10-01 00:00:00', 1600000, 'PAID', 0, NULL, NULL, '2026-10-01 09:00:46', '2026-06-17 09:50:26', '2026-10-01 09:00:46'),
-    (221, 15, 5, '2026-11-01 00:00:00', 1600000, 'SCHEDULED', 0, NULL, NULL, NULL, '2026-06-17 09:50:26', '2026-06-17 09:50:26'),
+    (221, 15, 5, '2026-11-01 00:00:00', 1600000, 'PAID', 0, NULL, NULL, '2026-11-01 09:01:22', '2026-06-17 09:50:26', '2026-11-01 09:01:22'),
     (222, 15, 6, '2026-12-01 00:00:00', 1600000, 'SCHEDULED', 0, NULL, NULL, NULL, '2026-06-17 09:50:26', '2026-06-17 09:50:26'),
     (223, 15, 7, '2027-01-01 00:00:00', 1600000, 'SCHEDULED', 0, NULL, NULL, NULL, '2026-06-17 09:50:26', '2026-06-17 09:50:26'),
     (224, 15, 8, '2027-02-01 00:00:00', 1600000, 'SCHEDULED', 0, NULL, NULL, NULL, '2026-06-17 09:50:26', '2026-06-17 09:50:26'),
@@ -2583,7 +2608,7 @@ INSERT INTO rent_payment (rent_payment_id, contract_id, seq, due_at, amount, ren
     (240, 15, 24, '2028-06-01 00:00:00', 1600000, 'SCHEDULED', 0, NULL, NULL, NULL, '2026-06-17 09:50:26', '2026-06-17 09:50:26'),
     (241, 16, 1, '2026-09-05 00:00:00', 950000, 'PAID', 0, NULL, NULL, '2026-09-05 09:00:22', '2026-08-26 12:13:32', '2026-09-05 09:00:22'),
     (242, 16, 2, '2026-10-05 00:00:00', 950000, 'PAID', 0, NULL, NULL, '2026-10-05 09:00:07', '2026-08-26 12:13:32', '2026-10-05 09:00:07'),
-    (243, 16, 3, '2026-11-05 00:00:00', 950000, 'SCHEDULED', 0, NULL, NULL, NULL, '2026-08-26 12:13:32', '2026-08-26 12:13:32'),
+    (243, 16, 3, '2026-11-05 00:00:00', 950000, 'PAID', 0, NULL, NULL, '2026-11-05 09:00:44', '2026-08-26 12:13:32', '2026-11-05 09:00:44'),
     (244, 16, 4, '2026-12-05 00:00:00', 950000, 'SCHEDULED', 0, NULL, NULL, NULL, '2026-08-26 12:13:32', '2026-08-26 12:13:32'),
     (245, 16, 5, '2027-01-05 00:00:00', 950000, 'SCHEDULED', 0, NULL, NULL, NULL, '2026-08-26 12:13:32', '2026-08-26 12:13:32'),
     (246, 16, 6, '2027-02-05 00:00:00', 950000, 'SCHEDULED', 0, NULL, NULL, NULL, '2026-08-26 12:13:32', '2026-08-26 12:13:32'),
@@ -2605,7 +2630,7 @@ INSERT INTO rent_payment (rent_payment_id, contract_id, seq, due_at, amount, ren
     (262, 16, 22, '2028-06-05 00:00:00', 950000, 'SCHEDULED', 0, NULL, NULL, NULL, '2026-08-26 12:13:32', '2026-08-26 12:13:32'),
     (263, 16, 23, '2028-07-05 00:00:00', 950000, 'SCHEDULED', 0, NULL, NULL, NULL, '2026-08-26 12:13:32', '2026-08-26 12:13:32'),
     (264, 16, 24, '2028-08-05 00:00:00', 950000, 'SCHEDULED', 0, NULL, NULL, NULL, '2026-08-26 12:13:32', '2026-08-26 12:13:32'),
-    (265, 18, 1, '2026-11-01 00:00:00', 600000, 'SCHEDULED', 0, NULL, NULL, NULL, '2026-10-20 16:30:47', '2026-10-20 16:30:47'),
+    (265, 18, 1, '2026-11-01 00:00:00', 600000, 'OVERDUE', 0, NULL, NULL, NULL, '2026-10-20 16:30:47', '2026-11-01 09:00:00'),
     (266, 18, 2, '2026-12-01 00:00:00', 600000, 'SCHEDULED', 0, NULL, NULL, NULL, '2026-10-20 16:30:47', '2026-10-20 16:30:47'),
     (267, 18, 3, '2027-01-01 00:00:00', 600000, 'SCHEDULED', 0, NULL, NULL, NULL, '2026-10-20 16:30:47', '2026-10-20 16:30:47'),
     (268, 18, 4, '2027-02-01 00:00:00', 600000, 'SCHEDULED', 0, NULL, NULL, NULL, '2026-10-20 16:30:47', '2026-10-20 16:30:47'),
@@ -2631,7 +2656,7 @@ INSERT INTO rent_payment (rent_payment_id, contract_id, seq, due_at, amount, ren
     (288, 18, 24, '2028-10-01 00:00:00', 600000, 'SCHEDULED', 0, NULL, NULL, NULL, '2026-10-20 16:30:47', '2026-10-20 16:30:47');
 
 -- ============================================================
--- 26. PaymentAttempt (결제 시도) - 155건
+-- 26. PaymentAttempt (결제 시도) - 169건
 -- ============================================================
 INSERT INTO payment_attempt (payment_attempt_id, rent_payment_id, attempt_no, payment_method_id, amount, attempt_status, pg_transaction_id, failure_code, failure_message, requested_at, completed_at) VALUES
     (1, 1, 1, 1, 400000, 'SUCCEEDED', 'tviva20241101d31e14c4a57a07', NULL, NULL, '2024-11-01 09:00:17', '2024-11-01 09:00:59'),
@@ -2791,8 +2816,27 @@ INSERT INTO payment_attempt (payment_attempt_id, rent_payment_id, attempt_no, pa
     (154, 241, 1, 16, 950000, 'SUCCEEDED', 'CMS3866890091918590', NULL, NULL, '2026-09-05 09:00:16', '2026-09-05 09:01:02'),
     (155, 242, 1, 16, 950000, 'SUCCEEDED', 'CMS4180500708942470', NULL, NULL, '2026-10-05 09:00:01', '2026-10-05 09:00:49');
 
+-- 시나리오 추가: 기준일(2026-10-23) 뒤 오늘까지 납부일이 지난 회차의 결제 시도 (RENT_004)
+-- 계약 12는 10월 21일 실패 뒤 3일 재시도에 성공, 계약 7은 11월 15일 실패로 재시도를 기다리고, 계약 9는 재시도까지 모두 실패해 연체다
+-- 계약 18 첫 회차는 임차인에게 결제 수단이 없어 결제 시도 없이 연체로 둔다 (결제 시도는 결제 수단이 있어야 한다)
+INSERT INTO payment_attempt (payment_attempt_id, rent_payment_id, attempt_no, payment_method_id, amount, attempt_status, pg_transaction_id, failure_code, failure_message, requested_at, completed_at) VALUES
+    (156, 46, 1, 2, 1400000, 'SUCCEEDED', 'tviva20261101b4e19c07a3d62f', NULL, NULL, '2026-11-01 09:00:12', '2026-11-01 09:00:47'),
+    (157, 68, 1, 3, 1650000, 'SUCCEEDED', 'tviva202610257d2a58e1c09b43', NULL, NULL, '2026-10-25 09:00:05', '2026-10-25 09:00:39'),
+    (158, 90, 1, 4, 650000, 'SUCCEEDED', 'tviva20261101e6c3f21d8a0b74', NULL, NULL, '2026-11-01 09:00:21', '2026-11-01 09:00:58'),
+    (159, 157, 1, 8, 650000, 'SUCCEEDED', 'tviva2026110152a9d7e0f14c3b', NULL, NULL, '2026-11-01 09:00:33', '2026-11-01 09:01:05'),
+    (160, 201, 1, 11, 1100000, 'SUCCEEDED', 'CMS7419026358140527', NULL, NULL, '2026-11-01 09:00:41', '2026-11-01 09:01:14'),
+    (161, 221, 1, 14, 1600000, 'SUCCEEDED', 'tviva20261101c8f05e2b7d9a16', NULL, NULL, '2026-11-01 09:00:49', '2026-11-01 09:01:22'),
+    (162, 243, 1, 16, 950000, 'SUCCEEDED', 'CMS2958163047719264', NULL, NULL, '2026-11-05 09:00:03', '2026-11-05 09:00:44'),
+    (163, 178, 3, 10, 750000, 'SUCCEEDED', 'CMS5160384729916053', NULL, NULL, '2026-10-24 09:00:00', '2026-10-24 09:00:37'),
+    (164, 113, 1, 6, 1750000, 'FAILED', 'CMS8836401927553018', 'INSUFFICIENT_BALANCE', '잔액이 부족합니다.', '2026-11-15 09:00:16', '2026-11-15 09:00:51'),
+    (165, 113, 2, 6, 1750000, 'FAILED', 'CMS1047392658820461', 'INSUFFICIENT_BALANCE', '잔액이 부족합니다.', '2026-11-15 09:05:16', '2026-11-15 09:05:49'),
+    (166, 135, 1, 7, 850000, 'FAILED', 'tviva20261105f1a6c93e2d7b08', 'INSUFFICIENT_BALANCE', '잔액이 부족합니다.', '2026-11-05 09:00:09', '2026-11-05 09:00:43'),
+    (167, 135, 2, 7, 850000, 'FAILED', 'tviva202611053b8e07d5c1f294', 'INSUFFICIENT_BALANCE', '잔액이 부족합니다.', '2026-11-05 09:05:09', '2026-11-05 09:05:40'),
+    (168, 135, 3, 7, 850000, 'FAILED', 'tviva20261108a07c4f19e6b352', 'CARD_LIMIT_EXCEEDED', '카드 한도를 초과했습니다.', '2026-11-08 09:00:00', '2026-11-08 09:00:18'),
+    (169, 135, 4, 7, 850000, 'FAILED', 'tviva20261112d94b2e6a0f7c81', 'INSUFFICIENT_BALANCE', '잔액이 부족합니다.', '2026-11-12 09:00:00', '2026-11-12 09:00:14');
+
 -- ============================================================
--- 27. Settlement (월세 지급) - 144건
+-- 27. Settlement (월세 지급) - 152건
 -- ============================================================
 INSERT INTO settlement (settlement_id, rent_payment_id, landlord_id, settlement_account_id, amount, settlement_status, failure_reason, paid_at, created_at, updated_at) VALUES
     (1, 1, 2, 1, 400000, 'COMPLETED', NULL, '2024-11-02 10:00:49', '2024-11-01 09:01:23', '2024-11-02 10:00:49'),
@@ -2941,6 +2985,18 @@ INSERT INTO settlement (settlement_id, rent_payment_id, landlord_id, settlement_
     (143, 242, 17, NULL, 950000, 'PENDING', NULL, NULL, '2026-10-05 09:01:07', '2026-10-05 09:01:07'),
     (144, 112, 8, 5, 1750000, 'COMPLETED', NULL, '2026-10-16 10:00:23', '2026-10-15 09:01:26', '2026-10-16 10:00:23');
 
+-- 시나리오 추가: 위 결제 성공 회차의 월세 지급 (SETTLE_001). 다음 날 10시에 임대인 정산 계좌로 지급한다
+-- 계약 16의 임대인(17)은 정산 계좌가 없어 앞 회차처럼 지급 대기로 둔다
+INSERT INTO settlement (settlement_id, rent_payment_id, landlord_id, settlement_account_id, amount, settlement_status, failure_reason, paid_at, created_at, updated_at) VALUES
+    (145, 46, 4, 2, 1400000, 'COMPLETED', NULL, '2026-11-02 10:00:31', '2026-11-01 09:01:47', '2026-11-02 10:00:31'),
+    (146, 68, 5, 3, 1650000, 'COMPLETED', NULL, '2026-10-26 10:00:18', '2026-10-25 09:01:39', '2026-10-26 10:00:18'),
+    (147, 90, 7, 4, 650000, 'COMPLETED', NULL, '2026-11-02 10:00:44', '2026-11-01 09:01:58', '2026-11-02 10:00:44'),
+    (148, 157, 11, 7, 650000, 'COMPLETED', NULL, '2026-11-02 10:00:52', '2026-11-01 09:02:05', '2026-11-02 10:00:52'),
+    (149, 201, 14, 11, 1100000, 'COMPLETED', NULL, '2026-11-02 10:01:03', '2026-11-01 09:02:14', '2026-11-02 10:01:03'),
+    (150, 221, 16, 14, 1600000, 'COMPLETED', NULL, '2026-11-02 10:01:11', '2026-11-01 09:02:22', '2026-11-02 10:01:11'),
+    (151, 243, 17, NULL, 950000, 'PENDING', NULL, NULL, '2026-11-05 09:01:44', '2026-11-05 09:01:44'),
+    (152, 178, 13, 9, 750000, 'COMPLETED', NULL, '2026-10-25 10:00:26', '2026-10-24 09:01:37', '2026-10-25 10:00:26');
+
 -- ============================================================
 -- 28. RiskInfo (위험 정보) - 8건
 -- ============================================================
@@ -2955,7 +3011,7 @@ INSERT INTO risk_info (risk_info_id, target_type, target_user_id, target_propert
     (8, 'USER', 40, NULL, 'RENT_OVERDUE', '9월, 10월 월세가 최종 재시도까지 모두 실패해 2개월 연속 연체 상태.', NULL, 'CANDIDATE', NULL, NULL, NULL, '2026-10-12 09:02:00', '2026-10-12 09:02:00');
 
 -- ============================================================
--- 29. Notification (알림) - 194건
+-- 29. Notification (알림) - 196건
 -- ============================================================
 INSERT INTO notification (notification_id, user_id, type, title, body, ref_type, ref_id, read_at, created_at) VALUES
     (1, 87, 'AGENT_APPROVED', '중개사 가입 승인', '중개사 가입이 승인되었습니다. 이제 중개 신청을 받을 수 있습니다.', 'AGENT_PROFILE', 6, '2024-08-04 19:05:25', '2024-08-04 09:13:25'),
@@ -3153,6 +3209,11 @@ INSERT INTO notification (notification_id, user_id, type, title, body, ref_type,
     (192, 35, 'RENT_DUE_SOON', '월세 납부일 임박', '10월 25일에 월세 165만원이 자동 결제됩니다.', 'RENT_PAYMENT', 68, NULL, '2026-10-22 09:00:00'),
     (193, 90, 'AGENT_DOCUMENT_DEADLINE', '인증 서류 업로드 기한 임박', '10월 24일까지 공인중개사 자격증과 중개사무소 등록증을 올려 주세요.', 'AGENT_PROFILE', 9, NULL, '2026-10-23 09:00:00'),
     (194, 49, 'DEFECT_PHOTO_DEADLINE', '입주 하자 사진 업로드 기한 임박', '10월 27일까지 입주 하자 사진을 올려 주세요. 기한이 지나면 올릴 수 없습니다.', 'CONTRACT', 18, NULL, '2026-10-23 09:00:00');
+
+-- 시나리오 추가: 매물 61·62 중개 신청 알림 (NOTIFY_022). 아직 수락하지 않은 61은 읽지 않은 채로 둔다
+INSERT INTO notification (notification_id, user_id, type, title, body, ref_type, ref_id, read_at, created_at) VALUES
+    (195, 82, 'BROKERAGE_REQUESTED', '새 중개 신청', '마포구 월드컵북로 21 매물의 중개 신청이 들어왔습니다.', 'BROKERAGE_REQUEST', 62, '2026-10-20 10:25:00', '2026-10-19 14:05:00'),
+    (196, 82, 'BROKERAGE_REQUESTED', '새 중개 신청', '마포구 망원로 54 매물의 중개 신청이 들어왔습니다.', 'BROKERAGE_REQUEST', 61, NULL, '2026-10-21 10:20:00');
 
 -- ============================================================
 -- 30. ChatbotReport (챗봇 보고서 이력) - 3건

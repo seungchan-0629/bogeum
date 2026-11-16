@@ -115,7 +115,7 @@ class UserControllerTest {
 	@DisplayName("요청을 서비스에 전달하고 회원 정보와 두 토큰 및 만료 시각을 반환한다")
 	void loginReturnsPublicFieldsOnly() throws Exception {
 		User user = User.builder().userId(1L).email("user@example.com")
-			.name("홍길동").role(Role.TENANT).passwordHash("not-for-response")
+			.name("홍길동").role(Role.USER).passwordHash("not-for-response")
 			.lastLoginProvider(LoginProvider.LOCAL).build();
 		when(userService.login("user@example.com", " password ")).thenReturn(new AuthResult(user, "test-access", "test-refresh", Instant.parse("2030-01-01T00:00:00Z")));
 
@@ -125,7 +125,7 @@ class UserControllerTest {
 				"""))
 			.andExpect(status().isOk())
 			.andExpect(content().json("""
-				{"user":{"userId":1,"name":"홍길동","role":"TENANT","lastLoginProvider":"LOCAL","contractRoles":[]},"accessToken":"test-access","refreshToken":"test-refresh","refreshExpiresAt":"2030-01-01T00:00:00Z"}
+				{"user":{"userId":1,"name":"홍길동","role":"USER","lastLoginProvider":"LOCAL","contractRoles":[]},"accessToken":"test-access","refreshToken":"test-refresh","refreshExpiresAt":"2030-01-01T00:00:00Z"}
 				""", JsonCompareMode.STRICT));
 		verify(userService).login("user@example.com", " password ");
 	}

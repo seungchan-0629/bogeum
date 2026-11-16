@@ -134,9 +134,7 @@ class AdminRiskUserCreateTests {
 				RiskReason.DEPOSIT_UNPAID, RiskReason.FALSE_LISTING),
 			Role.AGENT, Set.of(RiskReason.RENT_UNPAID, RiskReason.RENT_OVERDUE,
 				RiskReason.DEPOSIT_UNPAID, RiskReason.FALSE_LISTING,
-				RiskReason.NO_PROPERTY_IMAGE, RiskReason.AGENT_CHANGE_HISTORY),
-			Role.LANDLORD, Set.of(RiskReason.DEPOSIT_UNPAID, RiskReason.FALSE_LISTING),
-			Role.TENANT, Set.of(RiskReason.RENT_UNPAID, RiskReason.RENT_OVERDUE));
+				RiskReason.NO_PROPERTY_IMAGE, RiskReason.AGENT_CHANGE_HISTORY));
 		return Arrays.stream(Role.values()).flatMap(role -> Arrays.stream(RiskReason.values())
 			.map(reason -> Arguments.of(role, reason, allowed.getOrDefault(role, Set.of()).contains(reason))));
 	}
@@ -270,7 +268,7 @@ class AdminRiskUserCreateTests {
 	}
 
 	@ParameterizedTest
-	@EnumSource(value = Role.class, names = {"USER", "AGENT", "LANDLORD", "TENANT"})
+	@EnumSource(value = Role.class, names = {"USER", "AGENT"})
 	void rejectsNonAdministratorRequesters(Role role) throws Exception {
 		mvc.perform(csrfPost().header("Authorization", token(user(role)))
 			.content(body(user(Role.USER), RiskReason.RENT_UNPAID, null)))
@@ -323,7 +321,7 @@ class AdminRiskUserCreateTests {
 	private User user(Role role) {
 		return users.saveAndFlush(User.builder().email(UUID.randomUUID() + "@example.com")
 			.passwordHash("must-not-be-exposed").name("등록 대상").phone("01000000000")
-			.address("비공개 주소").role(role).build());
+			.role(role).build());
 	}
 
 	private RiskInfo risk(User target, RiskReason reason, RiskStatus status, User administrator) {

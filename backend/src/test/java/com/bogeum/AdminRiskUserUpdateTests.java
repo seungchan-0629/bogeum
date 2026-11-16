@@ -198,9 +198,7 @@ class AdminRiskUserUpdateTests {
 		Map<Role, Set<RiskReason>> allowed = Map.of(
 			Role.USER, Set.of(RiskReason.RENT_UNPAID, RiskReason.RENT_OVERDUE, RiskReason.DEPOSIT_UNPAID, RiskReason.FALSE_LISTING),
 			Role.AGENT, Set.of(RiskReason.RENT_UNPAID, RiskReason.RENT_OVERDUE, RiskReason.DEPOSIT_UNPAID,
-				RiskReason.FALSE_LISTING, RiskReason.NO_PROPERTY_IMAGE, RiskReason.AGENT_CHANGE_HISTORY),
-			Role.LANDLORD, Set.of(RiskReason.DEPOSIT_UNPAID, RiskReason.FALSE_LISTING),
-			Role.TENANT, Set.of(RiskReason.RENT_UNPAID, RiskReason.RENT_OVERDUE));
+				RiskReason.FALSE_LISTING, RiskReason.NO_PROPERTY_IMAGE, RiskReason.AGENT_CHANGE_HISTORY));
 		return Arrays.stream(Role.values()).flatMap(role -> Arrays.stream(RiskReason.values())
 			.map(reason -> Arguments.of(role, reason, allowed.getOrDefault(role, Set.of()).contains(reason))));
 	}
@@ -311,7 +309,7 @@ class AdminRiskUserUpdateTests {
 	}
 
 	@ParameterizedTest
-	@EnumSource(value = Role.class, names = {"USER", "AGENT", "LANDLORD", "TENANT"})
+	@EnumSource(value = Role.class, names = {"USER", "AGENT"})
 	void deniesNonAdministratorsWithoutChanges(Role role) throws Exception {
 		var original = risk(user(Role.USER), RiskReason.RENT_UNPAID, RiskStatus.REGISTERED);
 		var before = row(original.getRiskInfoId());

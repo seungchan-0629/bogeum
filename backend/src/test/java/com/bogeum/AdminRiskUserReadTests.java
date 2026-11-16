@@ -276,7 +276,7 @@ class AdminRiskUserReadTests {
 	private User user(String name, Role role) {
 		return users.saveAndFlush(User.builder().email(UUID.randomUUID() + "@example.com")
 			.passwordHash("must-not-be-exposed").name(name).phone("01000000000")
-			.address("노출 금지 주소").role(role).build());
+			.role(role).build());
 	}
 
 	private RiskInfo risk(User target, RiskReason reason, RiskStatus status, LocalDateTime createdAt, String key) {

@@ -54,8 +54,6 @@ public class User {
 	@Column(nullable = false, length = 20)
 	private String phone;
 
-	private String address;
-
 	@Enumerated(EnumType.STRING)
 	@JdbcTypeCode(SqlTypes.VARCHAR)
 	@Column(nullable = false, length = 20)

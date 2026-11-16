@@ -123,8 +123,6 @@ public class RiskService {
 		boolean allowed = switch (role) {
 			case USER -> userType == RiskUserType.LANDLORD || userType == RiskUserType.TENANT;
 			case AGENT -> true;
-			case LANDLORD -> userType == RiskUserType.LANDLORD;
-			case TENANT -> userType == RiskUserType.TENANT;
 			case ADMIN -> false;
 		};
 		if (!allowed) {
