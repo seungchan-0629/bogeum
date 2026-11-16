@@ -132,6 +132,8 @@ public class CustomSecurityConfig {
 				.requestMatchers(HttpMethod.GET, "/api/tenants/me/contracts").hasRole("USER")
 				// 일반 회원의 접수만 허용하고 계약 임차인 여부는 AS 서비스에서 확인한다 (AS_001).
 				.requestMatchers(HttpMethod.POST, "/as-requests").hasRole("USER")
+				// 역할과 별도로 계약 임차인 관계를 MoveInService에서 확인한다 (MOVEIN_001).
+				.requestMatchers(HttpMethod.POST, "/contract/*/movein-defects").hasRole("USER")
 				// 임대인·임차인은 같은 USER 역할이다. 매물 소유 여부는 AS 조회 조건에서 검사한다 (AS_002).
 				.requestMatchers(HttpMethod.GET, "/as-requests/received", "/as-requests/*").hasRole("USER")
 				// 댓글도 USER 역할과 실제 매물 소유 관계를 모두 확인하며 기존 CSRF 검증을 유지한다 (AS_003).
