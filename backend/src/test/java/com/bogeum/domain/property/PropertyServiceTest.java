@@ -381,7 +381,7 @@ class PropertyServiceTest {
 	void readsRequestedBrokerageRequests() {
 		var pageable = givenBrokerageRequests(BrokerageStatus.REQUESTED, 12);
 
-		var response = propertyService.readBrokerageRequests(101L, BrokerageStatus.REQUESTED, 1);
+		var response = propertyService.readBrokerageRequests(101L, BrokerageStatus.REQUESTED, 1, false);
 
 		assertEquals(0, pageable.getValue().getPageNumber());
 		assertEquals(5, pageable.getValue().getPageSize());
@@ -398,7 +398,7 @@ class PropertyServiceTest {
 	void readsAcceptedBrokerageRequestsByAcceptedAt() {
 		var pageable = givenBrokerageRequests(BrokerageStatus.ACCEPTED, 1);
 
-		propertyService.readBrokerageRequests(101L, BrokerageStatus.ACCEPTED, 1);
+		propertyService.readBrokerageRequests(101L, BrokerageStatus.ACCEPTED, 1, false);
 
 		assertEquals(Sort.by(Sort.Direction.DESC, "acceptedAt"), pageable.getValue().getSort());
 	}
@@ -408,7 +408,7 @@ class PropertyServiceTest {
 	void readsFirstPageWhenPageIsTooSmall() {
 		var pageable = givenBrokerageRequests(BrokerageStatus.REQUESTED, 1);
 
-		var response = propertyService.readBrokerageRequests(101L, BrokerageStatus.REQUESTED, 0);
+		var response = propertyService.readBrokerageRequests(101L, BrokerageStatus.REQUESTED, 0, false);
 
 		assertEquals(0, pageable.getValue().getPageNumber());
 		assertEquals(1, response.getPage());
@@ -1004,6 +1004,14 @@ class PropertyServiceTest {
 
 	private ArgumentCaptor<Pageable> givenBrokerageRequests(BrokerageStatus brokerageStatus, long totalElements) {
 		var pageable = ArgumentCaptor.forClass(Pageable.class);
+		// 새 신청은 임대인이 삭제한 매물을 빼고 조회한다 (PROPERTY_007)
+		if (brokerageStatus == BrokerageStatus.REQUESTED) {
+			when(brokerageRequestRepository.findAllByAgent_UserIdAndBrokerageStatusAndProperty_PropertyStatusNot(eq(101L),
+					eq(brokerageStatus), eq(PropertyStatus.DELETED), pageable.capture()))
+				.thenAnswer(invocation -> new PageImpl<>(List.of(brokerageRequest(brokerageStatus)),
+					invocation.getArgument(3), totalElements));
+			return pageable;
+		}
 		when(brokerageRequestRepository.findAllByAgent_UserIdAndBrokerageStatus(eq(101L), eq(brokerageStatus),
 				pageable.capture()))
 			.thenAnswer(invocation -> new PageImpl<>(List.of(brokerageRequest(brokerageStatus)),

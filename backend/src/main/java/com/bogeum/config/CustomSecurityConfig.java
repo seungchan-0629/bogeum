@@ -104,6 +104,8 @@ public class CustomSecurityConfig {
 				// 내 매물 수정 화면과 저장도 같은 사용자만 한다 (PROPERTY_006)
 				.requestMatchers(HttpMethod.GET, "/property/mine/*").hasRole("USER")
 				.requestMatchers(HttpMethod.PUT, "/property/mine/*").hasRole("USER")
+				// 내 매물 삭제도 같은 사용자만 한다 (PROPERTY_007)
+				.requestMatchers(HttpMethod.DELETE, "/property/mine/*").hasRole("USER")
 				// 공개 중인 매물 상세도 같은 사용자가 본다. *는 한 단계라 /property/*/details 규칙과 겹치지 않는다 (PROPERTY_003)
 				.requestMatchers(HttpMethod.GET, "/property/*").authenticated()
 				// 관심 매물은 집을 찾는 사용자만 담는다 (FAVORITE_001)

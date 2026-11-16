@@ -420,7 +420,7 @@ class PropertyControllerTest {
 	@Test
 	@DisplayName("중개 신청 목록은 로그인 중개사·상태·페이지로 조회하고 목록과 페이지 정보를 반환한다")
 	void readsBrokerageRequests() throws Exception {
-		when(propertyService.readBrokerageRequests(1L, BrokerageStatus.ACCEPTED, 2)).thenReturn(
+		when(propertyService.readBrokerageRequests(1L, BrokerageStatus.ACCEPTED, 2, false)).thenReturn(
 			PropertyDto.BrokerageListResponse.builder()
 				.requests(List.of(PropertyDto.BrokerageItemResponse.builder().brokerageRequestId(10L)
 					.brokerageStatus(BrokerageStatus.ACCEPTED).build()))
@@ -438,12 +438,51 @@ class PropertyControllerTest {
 	@Test
 	@DisplayName("중개 신청 목록은 page가 없으면 첫 페이지를 조회한다")
 	void readsFirstPageByDefault() throws Exception {
-		when(propertyService.readBrokerageRequests(1L, BrokerageStatus.REQUESTED, 1)).thenReturn(
+		when(propertyService.readBrokerageRequests(1L, BrokerageStatus.REQUESTED, 1, false)).thenReturn(
 			PropertyDto.BrokerageListResponse.builder().requests(List.of()).page(1).build());
 
 		mockMvc.perform(get(URL + "/received").param("status", "REQUESTED"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.page").value(1));
+	}
+
+	@Test
+	@DisplayName("내 계약 관리처럼 excludeDeleted=true로 보내면 삭제된 매물을 빼고 조회한다")
+	void readsBrokerageRequestsExcludingDeleted() throws Exception {
+		when(propertyService.readBrokerageRequests(1L, BrokerageStatus.ACCEPTED, 1, true)).thenReturn(
+			PropertyDto.BrokerageListResponse.builder().requests(List.of()).page(1).build());
+
+		mockMvc.perform(get(URL + "/received").param("status", "ACCEPTED").param("excludeDeleted", "true"))
+			.andExpect(status().isOk());
+		verify(propertyService).readBrokerageRequests(1L, BrokerageStatus.ACCEPTED, 1, true);
+	}
+
+	@Test
+	@DisplayName("내 매물 삭제는 로그인 사용자·매물 기준으로 처리하고 204를 반환한다")
+	void deletesMyProperty() throws Exception {
+		mockMvc.perform(delete("/property/mine/20"))
+			.andExpect(status().isNoContent());
+		verify(propertyService).deleteMyProperty(1L, 20L);
+	}
+
+	@Test
+	@DisplayName("계약이 끝난 매물을 삭제하면 409와 PROPERTY_NOT_DELETABLE을 반환한다")
+	void rejectsDeletingContractedProperty() throws Exception {
+		doThrow(PropertyException.notDeletable()).when(propertyService).deleteMyProperty(1L, 20L);
+
+		mockMvc.perform(delete("/property/mine/20"))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("PROPERTY_NOT_DELETABLE"));
+	}
+
+	@Test
+	@DisplayName("없거나 이미 삭제한 매물을 삭제하면 404와 PROPERTY_NOT_FOUND를 반환한다")
+	void rejectsDeletingMissingProperty() throws Exception {
+		doThrow(PropertyException.propertyNotFound()).when(propertyService).deleteMyProperty(1L, 20L);
+
+		mockMvc.perform(delete("/property/mine/20"))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.code").value("PROPERTY_NOT_FOUND"));
 	}
 
 	@Test

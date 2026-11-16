@@ -73,11 +73,13 @@ public class PropertyController {
 	}
 
 	// 승인된 중개사가 본인에게 온 중개 신청을 '새 신청'(REQUESTED)·'수락한 신청'(ACCEPTED)으로 나눠 본다 (PROPERTY_012)
+	// 수락한 신청은 임대인이 삭제한 매물도 기록으로 주고, 내 계약 관리는 excludeDeleted=true로 뺀다 (PROPERTY_007)
 	@GetMapping("/brokerage-requests/received")
 	public PropertyDto.BrokerageListResponse readBrokerageRequests(@AuthenticationPrincipal LoginUser loginUser,
 			@RequestParam("status") BrokerageStatus status,
-			@RequestParam(value = "page", defaultValue = "1") int page) {
-		return propertyService.readBrokerageRequests(loginUser.getUserId(), status, page);
+			@RequestParam(value = "page", defaultValue = "1") int page,
+			@RequestParam(value = "excludeDeleted", defaultValue = "false") boolean excludeDeleted) {
+		return propertyService.readBrokerageRequests(loginUser.getUserId(), status, page, excludeDeleted);
 	}
 
 	// 승인된 중개사가 맡은 매물의 정보 올리기 화면 첫 값을 본다 (PROPERTY_010)
@@ -114,6 +116,14 @@ public class PropertyController {
 	public PropertyDto.DetailSaveResponse publishProperty(@AuthenticationPrincipal LoginUser loginUser,
 			@PathVariable("propertyId") Long propertyId) {
 		return propertyService.publishProperty(loginUser.getUserId(), propertyId);
+	}
+
+	// 임대인이 본인 매물을 삭제한다. 계약이 끝난 매물은 지울 수 없다 (PROPERTY_007)
+	@DeleteMapping("/mine/{propertyId}")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	public void deleteMyProperty(@AuthenticationPrincipal LoginUser loginUser,
+			@PathVariable("propertyId") Long propertyId) {
+		propertyService.deleteMyProperty(loginUser.getUserId(), propertyId);
 	}
 
 	// 승인된 중개사가 맡은 공개 전 매물의 사진 하나를 지운다 (PROPERTY_010)

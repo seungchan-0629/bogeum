@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -104,8 +105,8 @@ public class PropertyService {
 	@Transactional
 	public List<PropertyDto.ImageResponse> createPropertyImages(Long agentUserId, Long propertyId,
 			List<MultipartFile> images) {
-		Property property = propertyRepository.findForUpdateByPropertyIdAndAgent_UserId(propertyId, agentUserId)
-			.orElseThrow(PropertyException::propertyNotFound);
+		Property property = requireNotDeleted(
+			propertyRepository.findForUpdateByPropertyIdAndAgent_UserId(propertyId, agentUserId));
 		property.validateEditable();
 		List<MultipartFile> files = images == null ? List.of() : images;
 		List<PropertyImage> savedImages = propertyImageRepository
@@ -271,27 +272,32 @@ public class PropertyService {
 	/**
 	 * 중개사 본인에게 온 중개 신청을 상태별로 페이지 단위로 조회한다 (PROPERTY_012).
 	 * 새 신청은 신청한 순서, 수락한 신청은 수락한 순서로 최신이 위에 온다.
+	 * 임대인이 삭제한 매물은 새 신청에서 빠진다. 수락한 신청은 기록이라 남기고, 내 계약 관리처럼 진행 중인 매물만
+	 * 볼 때는 excludeDeleted로 뺀다 (PROPERTY_007).
 	 *
 	 * @param page 1부터 센다. 1보다 작으면 첫 페이지를 준다
 	 */
 	@Transactional(readOnly = true)
-	public PropertyDto.BrokerageListResponse readBrokerageRequests(Long agentUserId, BrokerageStatus status, int page) {
+	public PropertyDto.BrokerageListResponse readBrokerageRequests(Long agentUserId, BrokerageStatus status, int page,
+			boolean excludeDeleted) {
 		String sortProperty = status == BrokerageStatus.ACCEPTED ? "acceptedAt" : "createdAt";
 		Pageable pageable = PageRequest.of(Math.max(page, 1) - 1, PAGE_SIZE, Sort.by(Sort.Direction.DESC, sortProperty));
-		return PropertyDto.BrokerageListResponse.from(
-			brokerageRequestRepository.findAllByAgent_UserIdAndBrokerageStatus(agentUserId, status, pageable));
+		Page<BrokerageRequest> requests = status == BrokerageStatus.REQUESTED || excludeDeleted
+			? brokerageRequestRepository.findAllByAgent_UserIdAndBrokerageStatusAndProperty_PropertyStatusNot(agentUserId,
+				status, PropertyStatus.DELETED, pageable)
+			: brokerageRequestRepository.findAllByAgent_UserIdAndBrokerageStatus(agentUserId, status, pageable);
+		return PropertyDto.BrokerageListResponse.from(requests);
 	}
 
 	/**
 	 * 중개사가 맡은 매물의 신청 조건·상세 정보·사진을 조회한다 (PROPERTY_010).
 	 * 저장소가 없으면 사진 정보만 주고 조회 자체는 막지 않는다.
 	 *
-	 * @throws PropertyException 없거나 본인이 맡은 매물이 아닌 경우
+	 * @throws PropertyException 없거나 본인이 맡은 매물이 아닌 경우, 임대인이 삭제한 매물
 	 */
 	@Transactional(readOnly = true)
 	public PropertyDto.DetailResponse readPropertyDetail(Long agentUserId, Long propertyId) {
-		Property property = propertyRepository.findByPropertyIdAndAgent_UserId(propertyId, agentUserId)
-			.orElseThrow(PropertyException::propertyNotFound);
+		Property property = requireNotDeleted(propertyRepository.findByPropertyIdAndAgent_UserId(propertyId, agentUserId));
 		List<PropertyImage> images = propertyImageRepository
 			.findAllByProperty_PropertyIdOrderBySortOrderAscPropertyImageIdAsc(propertyId);
 		PropertyImageStorage storage = images.isEmpty() ? null : storageProvider.getIfAvailable();
@@ -305,12 +311,13 @@ public class PropertyService {
 	/**
 	 * 중개사가 본인에게 온 중개 신청을 수락하고 매물을 맡는다 (PROPERTY_008).
 	 *
-	 * @throws PropertyException 본인에게 온 신청이 아니거나 이미 수락한 경우
+	 * @throws PropertyException 본인에게 온 신청이 아니거나 임대인이 매물을 삭제한 경우, 이미 수락한 경우
 	 */
 	@Transactional
 	public PropertyDto.AcceptResponse acceptBrokerageRequest(Long agentUserId, Long brokerageRequestId) {
 		BrokerageRequest brokerageRequest = brokerageRequestRepository
 			.findByBrokerageRequestIdAndAgent_UserId(brokerageRequestId, agentUserId)
+			.filter(found -> found.getProperty().getPropertyStatus() != PropertyStatus.DELETED)
 			.orElseThrow(PropertyException::brokerageRequestNotFound);
 		brokerageRequest.accept();
 		return PropertyDto.AcceptResponse.from(brokerageRequest);
@@ -324,9 +331,8 @@ public class PropertyService {
 	 */
 	@Transactional
 	public void updateMyProperty(Long landlordUserId, Long propertyId, PropertyDto.LeaseTermsRequest request) {
-		Property property = propertyRepository.findForUpdateByPropertyIdAndLandlord_UserId(propertyId, landlordUserId)
-			.filter(found -> found.getPropertyStatus() != PropertyStatus.DELETED)
-			.orElseThrow(PropertyException::propertyNotFound);
+		Property property = requireNotDeleted(
+			propertyRepository.findForUpdateByPropertyIdAndLandlord_UserId(propertyId, landlordUserId));
 		BigDecimal rent = validateLeasePrice(request.getLeaseType(), request.getDeposit(), request.getMonthlyRent());
 		property.updateLeaseTerms(request.getLeaseType(), request.getDeposit(), rent);
 	}
@@ -339,8 +345,7 @@ public class PropertyService {
 	@Transactional
 	public PropertyDto.DetailSaveResponse updatePropertyDetail(Long agentUserId, Long propertyId,
 			PropertyDto.DetailRequest request) {
-		Property property = propertyRepository.findByPropertyIdAndAgent_UserId(propertyId, agentUserId)
-			.orElseThrow(PropertyException::propertyNotFound);
+		Property property = requireNotDeleted(propertyRepository.findByPropertyIdAndAgent_UserId(propertyId, agentUserId));
 		property.updateDetails(request.getPropertyType(), request.getAreaPyeong(), request.getRoomCount(),
 			request.getFloor(), request.getTotalFloor(), request.getHouseholdCount(), request.getParkingCount(),
 			trimToNull(request.getNearbySubwayStation()));
@@ -355,10 +360,23 @@ public class PropertyService {
 	@Transactional
 	public PropertyDto.DetailSaveResponse publishProperty(Long agentUserId, Long propertyId) {
 		// 사진 삭제와 겹쳐 사진 없는 매물이 공개되지 않도록 매물 행을 잠근다
-		Property property = propertyRepository.findForUpdateByPropertyIdAndAgent_UserId(propertyId, agentUserId)
-			.orElseThrow(PropertyException::propertyNotFound);
+		Property property = requireNotDeleted(
+			propertyRepository.findForUpdateByPropertyIdAndAgent_UserId(propertyId, agentUserId));
 		property.publish(propertyImageRepository.existsByProperty_PropertyId(propertyId));
 		return PropertyDto.DetailSaveResponse.from(property);
+	}
+
+	/**
+	 * 임대인이 본인 매물을 삭제한다. 행은 남기고 상태만 삭제로 바꾼다 (PROPERTY_007).
+	 * 중개사의 계약 등록과 겹치지 않도록 수정처럼 매물 행을 잠근다.
+	 * 관련 채팅방 읽기 전용(CHAT_009)과 관심 등록자 알림(NOTIFY_020)은 채팅·알림 기능에서 매물 상태를 보고 처리한다.
+	 *
+	 * @throws PropertyException 없거나 남의 매물, 이미 삭제한 매물, 계약이 끝난 매물인 경우
+	 */
+	@Transactional
+	public void deleteMyProperty(Long landlordUserId, Long propertyId) {
+		requireNotDeleted(propertyRepository.findForUpdateByPropertyIdAndLandlord_UserId(propertyId, landlordUserId))
+			.delete();
 	}
 
 	/**
@@ -370,8 +388,8 @@ public class PropertyService {
 	@Transactional
 	public void deletePropertyImage(Long agentUserId, Long propertyId, Long propertyImageId) {
 		// 공개하기의 사진 수 확인과 겹치지 않도록 사진 추가처럼 매물 행을 잠근다
-		Property property = propertyRepository.findForUpdateByPropertyIdAndAgent_UserId(propertyId, agentUserId)
-			.orElseThrow(PropertyException::propertyNotFound);
+		Property property = requireNotDeleted(
+			propertyRepository.findForUpdateByPropertyIdAndAgent_UserId(propertyId, agentUserId));
 		property.validateEditable();
 		PropertyImage image = propertyImageRepository.findByPropertyImageIdAndProperty_PropertyId(propertyImageId, propertyId)
 			.orElseThrow(PropertyException::propertyImageNotFound);
@@ -394,6 +412,12 @@ public class PropertyService {
 				}
 			}
 		});
+	}
+
+	// 임대인이 삭제한 매물은 임대인·담당 중개사 모두에게 없는 매물과 같다 (PROPERTY_007)
+	private Property requireNotDeleted(Optional<Property> property) {
+		return property.filter(found -> found.getPropertyStatus() != PropertyStatus.DELETED)
+			.orElseThrow(PropertyException::propertyNotFound);
 	}
 
 	/** 전세는 월세 없이 전세금만, 월세는 월세 금액이 있어야 한다. 저장할 월세 금액을 반환한다. */

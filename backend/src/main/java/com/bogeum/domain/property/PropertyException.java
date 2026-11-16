@@ -24,5 +24,6 @@ public class PropertyException extends RuntimeException {
 	public static PropertyException notPublishable() { return new PropertyException(ErrorCode.PROPERTY_NOT_PUBLISHABLE); }
 	public static PropertyException notContractable() { return new PropertyException(ErrorCode.PROPERTY_NOT_CONTRACTABLE); }
 	public static PropertyException notUpdatable() { return new PropertyException(ErrorCode.PROPERTY_NOT_UPDATABLE); }
+	public static PropertyException notDeletable() { return new PropertyException(ErrorCode.PROPERTY_NOT_DELETABLE); }
 	public static PropertyException invalidCursor() { return new PropertyException(ErrorCode.INVALID_REQUEST); }
 }
