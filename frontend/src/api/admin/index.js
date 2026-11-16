@@ -18,6 +18,12 @@ export async function getAdminRiskUsers(type, keyword, page, signal) {
   return data
 }
 
+// RISK_003: 목록의 riskInfoId를 사용하며 detail을 생략하지 않는다.
+export async function updateAdminRiskUser({ riskInfoId, reasonType, detail, updateReason }) {
+  const { data } = await api.patch('/api/admin/risk-users/' + riskInfoId, { reasonType, detail, updateReason })
+  return data
+}
+
 export async function getInstitutionToken() {
   const { data } = await api.get('/openbanking/admin/institution-token')
   return data

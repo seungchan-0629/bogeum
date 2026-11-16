@@ -65,7 +65,7 @@ test('중개사 API만 백엔드 주소로 변환하고 검색·페이지·인�
   }
 })
 
-test('위험 사용자 GET·POST를 변환하고 본문·JWT·CSRF·기존 경로를 보존한다', { timeout: 15000 }, async () => {
+test('위험 사용자 GET·POST·PATCH를 변환하고 본문·JWT·CSRF·기존 경로를 보존한다', { timeout: 15000 }, async () => {
   const backend = createHttpServer((request, response) => {
     response.writeHead(200, { 'Content-Type': 'application/json' })
     let body = ''
@@ -118,7 +118,22 @@ test('위험 사용자 GET·POST를 변환하고 본문·JWT·CSRF·기존 경�
     assert.equal(receivedPost.cookie, 'BOGEUM_CSRF=test-cookie')
     assert.equal(receivedPost.contentType, 'application/json')
     assert.deepEqual(JSON.parse(receivedPost.body), body)
-    for (const path of ['/api/admin/risk-users/extra', '/api/admin/risk-users-other', '/api/v1/agents/me', '/openbanking/admin/institution-token']) {
+    const patchBody = { reasonType: 'RENT_OVERDUE', detail: '  확인\n내용  ', updateReason: '증빙 확인' }
+    const patched = await fetch(origin + '/api/admin/risk-users/123', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-admin', 'X-XSRF-TOKEN': 'test-csrf', Cookie: 'BOGEUM_CSRF=test-cookie' },
+      body: JSON.stringify(patchBody),
+    })
+    const receivedPatch = await patched.json()
+    assert.equal(receivedPatch.url, '/admin/risk-users/123')
+    assert.equal(receivedPatch.method, 'PATCH')
+    assert.equal(receivedPatch.authorization, 'Bearer test-admin')
+    assert.equal(receivedPatch.csrf, 'test-csrf')
+    assert.equal(receivedPatch.cookie, 'BOGEUM_CSRF=test-cookie')
+    assert.deepEqual(JSON.parse(receivedPatch.body), patchBody)
+    const withQuery = await fetch(origin + '/api/admin/risk-users/123?check=1')
+    assert.equal((await withQuery.json()).url, '/admin/risk-users/123?check=1')
+    for (const path of ['/api/admin/risk-users/123/extra', '/api/admin/risk-users/123x', '/api/admin/risk-users/-1', '/api/admin/risk-users/extra', '/api/admin/risk-users-other', '/api/v1/agents/me', '/openbanking/admin/institution-token']) {
       const unchanged = await fetch(origin + path)
       assert.equal((await unchanged.json()).url, path)
     }
