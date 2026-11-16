@@ -9,6 +9,9 @@ import react from '@vitejs/plugin-react'
 
 let server
 let api
+let auth
+let createAdminRiskUser
+let riskUserSchema
 let getAdminRiskUsers
 let AdminRiskUserPage
 let store
@@ -27,7 +30,10 @@ before(async () => {
     configFile: false, plugins: [react()], cacheDir: 'node_modules/.vite-admin-risk-users-test',
     server: { middlewareMode: true, hmr: false },
   })
-  api = (await server.ssrLoadModule('/src/utils/jwtUtil.js')).api
+  auth = await server.ssrLoadModule('/src/utils/jwtUtil.js')
+  api = auth.api
+  createAdminRiskUser = (await server.ssrLoadModule('/src/api/admin/index.js')).createAdminRiskUser
+  riskUserSchema = (await server.ssrLoadModule('/src/pages/risk/admin/riskUserForm.js')).riskUserSchema
   getAdminRiskUsers = (await server.ssrLoadModule('/src/api/admin/index.js')).getAdminRiskUsers
   AdminRiskUserPage = (await server.ssrLoadModule('/src/pages/risk/admin/AdminRiskUserPage.jsx')).default
   store = (await server.ssrLoadModule('/src/stores/authStore.js')).useAuthStore
@@ -38,8 +44,8 @@ before(async () => {
 
 after(async () => { await server?.close() })
 
-function renderList({ riskUsers = [], page = 1, totalPages = 1, totalElements = riskUsers.length, error, loading = false, fetching = false, cached = [] } = {}) {
-  store.getInitialState().user = admin
+function renderList({ user = admin, riskUsers = [], page = 1, totalPages = 1, totalElements = riskUsers.length, error, loading = false, fetching = false, cached = [] } = {}) {
+  store.getInitialState().user = user
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, retryOnMount: false, staleTime: Infinity } } })
   const key = ['admin-risk-users', admin.userId, 'TENANT', '', 1]
   for (const [queryKey, data] of cached) client.setQueryData(queryKey, data)
@@ -65,7 +71,7 @@ test('실제 위험정보 필드·총 건수·서버 페이지를 표시하고 �
   assert.match(html, /whitespace-pre-wrap break-words/)
   assert.match(html, /aria-current="page"[^>]*>2<\/button>/)
   assert.match(html, />3<\/button>/)
-  assert.doesNotMatch(html, /위험 사용자 등록|>수정<|위험 정보 후보|결제 내역|등록일|김보금/)
+  assert.doesNotMatch(html, />수정<|위험 정보 후보|결제 내역|등록일|김보금/)
 })
 
 test('긴 이름과 회원 ID를 같은 셀에 줄바꿈 없이 세로로 표시한다', () => {
@@ -225,5 +231,94 @@ test('위험 사용자 API는 전용 주소·유형·이름·페이지·취소 �
     assert.deepEqual(await getAdminRiskUsers('TENANT', '보금 %_', 2, controller.signal), data)
   } finally {
     api.defaults.adapter = original
+  }
+})
+
+test('등록 API는 공통 JWT·CSRF로 POST 본문·201 응답을 전달하고 오류를 유지한다', async () => {
+  const originalApi = api.defaults.adapter
+  const originalPublic = auth.publicApi.defaults.adapter
+  const originalWindow = globalThis.window
+  const originalDocument = globalThis.document
+  globalThis.window = { location: { protocol: 'http:' } }
+  globalThis.document = { cookie: '' }
+  const publicCalls = []
+  auth.publicApi.defaults.adapter = async (config) => {
+    publicCalls.push(config.url)
+    if (config.url === '/auth/csrf') return { status: 200, data: { headerName: 'X-XSRF-TOKEN', token: 'risk-csrf' }, config, headers: {} }
+    return { status: 200, data: { user: admin, accessToken: 'risk-admin-access', refreshToken: 'test-refresh', refreshExpiresAt: '2030-01-01T00:00:00Z' }, config, headers: {} }
+  }
+  const body = { userId: 20, reasonType: 'DEPOSIT_UNPAID', detail: '  첫 줄\n둘째 줄  ' }
+  const created = risk(300, { ...body, userType: 'LANDLORD' })
+  let calls = 0
+  let failure
+  api.defaults.adapter = async (config) => {
+    calls += 1
+    assert.equal(config.url, '/api/admin/risk-users')
+    assert.equal(config.method, 'post')
+    assert.deepEqual(JSON.parse(config.data), body)
+    assert.equal(config.headers.get('Authorization'), 'Bearer risk-admin-access')
+    assert.equal(config.headers.get('X-XSRF-TOKEN'), 'risk-csrf')
+    assert.equal(config.withCredentials, true)
+    if (failure) {
+      const error = new Error(failure.code)
+      error.config = config
+      error.response = { status: failure.status, data: failure }
+      throw error
+    }
+    return { status: 201, data: created, config, headers: {} }
+  }
+  try {
+    await auth.login('admin@example.test', 'test-password')
+    assert.deepEqual(await createAdminRiskUser(body), created)
+    assert.deepEqual(publicCalls, ['/auth/csrf', '/auth/login', '/auth/csrf'])
+    for (const [status, code] of [[400, 'INVALID_REQUEST'], [404, 'RISK_USER_NOT_FOUND'], [409, 'RISK_ALREADY_REGISTERED'], [403, 'CSRF_INVALID'], [403, 'ACCESS_DENIED'], [401, 'AUTH_REQUIRED']]) {
+      failure = { status, code, message: `서버 오류 ${status}` }
+      await assert.rejects(createAdminRiskUser(body), (error) => error.response.status === status && error.response.data.code === code)
+    }
+    assert.equal(calls, 7, '업무·CSRF·인증 오류를 자동으로 반복 등록하지 않는다')
+    assert.equal(store.getState().user, null)
+  } finally {
+    api.defaults.adapter = originalApi
+    auth.publicApi.defaults.adapter = originalPublic
+    if (originalWindow === undefined) delete globalThis.window
+    else globalThis.window = originalWindow
+    if (originalDocument === undefined) delete globalThis.document
+    else globalThis.document = originalDocument
+  }
+})
+
+test('관리자에게만 등록 진입을 제공하고 등록 폼은 처음에는 닫혀 있다', () => {
+  assert.match(renderList(), /aria-expanded="false"[^>]*>위험 사용자 등록<\/button>/)
+  assert.doesNotMatch(renderList(), /<form[^>]*id="risk-user-form"/)
+  for (const user of [null, { userId: 1, role: 'USER' }, { userId: 2, role: 'AGENT' }]) {
+    assert.equal(renderList({ user }), '', '페이지 단독 렌더링도 비관리자에게 노출하지 않는다')
+    assert.doesNotMatch(renderAdmin('/admin/risk-users', user), /위험 사용자 등록|risk-user-form/)
+  }
+})
+
+test('등록 검증은 양의 안전한 정수 ID를 숫자로 변환하고 서버 사유 6종만 허용한다', () => {
+  const valid = { userId: '20', reasonType: 'RENT_UNPAID', detail: '' }
+  for (const userId of ['', '0', '-1', '1.5', '1e3', 'abc', 'Infinity', '9007199254740993']) {
+    assert.equal(riskUserSchema.safeParse({ ...valid, userId }).success, false, userId)
+  }
+  assert.equal(riskUserSchema.parse({ ...valid, userId: ' 0020 ' }).userId, 20)
+  for (const reasonType of ['RENT_UNPAID', 'RENT_OVERDUE', 'DEPOSIT_UNPAID', 'FALSE_LISTING', 'NO_PROPERTY_IMAGE', 'AGENT_CHANGE_HISTORY']) {
+    assert.equal(riskUserSchema.safeParse({ ...valid, reasonType }).success, true, reasonType)
+  }
+  for (const reasonType of ['', 'MORTGAGE_RISK', 'ADMIN', 'toString', 'unknown']) {
+    assert.equal(riskUserSchema.safeParse({ ...valid, reasonType }).success, false, reasonType)
+  }
+})
+
+test('상세 내용은 공백·줄바꿈을 보존하고 ASCII·한글·이모지의 UTF-8 바이트 한도를 검사한다', () => {
+  const valid = { userId: '20', reasonType: 'RENT_UNPAID' }
+  const emoji = String.fromCodePoint(0x1f600)
+  for (const detail of ['', '  \n  ', '  첫 줄\n둘째 줄  ', 'a'.repeat(65535), '가'.repeat(21845), emoji.repeat(16383) + '가']) {
+    assert.equal(riskUserSchema.parse({ ...valid, detail }).detail, detail)
+  }
+  for (const detail of ['a'.repeat(65536), '가'.repeat(21846), emoji.repeat(16384)]) {
+    const result = riskUserSchema.safeParse({ ...valid, detail })
+    assert.equal(result.success, false)
+    assert.deepEqual(result.error.issues[0].path, ['detail'])
   }
 })

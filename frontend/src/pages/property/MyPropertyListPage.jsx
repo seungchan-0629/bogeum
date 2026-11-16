@@ -1,5 +1,6 @@
 // [페이지] 내 매물 (임대인) — /my-properties
 // 중개를 신청한 매물과 진행 상태를 보고, 수정·삭제한다
+
 // 요구사항: PROPERTY_013 (목록), PROPERTY_006 (수정 → /my-properties/:propertyId/edit, 계약 완료는 월세·AS로), PROPERTY_007 (삭제, 확인 창)
 // API:
 // - 목록: GET /property/mine?page= — 최근 신청 순서로 10개씩, 삭제한 매물은 빠지고 숨긴 매물은 남는다
@@ -92,6 +93,7 @@ function MyPropertyListPage() {
     { label: '신청일', render: (row) => <span className="whitespace-nowrap">{formatDate(row.requestedAt)}</span> },
     {
       label: '관리',
+                                                                          
       // 계약이 끝난 매물은 고칠 수 없고 이제 월세와 입주·AS를 관리한다
       // TODO: 월세 수납 현황(RENT_003)·AS가 매물별로 보이게 되면 ?propertyId=를 붙여 이 매물만 보여 준다
       render: (row) =>

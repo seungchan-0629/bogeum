@@ -65,10 +65,17 @@ test('중개사 API만 백엔드 주소로 변환하고 검색·페이지·인�
   }
 })
 
-test('위험 사용자 API만 정확히 변환하고 쿼리·인증 헤더와 기존 경로를 보존한다', { timeout: 15000 }, async () => {
+test('위험 사용자 GET·POST를 변환하고 본문·JWT·CSRF·기존 경로를 보존한다', { timeout: 15000 }, async () => {
   const backend = createHttpServer((request, response) => {
     response.writeHead(200, { 'Content-Type': 'application/json' })
-    response.end(JSON.stringify({ url: request.url, authorization: request.headers.authorization }))
+    let body = ''
+    request.setEncoding('utf8')
+    request.on('data', (chunk) => { body += chunk })
+    request.on('end', () => response.end(JSON.stringify({
+      url: request.url, method: request.method, authorization: request.headers.authorization,
+      csrf: request.headers['x-xsrf-token'], cookie: request.headers.cookie,
+      contentType: request.headers['content-type'], body,
+    })))
   })
   backend.listen(0, '127.0.0.1')
   await once(backend, 'listening')
@@ -97,6 +104,20 @@ test('위험 사용자 API만 정확히 변환하고 쿼리·인증 헤더와 �
     assert.equal(received.authorization, 'Bearer test-admin')
     const exact = await fetch(origin + '/api/admin/risk-users')
     assert.equal((await exact.json()).url, '/admin/risk-users')
+    const body = { userId: 20, reasonType: 'DEPOSIT_UNPAID', detail: '  보증금\n미지급  ' }
+    const posted = await fetch(origin + '/api/admin/risk-users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-admin', 'X-XSRF-TOKEN': 'test-csrf', Cookie: 'BOGEUM_CSRF=test-cookie' },
+      body: JSON.stringify(body),
+    })
+    const receivedPost = await posted.json()
+    assert.equal(receivedPost.url, '/admin/risk-users')
+    assert.equal(receivedPost.method, 'POST')
+    assert.equal(receivedPost.authorization, 'Bearer test-admin')
+    assert.equal(receivedPost.csrf, 'test-csrf')
+    assert.equal(receivedPost.cookie, 'BOGEUM_CSRF=test-cookie')
+    assert.equal(receivedPost.contentType, 'application/json')
+    assert.deepEqual(JSON.parse(receivedPost.body), body)
     for (const path of ['/api/admin/risk-users/extra', '/api/admin/risk-users-other', '/api/v1/agents/me', '/openbanking/admin/institution-token']) {
       const unchanged = await fetch(origin + path)
       assert.equal((await unchanged.json()).url, path)
