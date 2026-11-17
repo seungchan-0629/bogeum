@@ -28,8 +28,10 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import com.bogeum.common.enums.LeaseType;
 import com.bogeum.common.enums.Role;
+import com.bogeum.domain.property.PropertyException;
 import com.bogeum.domain.property.model.PropertyDto;
 import com.bogeum.domain.recommend.model.RecommendDto;
+import com.bogeum.domain.recommend.model.SimilarBasis;
 import com.bogeum.domain.user.model.User;
 import com.bogeum.domain.user.model.UserDto.LoginUser;
 
@@ -99,6 +101,50 @@ class RecommendControllerTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.isPersonalized").value(false));
 		verify(recommendService).readRecommendations(1L, 3);
+	}
+
+	@Test
+	@DisplayName("매물 상세의 비슷한 매물은 로그인 사용자·매물 기준으로 조회하고 카드를 반환한다")
+	void readsSimilarProperties() throws Exception {
+		when(recommendService.readSimilarProperties(1L, 20L, 3)).thenReturn(RecommendDto.SimilarListResponse.builder()
+			.properties(List.of(PropertyDto.PropertyItemResponse.builder().propertyId(21L).build())).build());
+
+		mockMvc.perform(get("/recommend/properties/20/similar"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.properties[0].propertyId").value(21));
+	}
+
+	@Test
+	@DisplayName("공개 중이 아닌 매물의 비슷한 매물은 404와 PROPERTY_NOT_FOUND를 반환한다")
+	void rejectsSimilarOfNotPublished() throws Exception {
+		when(recommendService.readSimilarProperties(1L, 999L, 3)).thenThrow(PropertyException.propertyNotFound());
+
+		mockMvc.perform(get("/recommend/properties/999/similar"))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.code").value("PROPERTY_NOT_FOUND"));
+	}
+
+	@Test
+	@DisplayName("최근 본 매물·관심 매물 기준 비슷한 매물은 basis로 기준을 받아 조회한다")
+	void readsSimilarByBasis() throws Exception {
+		when(recommendService.readSimilarByBasis(1L, SimilarBasis.FAVORITE, 3)).thenReturn(
+			RecommendDto.SimilarListResponse.builder().properties(List.of()).build());
+
+		mockMvc.perform(get("/recommend/similar").param("basis", "FAVORITE"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.properties").isEmpty());
+		verify(recommendService).readSimilarByBasis(1L, SimilarBasis.FAVORITE, 3);
+	}
+
+	@Test
+	@DisplayName("basis가 없거나 VIEW·FAVORITE가 아니면 서비스 호출 전에 400으로 거절한다")
+	void rejectsInvalidBasis() throws Exception {
+		mockMvc.perform(get("/recommend/similar").param("basis", "SEARCH"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+		mockMvc.perform(get("/recommend/similar"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
 	}
 
 	@Test

@@ -11,12 +11,16 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.bogeum.common.enums.PropertyStatus;
 import com.bogeum.common.enums.Role;
 import com.bogeum.domain.favorite.FavoriteRepository;
+import com.bogeum.domain.favorite.model.Favorite;
+import com.bogeum.domain.property.PropertyException;
 import com.bogeum.domain.property.PropertyRepository;
 import com.bogeum.domain.property.PropertyService;
 import com.bogeum.domain.property.model.Property;
@@ -25,6 +29,7 @@ import com.bogeum.domain.property.model.PropertyViewLog;
 import com.bogeum.domain.recommend.model.PropertyCount;
 import com.bogeum.domain.recommend.model.RecommendDto;
 import com.bogeum.domain.recommend.model.SearchLog;
+import com.bogeum.domain.recommend.model.SimilarBasis;
 import com.bogeum.domain.user.UserRepository;
 import com.bogeum.domain.user.model.User;
 
@@ -52,6 +57,8 @@ public class RecommendService {
 	private static final int CANDIDATE_LIMIT = 100;
 	// 추천은 카드 줄이 맞는 12개까지 받는다
 	private static final int MAX_SIZE = 12;
+	// 비슷한 매물은 최근 본 매물·관심 매물 중 최근 것 이만큼을 기준으로 찾는다 (RECOMMEND_002)
+	private static final int SIMILAR_BASE_LIMIT = 3;
 
 	private final SearchLogRepository searchLogRepository;
 	private final PropertyViewLogRepository propertyViewLogRepository;
@@ -121,7 +128,7 @@ public class RecommendService {
 	 */
 	@Transactional(readOnly = true)
 	public RecommendDto.RecommendListResponse readRecommendations(Long userId, int size) {
-		int limit = Math.min(Math.max(size, 1), MAX_SIZE);
+		int limit = clampSize(size);
 		LocalDateTime since = LocalDateTime.now().minusDays(SIGNAL_DAYS);
 		Map<String, Integer> regionScores = new HashMap<>();
 		Map<String, Integer> stationScores = new HashMap<>();
@@ -148,17 +155,95 @@ public class RecommendService {
 			pickPopular(picked, readGlobalCandidates(userId, popularity), popularity, favoritedIds, limit);
 		}
 
-		List<Property> properties = new ArrayList<>(picked.values());
-		Map<Long, String> thumbnailUrls = propertyService.readThumbnailUrls(properties);
 		return RecommendDto.RecommendListResponse.builder()
-			.properties(properties.stream()
-				.map(property -> PropertyDto.PropertyItemResponse.from(property,
-					thumbnailUrls.get(property.getPropertyId())))
-				.toList())
+			.properties(toItems(new ArrayList<>(picked.values())))
 			.regions(regions)
 			.stations(stations)
 			.isPersonalized(isPersonalized)
 			.build();
+	}
+
+	/**
+	 * 매물 상세에서 보고 있는 매물과 비슷한 매물을 조회한다 (RECOMMEND_002).
+	 * 임대 형식이 같은 공개 매물을 매물 종류·가격·면적·방 개수·시·구·지하철역으로 비교해 비슷한 순서로 준다.
+	 * 본인 매물과 이미 담은 관심 매물은 뺀다.
+	 *
+	 * @throws PropertyException 없거나 공개 중이 아닌 매물인 경우. 상세도 공개 중인 매물만 열린다
+	 */
+	@Transactional(readOnly = true)
+	public RecommendDto.SimilarListResponse readSimilarProperties(Long viewerId, Long propertyId, int size) {
+		Property base = propertyRepository.findByPropertyIdAndPropertyStatus(propertyId, PropertyStatus.ACTIVE)
+			.orElseThrow(PropertyException::propertyNotFound);
+		Set<Long> excludedIds = new HashSet<>(favoriteRepository.findPropertyIdsByUserId(viewerId));
+		return RecommendDto.SimilarListResponse.builder()
+			.properties(toItems(pickSimilar(List.of(base), viewerId, excludedIds, size)))
+			.build();
+	}
+
+	/**
+	 * 최근 본 매물이나 담은 관심 매물과 비슷한 매물을 조회한다. 메인과 관심 매물 화면에서 쓴다 (RECOMMEND_002).
+	 * 기준 매물은 최근 것 3개이고, 후보마다 가장 비슷한 기준 매물의 점수로 줄 세운다.
+	 * 기준 매물 자신, 본인 매물, 이미 담은 관심 매물은 뺀다. 기준 매물이 없으면 빈 목록이라 화면이 추천 기준을 안내한다.
+	 */
+	@Transactional(readOnly = true)
+	public RecommendDto.SimilarListResponse readSimilarByBasis(Long userId, SimilarBasis basis, int size) {
+		List<Property> bases = basis == SimilarBasis.VIEW ? readRecentViewed(userId) : readRecentFavorites(userId);
+		Set<Long> excludedIds = new HashSet<>(favoriteRepository.findPropertyIdsByUserId(userId));
+		bases.forEach(base -> excludedIds.add(base.getPropertyId()));
+		return RecommendDto.SimilarListResponse.builder()
+			.properties(toItems(pickSimilar(bases, userId, excludedIds, size)))
+			.build();
+	}
+
+	// 최근 30일에 본 서로 다른 매물을 최근 순서로 3개까지
+	private List<Property> readRecentViewed(Long userId) {
+		Map<Long, Property> viewed = new LinkedHashMap<>();
+		propertyViewLogRepository.findAllByUser_UserIdAndViewedAtAfter(userId, LocalDateTime.now().minusDays(SIGNAL_DAYS))
+			.stream()
+			.sorted(Comparator.comparing(PropertyViewLog::getViewedAt).reversed())
+			.forEach(view -> viewed.putIfAbsent(view.getProperty().getPropertyId(), view.getProperty()));
+		return viewed.values().stream().limit(SIMILAR_BASE_LIMIT).toList();
+	}
+
+	// 최근에 담은 관심 매물 3개까지. 담은 뒤 공개가 끝난 매물도 비교 기준으로는 쓴다
+	private List<Property> readRecentFavorites(Long userId) {
+		return favoriteRepository.findAllByUser_UserId(userId, PageRequest.of(0, SIMILAR_BASE_LIMIT,
+				Sort.by(Sort.Direction.DESC, "createdAt", "favoritePropertyId")))
+			.map(Favorite::getProperty)
+			.getContent();
+	}
+
+	// 기준 매물마다 후보를 찾아 점수를 매기고, 후보마다 가장 높은 점수로 줄 세운다. 점수가 같으면 최근 공개 순서다
+	private List<Property> pickSimilar(List<Property> bases, Long viewerId, Set<Long> excludedIds, int size) {
+		Map<Long, Property> candidates = new HashMap<>();
+		Map<Long, Integer> scores = new HashMap<>();
+		for (Property base : bases) {
+			for (Property candidate : propertyService.readSimilarCandidates(base, viewerId, CANDIDATE_LIMIT)) {
+				if (!excludedIds.contains(candidate.getPropertyId())) {
+					candidates.putIfAbsent(candidate.getPropertyId(), candidate);
+					scores.merge(candidate.getPropertyId(), PropertySimilarity.score(base, candidate), Math::max);
+				}
+			}
+		}
+		return candidates.values().stream()
+			.sorted(Comparator.comparingInt((Property property) -> scores.get(property.getPropertyId())).reversed()
+				.thenComparing(Property::getPublishedAt, Comparator.nullsLast(Comparator.reverseOrder()))
+				.thenComparing(Property::getPropertyId, Comparator.reverseOrder()))
+			.limit(clampSize(size))
+			.toList();
+	}
+
+	// 매물 목록과 같은 카드 모양으로 바꾸고 대표 사진을 붙인다
+	private List<PropertyDto.PropertyItemResponse> toItems(List<Property> properties) {
+		Map<Long, String> thumbnailUrls = propertyService.readThumbnailUrls(properties);
+		return properties.stream()
+			.map(property -> PropertyDto.PropertyItemResponse.from(property, thumbnailUrls.get(property.getPropertyId())))
+			.toList();
+	}
+
+	// 추천 개수는 1~12개. 범위를 벗어나면 가장 가까운 값으로 맞춘다
+	private int clampSize(int size) {
+		return Math.min(Math.max(size, 1), MAX_SIZE);
 	}
 
 	// 추천은 집을 찾는 사용자(USER)만 받는다. 중개사·관리자는 기록하지 않는다

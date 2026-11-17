@@ -219,6 +219,17 @@ public class PropertyService {
 	}
 
 	/**
+	 * 기준 매물과 비슷한 매물 후보를 최근 공개 순서로 조회한다 (RECOMMEND_002).
+	 * 임대 형식이 같은 공개 매물 중 같은 시·구, 지하철역, 매물 종류 중 하나라도 맞는 매물이다. 기준 매물과 본인 매물은 뺀다.
+	 * 얼마나 비슷한지는 추천 쪽에서 점수로 매긴다.
+	 */
+	@Transactional(readOnly = true)
+	public List<Property> readSimilarCandidates(Property base, Long excludedLandlordId, int limit) {
+		return propertyRepository.findBy(PropertySpecifications.similarCandidates(base, excludedLandlordId),
+			query -> query.slice(PageRequest.of(0, limit, LIST_SORT))).getContent();
+	}
+
+	/**
 	 * 공개 중(ACTIVE)인 매물의 상세 정보, 사진, 담당 중개사를 조회한다 (PROPERTY_003).
 	 * 사용자는 담당 중개사에게 채팅으로 문의한다. 저장소가 없으면 사진 주소만 비우고 조회는 막지 않는다.
 	 *
