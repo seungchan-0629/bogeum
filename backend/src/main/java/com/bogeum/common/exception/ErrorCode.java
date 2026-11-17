@@ -7,6 +7,9 @@ import lombok.RequiredArgsConstructor;
 @Getter
 @RequiredArgsConstructor
 public enum ErrorCode {
+	// 입주 하자 사진 업로드 (MOVEIN_001)
+	MOVEIN_OUTSIDE_UPLOAD_PERIOD(HttpStatus.BAD_REQUEST, "계약일부터 7일 후까지 입주 하자 사진을 올릴 수 있습니다."),
+	MOVEIN_STORAGE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "사진을 저장할 수 없습니다. 잠시 후 다시 시도해 주세요."),
 	// 관리자 위험 사용자 수정 (RISK_003)
 	RISK_INFO_NOT_FOUND(HttpStatus.NOT_FOUND, "사용자 위험정보를 찾을 수 없습니다."),
 	RISK_NOT_EDITABLE(HttpStatus.CONFLICT, "등록된 사용자 위험정보만 수정할 수 있습니다."),

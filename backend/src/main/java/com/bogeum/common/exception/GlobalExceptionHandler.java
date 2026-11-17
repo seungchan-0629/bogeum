@@ -8,6 +8,7 @@ import com.bogeum.domain.property.PropertyException;
 import com.bogeum.domain.openbanking.OpenBankingException;
 import com.bogeum.domain.rent.RentException;
 import com.bogeum.domain.risk.RiskException;
+import com.bogeum.domain.movein.MoveInException;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -26,6 +27,11 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(RentException.class)
 	public ResponseEntity<ErrorResponse> handleRentException(RentException exception) {
+		return toResponse(exception.getErrorCode());
+	}
+
+	@ExceptionHandler(MoveInException.class)
+	public ResponseEntity<ErrorResponse> handleMoveInException(MoveInException exception) {
 		return toResponse(exception.getErrorCode());
 	}
 
