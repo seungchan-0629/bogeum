@@ -86,6 +86,34 @@ final class PropertySpecifications {
 		};
 	}
 
+	/**
+	 * 비슷한 매물 후보: 기준 매물과 임대 형식이 같은 공개 매물 중 같은 시·구, 같은 지하철역, 같은 매물 종류 중 하나라도 맞는 매물.
+	 * 기준 매물 자신과 본인 매물은 뺀다. 얼마나 비슷한지는 추천 쪽에서 점수로 매긴다 (RECOMMEND_002)
+	 */
+	static Specification<Property> similarCandidates(Property base, Long excludedLandlordId) {
+		return (root, query, cb) -> {
+			List<Predicate> matches = new ArrayList<>();
+			// 시·구는 도로명주소 앞 두 낱말이다 (예: "서울특별시 마포구")
+			List<String> region = words(base.getRoadAddress()).stream().limit(2).toList();
+			if (!region.isEmpty()) {
+				matches.add(cb.and(region.stream()
+					.map(word -> contains(cb, root.get("roadAddress"), word))
+					.toArray(Predicate[]::new)));
+			}
+			if (base.getNearbySubwayStation() != null && !base.getNearbySubwayStation().isBlank()) {
+				matches.add(cb.equal(root.get("nearbySubwayStation"), base.getNearbySubwayStation().trim()));
+			}
+			if (base.getPropertyType() != null) {
+				matches.add(cb.equal(root.get("propertyType"), base.getPropertyType()));
+			}
+			Predicate published = cb.and(cb.equal(root.get("propertyStatus"), PropertyStatus.ACTIVE),
+				cb.equal(root.get("leaseType"), base.getLeaseType()),
+				cb.notEqual(root.get("propertyId"), base.getPropertyId()),
+				cb.notEqual(root.get("landlord").get("userId"), excludedLandlordId));
+			return matches.isEmpty() ? published : cb.and(published, cb.or(matches.toArray(Predicate[]::new)));
+		};
+	}
+
 	// 최소 이상, 최대 이하. 비교 연산은 NULL이면 거짓이라 값이 비어 있는 매물은 자연히 빠진다
 	private static <T extends Comparable<? super T>> void addRange(List<Predicate> predicates, CriteriaBuilder cb,
 			Expression<T> path, T min, T max) {
