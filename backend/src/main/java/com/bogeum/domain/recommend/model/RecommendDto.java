@@ -26,4 +26,15 @@ public class RecommendDto {
 		private List<String> stations;
 		private Boolean isPersonalized;
 	}
+
+	/**
+	 * 비슷한 매물 (RECOMMEND_002). 카드는 매물 목록과 같은 모양이고, 비슷한 순서대로 온다.
+	 * 기준 매물(최근 본 매물·관심 매물)이 없으면 비어 있어 화면이 추천 기준을 안내한다.
+	 */
+	@Getter
+	@Builder
+	public static class SimilarListResponse {
+
+		private List<PropertyDto.PropertyItemResponse> properties;
+	}
 }
