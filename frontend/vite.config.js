@@ -42,6 +42,8 @@ export default defineConfig({
       '/property/': backendProxy,
       // 관심 매물 API(/favorites/{propertyId}). 끝의 /가 있어야 화면 주소 /favorites(관심 매물 화면)가 백엔드로 넘어가지 않는다
       '/favorites/': backendProxy,
+      // 매물 추천 API(/recommend/properties). 화면 주소에는 /recommend로 시작하는 곳이 없다 (RECOMMEND_001)
+      '/recommend/': backendProxy,
       // 계약 API(/contract/..., /contract-details). 화면 주소에는 /contract로 시작하는 곳이 없다
       '/contract/': backendProxy,
       '/contract-details': backendProxy,

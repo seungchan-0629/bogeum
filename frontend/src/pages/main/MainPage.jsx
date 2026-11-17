@@ -49,7 +49,8 @@ function MainPage() {
         {!user && <OnboardingSection animate={shouldPlayIntro} isPlaying={!isIntroOpen} />}
         {user && <RoleSummarySection user={user} />}
         <SearchSection />
-        <ListingSection />
+        {/* 추천 매물은 집을 찾는 사용자만 받는다. 로그인하지 않았거나 중개사·관리자면 칸을 빼고 보여 준다 (RECOMMEND_001) */}
+        {user?.role === ROLES.USER && <ListingSection />}
         <ValueSection />
       </main>
       <Footer />
