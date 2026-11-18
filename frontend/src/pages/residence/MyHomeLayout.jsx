@@ -24,6 +24,10 @@ const TABS = [
 
 function MyHomeLayout() {
   const userId = useAuthStore((state) => state.user?.userId)
+  return <MyHomeContent key={userId ?? 'signed-out'} userId={userId} />
+}
+
+function MyHomeContent({ userId }) {
   const [selectedContractId, setSelectedContractId] = useState(null)
   const contracts = useQuery({
     queryKey: ['tenant-contracts', userId],

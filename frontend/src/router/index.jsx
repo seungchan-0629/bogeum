@@ -104,11 +104,11 @@ export const router = createBrowserRouter([
                   { index: true, element: <Navigate to="/my-home/rent" replace /> },
                   // 이체 내역은 서버가 실제 계약의 임차인을 확인한다.
                   { path: 'rent', element: <RentPaymentPage /> },
+                  { path: 'move-in', element: <MoveInUploadPage /> },
                   {
                     element: <RequireContract contractRole={CONTRACT_ROLES.TENANT} description="계약이 등록되면 이곳에 내 집 정보가 표시돼요." />,
                     children: [
                       { path: 'as', element: <TenantAsPage /> },
-                      { path: 'move-in', element: <MoveInUploadPage /> },
                       { path: 'claim', element: <ClaimPage contractRole={CONTRACT_ROLES.TENANT} /> },
                     ],
                   },
