@@ -2,6 +2,7 @@ package com.bogeum.domain.chat;
 
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -26,6 +27,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+import com.bogeum.common.enums.MessageType;
 import com.bogeum.common.enums.Role;
 import com.bogeum.domain.chat.model.ChatDto;
 import com.bogeum.domain.property.PropertyException;
@@ -103,5 +105,47 @@ class ChatControllerTest {
 		mockMvc.perform(post("/chat/create").contentType(MediaType.APPLICATION_JSON).content("{\"propertyId\":21}"))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("CHAT_AGENT_NOT_ASSIGNED"));
+	}
+
+	@Test
+	@DisplayName("채팅방 목록은 로그인한 사용자의 방을 준다")
+	void readsRooms() throws Exception {
+		when(chatService.readRooms(2L)).thenReturn(new ChatDto.RoomListResponse(List.of(
+			ChatDto.RoomItemResponse.builder().chatRoomId(126L).partnerName("김중개").unreadCount(2L).build())));
+
+		mockMvc.perform(get("/chat/rooms"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.rooms[0].chatRoomId").value(126))
+			.andExpect(jsonPath("$.rooms[0].partnerName").value("김중개"))
+			.andExpect(jsonPath("$.rooms[0].unreadCount").value(2));
+	}
+
+	@Test
+	@DisplayName("대화 내역은 cursor가 없으면 비워서, 있으면 그대로 넘긴다")
+	void readsMessages() throws Exception {
+		var response = new ChatDto.MessageListResponse(List.of(ChatDto.MessageItemResponse.builder().chatMessageId(31L)
+			.isMine(true).messageType(MessageType.TEXT).content("안녕하세요").build()), 31L, true);
+		when(chatService.readMessages(2L, 126L, null)).thenReturn(response);
+		when(chatService.readMessages(2L, 126L, 31L)).thenReturn(new ChatDto.MessageListResponse(List.of(), null, false));
+
+		mockMvc.perform(get("/chat/rooms/126/messages"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.messages[0].content").value("안녕하세요"))
+			.andExpect(jsonPath("$.messages[0].isMine").value(true))
+			.andExpect(jsonPath("$.nextCursor").value(31))
+			.andExpect(jsonPath("$.hasNext").value(true));
+		mockMvc.perform(get("/chat/rooms/126/messages").param("cursor", "31"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.hasNext").value(false));
+	}
+
+	@Test
+	@DisplayName("참여하지 않은 방의 대화는 404다")
+	void rejectsOthersRoom() throws Exception {
+		when(chatService.readMessages(2L, 999L, null)).thenThrow(ChatException.chatRoomNotFound());
+
+		mockMvc.perform(get("/chat/rooms/999/messages"))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.code").value("CHAT_ROOM_NOT_FOUND"));
 	}
 }
