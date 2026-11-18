@@ -27,6 +27,7 @@ import com.bogeum.domain.favorite.FavoriteRepository;
 import com.bogeum.domain.favorite.model.Favorite;
 import com.bogeum.domain.property.PropertyException;
 import com.bogeum.domain.property.PropertyRepository;
+import com.bogeum.domain.chat.ChatService;
 import com.bogeum.domain.property.PropertyService;
 import com.bogeum.domain.property.model.Property;
 import com.bogeum.domain.property.model.PropertyDto;
@@ -52,7 +53,7 @@ import com.bogeum.utils.ImageProcessor;
 	"spring.jpa.hibernate.ddl-auto=create-drop", "spring.sql.init.mode=never"
 })
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({RecommendService.class, PropertyService.class})
+@Import({RecommendService.class, PropertyService.class, ChatService.class})
 class RecommendSimilarTest {
 
 	@Autowired

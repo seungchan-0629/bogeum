@@ -23,6 +23,7 @@ import com.bogeum.common.enums.LeaseType;
 import com.bogeum.common.enums.PropertyStatus;
 import com.bogeum.common.enums.PropertyType;
 import com.bogeum.common.enums.Role;
+import com.bogeum.domain.chat.ChatService;
 import com.bogeum.domain.property.model.Property;
 import com.bogeum.domain.property.model.PropertyDto;
 import com.bogeum.domain.user.UserRepository;
@@ -41,7 +42,7 @@ import com.bogeum.utils.ImageProcessor;
 	"spring.jpa.hibernate.ddl-auto=create-drop", "spring.sql.init.mode=never"
 })
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(PropertyService.class)
+@Import({PropertyService.class, ChatService.class})
 class PropertySearchTest {
 
 	private static final LocalDateTime BASE = LocalDateTime.of(2026, 11, 1, 9, 0);

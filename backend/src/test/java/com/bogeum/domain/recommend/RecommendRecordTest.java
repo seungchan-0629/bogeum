@@ -20,6 +20,7 @@ import com.bogeum.common.enums.LeaseType;
 import com.bogeum.common.enums.PropertyStatus;
 import com.bogeum.common.enums.Role;
 import com.bogeum.domain.property.PropertyRepository;
+import com.bogeum.domain.chat.ChatService;
 import com.bogeum.domain.property.PropertyService;
 import com.bogeum.domain.property.model.Property;
 import com.bogeum.domain.recommend.model.SearchLog;
@@ -40,7 +41,7 @@ import jakarta.persistence.EntityManager;
 	"spring.jpa.hibernate.ddl-auto=create-drop", "spring.sql.init.mode=never"
 })
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({RecommendService.class, PropertyService.class})
+@Import({RecommendService.class, PropertyService.class, ChatService.class})
 class RecommendRecordTest {
 
 	@Autowired
