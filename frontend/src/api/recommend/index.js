@@ -10,3 +10,17 @@ export async function getRecommendations(size, signal) {
   const { data } = await api.get('/recommend/properties', { ...RECOMMEND_CONFIG, params: { size }, signal })
   return data
 }
+
+// RECOMMEND_002 매물 상세에서 보고 있는 매물과 비슷한 매물. 임대 형식이 같은 공개 매물을 비슷한 순서로 준다
+// 본인 매물과 이미 담은 관심 매물은 빠진다. 공개 중이 아닌 매물이면 404다
+export async function getSimilarProperties(propertyId, size, signal) {
+  const { data } = await api.get(`/recommend/properties/${propertyId}/similar`, { ...RECOMMEND_CONFIG, params: { size }, signal })
+  return data
+}
+
+// RECOMMEND_002 최근 본 매물(basis: 'VIEW')이나 담은 관심 매물('FAVORITE')과 비슷한 매물. 사용자(USER)만 받는다
+// 기준 매물이 없으면 properties가 빈 배열이다
+export async function getSimilarByBasis(basis, size, signal) {
+  const { data } = await api.get('/recommend/similar', { ...RECOMMEND_CONFIG, params: { basis, size }, signal })
+  return data
+}
