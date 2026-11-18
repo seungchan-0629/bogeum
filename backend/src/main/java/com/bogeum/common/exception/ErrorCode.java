@@ -59,6 +59,7 @@ public enum ErrorCode {
 	FAVORITE_OWN_PROPERTY(HttpStatus.BAD_REQUEST, "본인이 중개를 신청한 매물은 관심 매물로 등록할 수 없습니다."),
 	// 채팅방 (CHAT_002)
 	CHAT_AGENT_NOT_ASSIGNED(HttpStatus.CONFLICT, "아직 중개사가 중개를 수락하지 않아 대화할 수 없습니다."),
+	CHAT_ROOM_NOT_FOUND(HttpStatus.NOT_FOUND, "채팅방을 찾을 수 없습니다."),
 	INVALID_PROFILE(HttpStatus.BAD_REQUEST, "전화번호 또는 새 비밀번호와 확인값을 확인해 주세요. 비밀번호는 UTF-8 기준 72바이트까지 가능합니다."),
 	CURRENT_PASSWORD_MISMATCH(HttpStatus.BAD_REQUEST, "현재 비밀번호를 확인해 주세요."),
 	INVALID_SIGNUP(HttpStatus.BAD_REQUEST, "가입 정보와 필수 동의를 확인해 주세요."),
