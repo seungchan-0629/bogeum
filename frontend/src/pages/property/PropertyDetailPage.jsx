@@ -3,7 +3,7 @@
 // 요구사항: PROPERTY_003 (상세 정보·사진), RECOMMEND_002 (유사 매물), FAVORITE_001·002, RISK_006 (위험 안내), CHAT_002 (채팅 문의)
 // API:
 // - 상세: GET /property/{propertyId} — 공개 중인 매물만, 아니면 404
-// - 유사 매물: GET /api/v1/properties/{propertyId}/similar (BE-030)
+// - 비슷한 매물: GET /recommend/properties/{propertyId}/similar?size=3 — 임대 형식이 같은 공개 매물을 비슷한 순서로
 // - 채팅 문의: POST /chat/create — 임차인은 담당 중개사와의 방, 임대인(본인 매물)은 임대인–중개사 방으로 간다
 import { Link, useParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
@@ -16,10 +16,14 @@ import { useFavoriteToggle } from '../../hooks/useFavoriteToggle.js'
 import { useOpenChatRoom } from '../../hooks/useOpenChatRoom.js'
 import { ROLES } from '../../constants/auth.js'
 import { getPublicProperty } from '../../api/property/index.js'
+import { getSimilarProperties } from '../../api/recommend/index.js'
+import { toCardProperty } from '../../utils/propertyCard.js'
 import { formatLeasePrice, getLeaseTypeLabel, getPropertyTypeLabel } from '../../utils/format.js'
 
 // 사진 칸: 큰 대표 사진 1장 + 작은 사진 4장. 더 있으면 마지막 칸에 남은 장수를 보여 준다
 const SMALL_PHOTO_COUNT = 4
+// 비슷한 매물은 카드 한 줄(3개)
+const SIMILAR_SIZE = 3
 
 // 공개할 때 필수가 아닌 칸(세대 수·주차 대수·지하철역)은 비어 있을 수 있다. 주차 0대는 "주차 불가"라 그대로 보여 준다
 const withUnit = (value, unit) => (value == null ? '정보 없음' : `${value.toLocaleString()}${unit}`)
@@ -85,9 +89,12 @@ function PropertyDetail({ property }) {
 
   // TODO: RISK_006 위험 안내 API가 생기면 응답의 안내 문구로 채운다. 지금은 위험 신호가 없는 매물에도 잘못 보이지 않게 비워 둔다
   const riskNotices = []
-  // TODO: RECOMMEND_002 유사 매물 API(GET /api/v1/properties/{propertyId}/similar, BE-030)가 생기면 응답으로 채운다
-  //       본인 매물·삭제·계약 완료 매물은 서버에서 뺀다. 지금은 관계없는 샘플이 보이지 않게 비워 둔다
-  const similarProperties = []
+  // 비슷한 매물이 없거나 불러오지 못하면 칸을 숨긴다. 본인 매물·이미 담은 매물·공개가 끝난 매물은 서버에서 뺀다 (RECOMMEND_002)
+  const similar = useQuery({
+    queryKey: ['recommendations', 'similar', 'property', property.propertyId, user.userId],
+    queryFn: ({ signal }) => getSimilarProperties(property.propertyId, SIMILAR_SIZE, signal),
+  })
+  const similarProperties = similar.data?.properties.map(toCardProperty) ?? []
 
   // 이미 대화 중인 방이 있으면 서버가 기존 방 번호를 준다 (CHAT_002)
   const { openChatRoom, isOpening, errorOf: chatErrorOf } = useOpenChatRoom()
@@ -139,8 +146,16 @@ function PropertyDetail({ property }) {
             <section aria-labelledby="similar-title" className="flex flex-col gap-3">
               <h2 id="similar-title" className="text-lg font-bold">비슷한 매물</h2>
               <div className="grid gap-4 sm:grid-cols-3">
+                {/* 관심 매물은 사용자만 담아서 하트도 사용자에게만 준다 (FAVORITE_001) */}
                 {similarProperties.map((item) => (
-                  <PropertyCard key={item.propertyId} property={item} />
+                  <PropertyCard
+                    key={item.propertyId}
+                    property={item}
+                    isFavorite={favoriteIds.has(item.propertyId)}
+                    onToggleFavorite={isUser ? toggleFavorite : undefined}
+                    isFavoritePending={isPending(item.propertyId)}
+                    favoriteError={errorOf(item.propertyId)}
+                  />
                 ))}
               </div>
             </section>

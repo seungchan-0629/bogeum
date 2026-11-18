@@ -1,8 +1,9 @@
 // [페이지] 관심 매물 — /favorites
 // 누가: 사용자(USER)
-// 요구사항: FAVORITE_002 (해제), FAVORITE_003 (목록, 누르면 매물 상세)
+// 요구사항: FAVORITE_002 (해제), FAVORITE_003 (목록, 누르면 매물 상세), RECOMMEND_002 (관심 매물과 비슷한 매물)
 // API:
 // - 목록: GET /favorites/me?page= — 최근에 담은 순서로 12개씩
+// - 비슷한 매물: GET /recommend/similar?basis=FAVORITE&size=3 — 최근 담은 관심 매물과 비슷한 매물, 담은 매물은 빠진다
 // - 해제: DELETE /favorites/{propertyId} — useFavoriteToggle 안에 연결
 // 하트로 빼도 카드는 그 자리에 남고 하트만 빈다. 실수로 눌렀으면 바로 다시 담을 수 있고, 화면을 다시 열면 빠져 있다
 import { useState } from 'react'
@@ -14,7 +15,12 @@ import PropertyCard from '../../components/property/PropertyCard.jsx'
 import { FAVORITE_LIST_KEY, useFavoriteToggle } from '../../hooks/useFavoriteToggle.js'
 import { useAuthStore } from '../../stores/authStore.js'
 import { getFavorites } from '../../api/favorite/index.js'
+import { getSimilarByBasis } from '../../api/recommend/index.js'
+import RecommendSection from '../../components/recommend-favorite/RecommendSection.jsx'
 import { toCardProperty } from '../../utils/propertyCard.js'
+
+// 관심 매물 아래 비슷한 매물은 카드 한 줄(3개)
+const SIMILAR_SIZE = 3
 
 function FavoriteListPage() {
   const user = useAuthStore((state) => state.user)
@@ -25,6 +31,11 @@ function FavoriteListPage() {
     queryFn: ({ signal }) => getFavorites(page, signal),
   })
   const favorites = list.data?.favorites ?? []
+  const similar = useQuery({
+    queryKey: ['recommendations', 'similar', 'FAVORITE', user?.userId, SIMILAR_SIZE],
+    queryFn: ({ signal }) => getSimilarByBasis('FAVORITE', SIMILAR_SIZE, signal),
+    enabled: favorites.length > 0,
+  })
 
   return (
     <div className="page-container">
@@ -54,6 +65,12 @@ function FavoriteListPage() {
         </div>
       )}
       {list.data?.totalPages > 1 && <Pagination page={page} totalPages={list.data.totalPages} onChange={setPage} />}
+      {/* 담은 매물이 있을 때만 비슷한 매물을 보여 준다. 비슷한 매물이 없으면 칸을 숨긴다 (RECOMMEND_002) */}
+      {similar.data?.properties.length > 0 && (
+        <div className="mt-8">
+          <RecommendSection title="관심 매물과 비슷한 매물" properties={similar.data.properties} />
+        </div>
+      )}
     </div>
   )
 }
