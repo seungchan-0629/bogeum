@@ -4,8 +4,8 @@
 // API:
 // - 상세: GET /property/{propertyId} — 공개 중인 매물만, 아니면 404
 // - 유사 매물: GET /api/v1/properties/{propertyId}/similar (BE-030)
-// - 채팅 문의: POST /api/v1/chat/rooms (BE-036)
-import { Link, useNavigate, useParams } from 'react-router'
+// - 채팅 문의: POST /chat/create — 임차인은 담당 중개사와의 방, 임대인(본인 매물)은 임대인–중개사 방으로 간다
+import { Link, useParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import clsx from 'clsx'
 import Icon from '../../components/common/Icon.jsx'
@@ -13,6 +13,7 @@ import PhotoPlaceholder from '../../components/common/PhotoPlaceholder.jsx'
 import PropertyCard from '../../components/property/PropertyCard.jsx'
 import { useAuthStore } from '../../stores/authStore.js'
 import { useFavoriteToggle } from '../../hooks/useFavoriteToggle.js'
+import { useOpenChatRoom } from '../../hooks/useOpenChatRoom.js'
 import { ROLES } from '../../constants/auth.js'
 import { getPublicProperty } from '../../api/property/index.js'
 import { formatLeasePrice, getLeaseTypeLabel, getPropertyTypeLabel } from '../../utils/format.js'
@@ -76,7 +77,6 @@ function PhotoGallery({ images }) {
 
 function PropertyDetail({ property }) {
   const user = useAuthStore((state) => state.user)
-  const navigate = useNavigate()
   const { favoriteIds, toggleFavorite, isPending, errorOf } = useFavoriteToggle()
   const isUser = user.role === ROLES.USER
   const isFavorite = favoriteIds.has(property.propertyId)
@@ -89,11 +89,8 @@ function PropertyDetail({ property }) {
   //       본인 매물·삭제·계약 완료 매물은 서버에서 뺀다. 지금은 관계없는 샘플이 보이지 않게 비워 둔다
   const similarProperties = []
 
-  // TODO: POST /api/v1/chat/rooms (BE-036, 요청: { propertyId }) 호출 → 응답의 roomId로 이동
-  // 이미 대화 중인 방이 있으면 서버가 기존 roomId를 돌려준다 (CHAT_002)
-  const handleStartChat = () => {
-    navigate('/chats/1')
-  }
+  // 이미 대화 중인 방이 있으면 서버가 기존 방 번호를 준다 (CHAT_002)
+  const { openChatRoom, isOpening, errorOf: chatErrorOf } = useOpenChatRoom()
 
   const infoItems = [
     ['매물 종류', propertyTypeLabel],
@@ -158,12 +155,18 @@ function PropertyDetail({ property }) {
             <span className="text-sm text-gray-600">담당 중개사 · {property.agent.agentName}</span>
           </div>
           {/* 중개사는 자신의 매물에 채팅방을 만들 수 없다 (CHAT_002). 사용자만 문의 버튼을 보여준다
-              TODO: 본인이 중개 신청한 매물이면 문의 버튼을 숨길지 팀 확인 필요 (상세 응답에 본인 매물 여부가 있는지 백엔드와 협의) */}
+              본인이 중개 신청한 매물이면 서버가 담당 중개사와의 임대인–중개사 방을 열어 준다 */}
           {isUser && (
             <>
-              <button type="button" onClick={handleStartChat} className="btn-primary h-12">
-                <Icon name="chat" size={18} /> 채팅으로 문의하기
-              </button>
+              <div className="flex flex-col gap-1.5">
+                <button type="button" onClick={() => openChatRoom(property.propertyId)} disabled={isOpening(property.propertyId)}
+                  className="btn-primary h-12 disabled:cursor-wait">
+                  <Icon name="chat" size={18} /> {isOpening(property.propertyId) ? '채팅방 여는 중…' : '채팅으로 문의하기'}
+                </button>
+                {chatErrorOf(property.propertyId) && (
+                  <p role="alert" className="text-sm text-rose-700">{chatErrorOf(property.propertyId)}</p>
+                )}
+              </div>
               {/* FAVORITE_001·002: 누르자마자 바뀌고, 실패하면 되돌린 뒤 버튼 바로 아래에 안내를 잠깐 보여 준다 */}
               <div className="flex flex-col gap-1.5">
                 <button type="button" onClick={() => toggleFavorite(property.propertyId)} disabled={isPending(property.propertyId)}
