@@ -8,7 +8,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/** 입주 사진 업로드의 요청과 응답을 모은다 (MOVEIN_001). */
+/** 입주 사진 등록·조회의 요청과 응답을 모은다 (MOVEIN_001~002). */
 public class MoveInDto {
 
 	/** captions[i]는 multipart images의 i번째 사진에 대응한다. 빈 설명은 허용한다. */
@@ -45,6 +45,35 @@ public class MoveInDto {
 		/** 요청 순서대로 등록 결과를 반환한다. */
 		public static UploadRes from(Long contractId, List<MoveInDefectPhoto> photos) {
 			return UploadRes.builder().contractId(contractId).photos(photos.stream().map(PhotoRes::from).toList()).build();
+		}
+	}
+
+	/** 기존 null 설명을 보존하며 내부 저장 키 대신 임시 조회 주소만 반환한다. */
+	@Getter
+	@Builder
+	public static class ReadPhotoRes {
+		private Long moveInDefectPhotoId;
+		private String caption;
+		private LocalDateTime createdAt;
+		private String url;
+
+		/** 저장소 미연결 시 url은 null이며 사진 등록 정보는 그대로 제공한다. */
+		public static ReadPhotoRes from(MoveInDefectPhoto photo, String url) {
+			return ReadPhotoRes.builder().moveInDefectPhotoId(photo.getMoveInDefectPhotoId())
+				.caption(photo.getCaption()).createdAt(photo.getCreatedAt()).url(url).build();
+		}
+	}
+
+	/** 임대인 권한을 확인한 계약의 사진을 생성 시각·사진 ID 오름차순으로 반환한다. */
+	@Getter
+	@Builder
+	public static class ReadRes {
+		private Long contractId;
+		private List<ReadPhotoRes> photos;
+
+		/** 서비스에서 조회한 순서와 사진별 URL을 그대로 응답에 담는다. */
+		public static ReadRes from(Long contractId, List<ReadPhotoRes> photos) {
+			return ReadRes.builder().contractId(contractId).photos(photos).build();
 		}
 	}
 }

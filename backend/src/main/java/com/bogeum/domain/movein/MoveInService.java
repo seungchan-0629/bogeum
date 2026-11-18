@@ -18,7 +18,7 @@ import com.bogeum.utils.ImageProcessor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-/** 계약 임차인·기한·사진별 설명을 확인하고 비공개 입주 사진을 추가한다. */
+/** 계약 당사자 권한을 확인해 비공개 입주 사진을 등록·조회한다. */
 @Service
 @Slf4j
 @RequiredArgsConstructor
@@ -81,6 +81,36 @@ public class MoveInService {
 		}
 		return moveInRepository.saveAllAndFlush(photos);
 	}
+
+	/** 계약 임대인에게만 사진과 임시 조회 주소를 제공하며 업로드 기한은 검사하지 않는다 (MOVEIN_002). */
+	@Transactional(readOnly = true)
+	public List<PhotoReadResult> readPhotos(Long userId, Long contractId) {
+		if (contractId == null || contractId <= 0) {
+			throw MoveInException.invalidRequest();
+		}
+		var contract = contractRepository.findById(contractId).orElseThrow(MoveInException::contractNotFound);
+		if (!contract.getLandlord().getUserId().equals(userId)) {
+			throw MoveInException.forbidden();
+		}
+		var photos = moveInRepository.findAllByContract_ContractIdOrderByCreatedAtAscMoveInDefectPhotoIdAsc(contractId);
+		// 사진이 없으면 저장소에 접근하지 않는다. 미연결 상태는 AS처럼 메타데이터만 반환한다.
+		var storage = photos.isEmpty() ? null : storageProvider.getIfAvailable();
+		return photos.stream().map(photo -> {
+			String url = null;
+			if (storage != null) {
+				try {
+					url = storage.createReadUrl(photo.getFileKey());
+				} catch (RuntimeException exception) {
+					log.error("입주 사진 조회 주소 발급 실패: photoId={}", photo.getMoveInDefectPhotoId(), exception);
+					throw MoveInException.readUrlUnavailable();
+				}
+			}
+			return new PhotoReadResult(photo, url);
+		}).toList();
+	}
+
+	/** HTTP 응답 DTO에 의존하지 않고 권한 확인된 사진과 주소를 Controller에 전달한다. */
+	public record PhotoReadResult(MoveInDefectPhoto photo, String url) {}
 
 	// contractedAt은 날짜로 등록된다. 한국 날짜 기준 계약 당일과 +7일의 날짜 전체를 포함한다.
 	static void validateUploadDate(LocalDate contractedDate, LocalDate today) {

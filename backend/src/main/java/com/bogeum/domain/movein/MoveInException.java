@@ -19,4 +19,5 @@ public class MoveInException extends RuntimeException {
 	public static MoveInException invalidRequest() { return new MoveInException(ErrorCode.INVALID_REQUEST); }
 	public static MoveInException invalidImage() { return new MoveInException(ErrorCode.INVALID_IMAGE); }
 	public static MoveInException storageUnavailable() { return new MoveInException(ErrorCode.MOVEIN_STORAGE_UNAVAILABLE); }
+	public static MoveInException readUrlUnavailable() { return new MoveInException(ErrorCode.MOVEIN_READ_URL_UNAVAILABLE); }
 }
