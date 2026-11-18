@@ -5,6 +5,7 @@
 // API:
 // - 목록: GET /property/mine?page= — 최근 신청 순서로 10개씩, 삭제한 매물은 빠지고 숨긴 매물은 남는다
 // - 삭제: DELETE /property/mine/{propertyId} — 상태만 삭제로 바뀌고, 계약이 끝난 매물은 지울 수 없다
+// - 담당 중개사와 연락하기: POST /chat/create — 중개사가 수락한 매물의 임대인–중개사 채팅방으로 간다 (CHAT_002)
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -15,6 +16,7 @@ import Pagination from '../../components/common/Pagination.jsx'
 import ConfirmModal from '../../components/common/ConfirmModal.jsx'
 import { useAuthStore } from '../../stores/authStore.js'
 import { deleteMyProperty, getMyProperties } from '../../api/property/index.js'
+import { useOpenChatRoom } from '../../hooks/useOpenChatRoom.js'
 import { formatLeasePrice } from '../../utils/format.js'
 
 // 진행 단계: 서버가 주는 중개 신청 상태(중개사가 수락했는지)와 매물 상태(공개·계약했는지)를 합쳐 하나로 보여 준다
@@ -59,6 +61,7 @@ function MyPropertyListPage() {
   const rows = list.data?.properties ?? []
   const hasHidden = rows.some((row) => row.propertyStatus === 'HIDDEN')
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const { openChatRoom, isOpening, errorOf } = useOpenChatRoom()
 
   // 확인 창을 먼저 닫아 [삭제]를 두 번 눌러 같은 매물을 또 지우지 않게 한다 (PROPERTY_007)
   // TODO: 관련 채팅방 읽기 전용(CHAT_009)·관심 등록자 알림(NOTIFY_020)이 생기면 확인 창 문구에 더한다
@@ -89,6 +92,16 @@ function MyPropertyListPage() {
           <span className="text-gray-600">
             {row.agentName} {row.isDesignated ? '(희망)' : '(배정)'}
           </span>
+          {/* 중개사가 수락하면 생기는 임대인–중개사 채팅방으로 간다. 수락 전에는 대화할 상대가 없어 숨긴다 (CHAT_002) */}
+          {row.brokerageStatus === 'ACCEPTED' && (
+            <>
+              <button type="button" onClick={() => openChatRoom(row.propertyId)} disabled={isOpening(row.propertyId)}
+                className="btn-secondary btn-sm mt-1.5 self-start whitespace-nowrap disabled:cursor-wait">
+                {isOpening(row.propertyId) ? '채팅방 여는 중…' : '담당 중개사와 연락하기'}
+              </button>
+              {errorOf(row.propertyId) && <span role="alert" className="mt-1 text-xs text-rose-700">{errorOf(row.propertyId)}</span>}
+            </>
+          )}
         </span>
       ),
     },

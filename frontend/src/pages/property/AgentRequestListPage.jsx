@@ -4,6 +4,7 @@
 // API:
 // - 목록: GET /property/brokerage-requests/received?status=&page= (PROPERTY_012) — 상태별, 한 페이지 5개
 // - 수락: POST /property/brokerage-requests/{brokerageRequestId}/accept (BE-024)
+// - 임대인과 연락하기: POST /chat/create — 수락한 매물의 임대인–중개사 채팅방으로 간다 (CHAT_002)
 import { useState } from 'react'
 import { Link } from 'react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -15,6 +16,7 @@ import Pagination from '../../components/common/Pagination.jsx'
 import { Tabs } from '../../components/common/Tabs.jsx'
 import { formatLeasePrice } from '../../utils/format.js'
 import { acceptBrokerageRequest, getReceivedBrokerageRequests } from '../../api/property/index.js'
+import { useOpenChatRoom } from '../../hooks/useOpenChatRoom.js'
 
 const EMPTY_MESSAGES = { REQUESTED: '새 중개 신청이 없어요.', ACCEPTED: '수락한 중개 신청이 없어요.' }
 
@@ -43,6 +45,7 @@ function AgentRequestListPage() {
   // 탭 이름의 '새 신청' 개수는 수락한 신청 탭에 있을 때도 보여야 해서 따로 조회한다
   const requestedFirstPage = useBrokerageRequests('REQUESTED', 1)
   const requests = list.data?.requests ?? []
+  const { openChatRoom, isOpening, errorOf } = useOpenChatRoom()
 
   const handleTabChange = (nextTab) => {
     setTab(nextTab)
@@ -102,7 +105,19 @@ function AgentRequestListPage() {
                   <button type="button" onClick={() => handleAccept(request.brokerageRequestId)} className="btn-secondary">수락하기</button>
                 )}
                 {request.brokerageStatus === 'ACCEPTED' && !isDeleted && (
-                  <Link to="/agent/contracts" className="btn-secondary">내 계약 관리에서 보기</Link>
+                  <div className="flex flex-col items-end gap-1.5">
+                    <div className="flex gap-2">
+                      <Link to="/agent/contracts" className="btn-secondary">내 계약 관리에서 보기</Link>
+                      {/* 수락할 때 생긴 임대인과의 채팅방으로 간다 (CHAT_002) */}
+                      <button type="button" onClick={() => openChatRoom(request.propertyId)} disabled={isOpening(request.propertyId)}
+                        className="btn-secondary disabled:cursor-wait">
+                        {isOpening(request.propertyId) ? '채팅방 여는 중…' : '임대인과 연락하기'}
+                      </button>
+                    </div>
+                    {errorOf(request.propertyId) && (
+                      <p role="alert" className="text-sm text-rose-700">{errorOf(request.propertyId)}</p>
+                    )}
+                  </div>
                 )}
               </li>
             )

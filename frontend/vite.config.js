@@ -44,6 +44,8 @@ export default defineConfig({
       '/favorites/': backendProxy,
       // 매물 추천 API(/recommend/properties). 화면 주소에는 /recommend로 시작하는 곳이 없다 (RECOMMEND_001)
       '/recommend/': backendProxy,
+      // 채팅 API(/chat/...). 끝의 /가 있어야 화면 주소 /chats/...가 백엔드로 넘어가지 않는다 (CHAT_002)
+      '/chat/': backendProxy,
       // 계약 API(/contract/..., /contract-details). 화면 주소에는 /contract로 시작하는 곳이 없다
       '/contract/': backendProxy,
       '/contract-details': backendProxy,
