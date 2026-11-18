@@ -2,6 +2,7 @@ package com.bogeum.common.exception;
 
 import com.bogeum.domain.agent.AgentException;
 import com.bogeum.domain.aftersales.AfterSalesException;
+import com.bogeum.domain.chat.ChatException;
 import com.bogeum.domain.contract.ContractException;
 import com.bogeum.domain.favorite.FavoriteException;
 import com.bogeum.domain.property.PropertyException;
@@ -75,6 +76,11 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(FavoriteException.class)
 	public ResponseEntity<ErrorResponse> handleFavoriteException(FavoriteException exception) {
+		return toResponse(exception.getErrorCode());
+	}
+
+	@ExceptionHandler(ChatException.class)
+	public ResponseEntity<ErrorResponse> handleChatException(ChatException exception) {
 		return toResponse(exception.getErrorCode());
 	}
 

@@ -24,6 +24,7 @@ import com.bogeum.common.enums.Role;
 import com.bogeum.domain.favorite.model.Favorite;
 import com.bogeum.domain.favorite.model.FavoriteDto;
 import com.bogeum.domain.property.PropertyRepository;
+import com.bogeum.domain.chat.ChatService;
 import com.bogeum.domain.property.PropertyService;
 import com.bogeum.domain.property.model.Property;
 import com.bogeum.domain.user.UserRepository;
@@ -42,7 +43,7 @@ import com.bogeum.utils.ImageProcessor;
 	"spring.jpa.hibernate.ddl-auto=create-drop", "spring.sql.init.mode=never"
 })
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({FavoriteService.class, PropertyService.class})
+@Import({FavoriteService.class, PropertyService.class, ChatService.class})
 class FavoriteListTest {
 
 	@Autowired

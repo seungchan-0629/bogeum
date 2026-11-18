@@ -81,4 +81,24 @@ public class ChatRoom {
 	@CreationTimestamp
 	@Column(nullable = false, updatable = false)
 	private LocalDateTime createdAt;
+
+	// 임차인이 매물 상세에서 담당 중개사에게 문의할 때 (CHAT_002)
+	public static ChatRoom createInquiryRoom(Property property, User inquirer) {
+		return ChatRoom.builder()
+			.property(property)
+			.roomType(ChatRoomType.TENANT_AGENT)
+			.inquirer(inquirer)
+			.agent(property.getAgent())
+			.build();
+	}
+
+	// 중개사가 임대인의 중개 신청을 수락할 때. 매물 쪽 로직에서 만들어진다 (CHAT_002)
+	public static ChatRoom createBrokerageRoom(Property property) {
+		return ChatRoom.builder()
+			.property(property)
+			.roomType(ChatRoomType.LANDLORD_AGENT)
+			.inquirer(property.getLandlord())
+			.agent(property.getAgent())
+			.build();
+	}
 }

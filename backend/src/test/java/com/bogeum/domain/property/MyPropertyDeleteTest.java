@@ -21,6 +21,7 @@ import com.bogeum.common.enums.LeaseType;
 import com.bogeum.common.enums.PropertyStatus;
 import com.bogeum.common.enums.Role;
 import com.bogeum.common.exception.ErrorCode;
+import com.bogeum.domain.chat.ChatService;
 import com.bogeum.domain.property.model.BrokerageRequest;
 import com.bogeum.domain.property.model.Property;
 import com.bogeum.domain.property.model.PropertyDto;
@@ -41,7 +42,7 @@ import jakarta.persistence.EntityManager;
 	"spring.jpa.hibernate.ddl-auto=create-drop", "spring.sql.init.mode=never"
 })
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(PropertyService.class)
+@Import({PropertyService.class, ChatService.class})
 class MyPropertyDeleteTest {
 
 	@Autowired

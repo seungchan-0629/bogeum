@@ -21,6 +21,7 @@ import com.bogeum.common.enums.BrokerageStatus;
 import com.bogeum.common.enums.LeaseType;
 import com.bogeum.common.enums.PropertyStatus;
 import com.bogeum.common.enums.Role;
+import com.bogeum.domain.chat.ChatService;
 import com.bogeum.domain.agent.AgentRepository;
 import com.bogeum.domain.agent.model.Agent;
 import com.bogeum.domain.property.model.BrokerageRequest;
@@ -41,7 +42,7 @@ import com.bogeum.utils.ImageProcessor;
 	"spring.jpa.hibernate.ddl-auto=create-drop", "spring.sql.init.mode=never"
 })
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import(PropertyService.class)
+@Import({PropertyService.class, ChatService.class})
 class MyPropertyListTest {
 
 	@Autowired

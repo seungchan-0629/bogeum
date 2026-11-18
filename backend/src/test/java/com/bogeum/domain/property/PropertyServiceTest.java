@@ -53,6 +53,7 @@ import com.bogeum.common.exception.ErrorCode;
 import com.bogeum.common.exception.ImageException;
 import com.bogeum.domain.agent.AgentRepository;
 import com.bogeum.domain.agent.model.Agent;
+import com.bogeum.domain.chat.ChatService;
 import com.bogeum.domain.property.model.BrokerageRequest;
 import com.bogeum.domain.property.model.Property;
 import com.bogeum.domain.property.model.PropertyDto;
@@ -83,6 +84,8 @@ class PropertyServiceTest {
 	private PropertyImageStorage storage;
 	@Mock
 	private ImageProcessor imageProcessor;
+	@Mock
+	private ChatService chatService;
 
 	private PropertyService propertyService;
 	private final User landlord = User.builder().userId(1L).name("박임대").build();
@@ -90,7 +93,7 @@ class PropertyServiceTest {
 	@BeforeEach
 	void setUp() {
 		propertyService = new PropertyService(userService, agentRepository, propertyRepository, brokerageRequestRepository,
-			propertyImageRepository, storageProvider, imageProcessor);
+			propertyImageRepository, storageProvider, imageProcessor, chatService);
 	}
 
 	@AfterEach
@@ -340,7 +343,7 @@ class PropertyServiceTest {
 	}
 
 	@Test
-	@DisplayName("중개사가 본인에게 온 신청을 수락하면 수락 상태가 되고 매물을 맡는다")
+	@DisplayName("중개사가 본인에게 온 신청을 수락하면 수락 상태가 되고 매물을 맡고, 임대인과의 채팅방을 만든다")
 	void acceptsBrokerageRequest() {
 		BrokerageRequest request = brokerageRequest(BrokerageStatus.REQUESTED);
 		when(brokerageRequestRepository.findByBrokerageRequestIdAndAgent_UserId(10L, 101L)).thenReturn(Optional.of(request));
@@ -353,6 +356,7 @@ class PropertyServiceTest {
 		assertEquals(PropertyStatus.REQUESTED, request.getProperty().getPropertyStatus());
 		assertEquals(20L, response.getPropertyId());
 		assertEquals(BrokerageStatus.ACCEPTED, response.getBrokerageStatus());
+		verify(chatService).createBrokerageRoom(request.getProperty());
 	}
 
 	@Test
