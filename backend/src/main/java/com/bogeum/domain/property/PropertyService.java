@@ -28,6 +28,7 @@ import com.bogeum.common.enums.LeaseType;
 import com.bogeum.common.enums.PropertyStatus;
 import com.bogeum.domain.agent.AgentRepository;
 import com.bogeum.domain.agent.model.Agent;
+import com.bogeum.domain.chat.ChatService;
 import com.bogeum.domain.property.model.BrokerageRequest;
 import com.bogeum.domain.property.model.Property;
 import com.bogeum.domain.property.model.PropertyDto;
@@ -64,6 +65,7 @@ public class PropertyService {
 	private final PropertyImageRepository propertyImageRepository;
 	private final ObjectProvider<PropertyImageStorage> storageProvider;
 	private final ImageProcessor imageProcessor;
+	private final ChatService chatService;
 
 	/**
 	 * 매물을 만들고 중개사에게 중개를 신청한다 (PROPERTY_002).
@@ -344,6 +346,8 @@ public class PropertyService {
 			.filter(found -> found.getProperty().getPropertyStatus() != PropertyStatus.DELETED)
 			.orElseThrow(PropertyException::brokerageRequestNotFound);
 		brokerageRequest.accept();
+		// 수락하면 임대인과 중개사가 바로 대화할 수 있게 방을 만든다 (CHAT_002)
+		chatService.createBrokerageRoom(brokerageRequest.getProperty());
 		return PropertyDto.AcceptResponse.from(brokerageRequest);
 	}
 
