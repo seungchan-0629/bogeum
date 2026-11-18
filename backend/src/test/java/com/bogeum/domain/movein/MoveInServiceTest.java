@@ -15,6 +15,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
@@ -184,6 +185,95 @@ class MoveInServiceTest {
 			verify(storage, times(2)).delete(deleted.capture());
 			assertThat(deleted.getAllValues()).containsExactlyElementsOf(written.getAllValues());
 		} finally { TransactionSynchronizationManager.clearSynchronization(); }
+	}
+
+	void readableContract() {
+		when(contracts.findById(1L)).thenReturn(Optional.of(Contract.builder().contractId(1L)
+			.landlord(User.builder().userId(7L).build()).tenant(tenant)
+			.contractedAt(LocalDateTime.now().minusYears(1)).build()));
+	}
+
+	@ParameterizedTest
+	@NullSource
+	@ValueSource(longs = {0, -1})
+	void rejectsInvalidReadIdBeforeRepository(Long id) {
+		error(() -> service.readPhotos(7L, id), ErrorCode.INVALID_REQUEST);
+		verifyNoInteractions(contracts, photos, provider, storage, processor);
+	}
+
+	@Test
+	void rejectsMissingReadContractBeforePhotosAndStorage() {
+		when(contracts.findById(1L)).thenReturn(Optional.empty());
+		error(() -> service.readPhotos(7L, 1L), ErrorCode.CONTRACT_NOT_FOUND);
+		verifyNoInteractions(photos, provider, storage, processor);
+	}
+
+	@ParameterizedTest
+	@ValueSource(longs = {22, 99})
+	void rejectsTenantAndForeignUserBeforePhotosAndStorage(long userId) {
+		readableContract();
+		error(() -> service.readPhotos(userId, 1L), ErrorCode.ACCESS_DENIED);
+		verifyNoInteractions(photos, provider, storage, processor);
+	}
+
+	@Test
+	void emptyReadDoesNotEvenResolveStorageBean() {
+		readableContract();
+		when(photos.findAllByContract_ContractIdOrderByCreatedAtAscMoveInDefectPhotoIdAsc(1L)).thenReturn(List.of());
+		assertThat(service.readPhotos(7L, 1L)).isEmpty();
+		verifyNoInteractions(provider, storage, processor);
+	}
+
+	@Test
+	void readWithoutStoragePreservesLegacyNullCaptionAndMetadata() {
+		readableContract();
+		var photo = MoveInDefectPhoto.builder().moveInDefectPhotoId(10L).caption(null)
+			.fileKey("private/legacy").createdAt(LocalDateTime.of(2026, 1, 2, 3, 4, 5)).build();
+		when(photos.findAllByContract_ContractIdOrderByCreatedAtAscMoveInDefectPhotoIdAsc(1L)).thenReturn(List.of(photo));
+		var result = service.readPhotos(7L, 1L);
+		assertThat(result).hasSize(1);
+		assertThat(result.get(0).photo()).isSameAs(photo);
+		assertThat(result.get(0).url()).isNull();
+		verify(provider).getIfAvailable();
+		verifyNoInteractions(storage, processor);
+	}
+
+	@Test
+	void readsAllPhotosAfterUploadPeriodAndIssuesUrlsOnlyAfterAuthorizationAndLookup() {
+		readableContract();
+		var saved = IntStream.range(0, 12).mapToObj(index -> MoveInDefectPhoto.builder()
+			.moveInDefectPhotoId((long) index + 1).caption("설명 " + index).fileKey("private/" + index).build()).toList();
+		when(photos.findAllByContract_ContractIdOrderByCreatedAtAscMoveInDefectPhotoIdAsc(1L)).thenReturn(saved);
+		when(provider.getIfAvailable()).thenReturn(storage);
+		when(storage.createReadUrl(anyString())).thenAnswer(call -> "https://example.test/" + call.getArgument(0));
+		var result = service.readPhotos(7L, 1L);
+		assertThat(result).extracting(MoveInService.PhotoReadResult::photo).containsExactlyElementsOf(saved);
+		assertThat(result).extracting(MoveInService.PhotoReadResult::url)
+			.containsExactlyElementsOf(IntStream.range(0, 12).mapToObj(index -> "https://example.test/private/" + index).toList());
+		var order = inOrder(contracts, photos, provider, storage);
+		order.verify(contracts).findById(1L);
+		order.verify(photos).findAllByContract_ContractIdOrderByCreatedAtAscMoveInDefectPhotoIdAsc(1L);
+		order.verify(provider).getIfAvailable();
+		for (var photo : saved) order.verify(storage).createReadUrl(photo.getFileKey());
+		verifyNoInteractions(processor);
+		verify(storage, never()).write(anyString(), any());
+		verify(storage, never()).delete(anyString());
+	}
+
+	@Test
+	void convertsReadUrlFailureWithoutFakingUrlsOrWritingStorage() {
+		readableContract();
+		var first = MoveInDefectPhoto.builder().moveInDefectPhotoId(1L).fileKey("private/first").build();
+		var second = MoveInDefectPhoto.builder().moveInDefectPhotoId(2L).fileKey("private/second").build();
+		when(photos.findAllByContract_ContractIdOrderByCreatedAtAscMoveInDefectPhotoIdAsc(1L)).thenReturn(List.of(first, second));
+		when(provider.getIfAvailable()).thenReturn(storage);
+		when(storage.createReadUrl("private/first")).thenReturn("https://example.test/first");
+		when(storage.createReadUrl("private/second")).thenThrow(new IllegalStateException("signing unavailable"));
+		error(() -> service.readPhotos(7L, 1L), ErrorCode.MOVEIN_READ_URL_UNAVAILABLE);
+		verify(storage, times(2)).createReadUrl(anyString());
+		verify(storage, never()).write(anyString(), any());
+		verify(storage, never()).delete(anyString());
+		verifyNoInteractions(processor);
 	}
 
 	void complete(int status) {
