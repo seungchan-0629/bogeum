@@ -121,6 +121,13 @@ public class ContractService {
 			.stream().map(ContractDto.TenantContractResponse::from).toList();
 	}
 
+	/** 현재 매물 소유자가 아닌 계약의 임대인을 기준으로 종료된 계약까지 조회한다. */
+	@Transactional(readOnly = true)
+	public List<ContractDto.LandlordContractRes> readLandlordContracts(Long landlordUserId) {
+		return contractRepository.findAllByLandlord_UserIdOrderByContractedAtDescContractIdDesc(landlordUserId)
+			.stream().map(ContractDto.LandlordContractRes::from).toList();
+	}
+
 	/**
 	 * 중개사가 맡은 매물의 계약 등록 화면 첫 값을 조회한다 (PROPERTY_011).
 	 * 임대인은 중개를 신청한 매물의 임대인이고, 임차인 후보는 이 매물로 본인과 상담한 채팅방의 문의자다.

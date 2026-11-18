@@ -141,6 +141,9 @@ public class CustomSecurityConfig {
 				.requestMatchers(HttpMethod.GET, "/contract-details").access(approvedAgent)
 				.requestMatchers(HttpMethod.GET, "/contract/candidates").access(approvedAgent)
 				.requestMatchers(HttpMethod.GET, "/api/tenants/me/contracts").hasRole("USER")
+				// 임대인 계약 목록도 GET과 MVC가 함께 처리하는 HEAD에 같은 역할 제한을 적용한다.
+				.requestMatchers(HttpMethod.GET, "/api/landlords/me/contracts").hasRole("USER")
+				.requestMatchers(HttpMethod.HEAD, "/api/landlords/me/contracts").hasRole("USER")
 				// 일반 회원의 접수만 허용하고 계약 임차인 여부는 AS 서비스에서 확인한다 (AS_001).
 				.requestMatchers(HttpMethod.POST, "/as-requests").hasRole("USER")
 				// 역할과 별도로 계약 임차인 관계를 MoveInService에서 확인한다 (MOVEIN_001).

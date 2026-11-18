@@ -17,4 +17,7 @@ public interface ContractRepository extends JpaRepository<Contract, Long> {
 
 	@EntityGraph(attributePaths = {"property"})
 	List<Contract> findAllByTenant_UserIdOrderByContractedAtDescContractIdDesc(Long tenantUserId);
+
+	@EntityGraph(attributePaths = {"property"})
+	List<Contract> findAllByLandlord_UserIdOrderByContractedAtDescContractIdDesc(Long landlordUserId);
 }

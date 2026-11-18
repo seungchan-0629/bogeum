@@ -158,6 +158,28 @@ public class ContractDto {
 		}
 	}
 
+	/** 임대인의 계약 선택에 필요한 식별자·주소·실제 계약일만 제공한다. */
+	@Getter
+	@Builder
+	public static class LandlordContractRes {
+
+		private Long contractId;
+		private Long propertyId;
+		private String roadAddress;
+		private String detailAddress;
+		private LocalDate contractedAt;
+
+		/** 계약 당사자의 개인정보 없이 계약일을 기존 계약 응답과 같은 날짜 단위로 변환한다. */
+		public static LandlordContractRes from(Contract contract) {
+			Property property = contract.getProperty();
+			return LandlordContractRes.builder()
+				.contractId(contract.getContractId()).propertyId(property.getPropertyId())
+				.roadAddress(property.getRoadAddress()).detailAddress(property.getDetailAddress())
+				.contractedAt(contract.getContractedAt().toLocalDate())
+				.build();
+		}
+	}
+
 	/** 중개 이력 목록과 페이지 정보. page는 화면의 페이지 번호와 같이 1부터 센다 (AGENT_003) */
 	@Getter
 	@Builder

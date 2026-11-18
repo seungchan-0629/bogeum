@@ -41,6 +41,12 @@ public class ContractController {
 		return contractService.readTenantContracts(loginUser.getUserId());
 	}
 
+	// 사용자 번호는 요청값이 아닌 인증 정보에서 정하고 실제 계약의 임대인인 계약만 반환한다.
+	@GetMapping("/api/landlords/me/contracts")
+	public List<ContractDto.LandlordContractRes> readLandlordContracts(@AuthenticationPrincipal LoginUser loginUser) {
+		return contractService.readLandlordContracts(loginUser.getUserId());
+	}
+
 	// 승인된 중개사가 맡은 매물의 계약 등록 화면에서 임대인과 임차인 후보를 본다 (PROPERTY_011)
 	@GetMapping("/contract/candidates")
 	public ContractDto.CandidateResponse readContractCandidates(@AuthenticationPrincipal LoginUser loginUser,
