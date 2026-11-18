@@ -13,6 +13,16 @@ export async function createContract(request, images) {
   return data
 }
 
+// MOVEIN_001: 사진과 설명의 순서를 맞추고 실제 201 응답으로 등록을 확인한다.
+export async function uploadMoveInPhotos(contractId, photos) {
+  const formData = new FormData()
+  formData.append('request', new Blob([JSON.stringify({ captions: photos.map((photo) => photo.caption) })], { type: 'application/json' }))
+  photos.forEach((photo) => formData.append('images', photo.file))
+  const { status, data } = await api.post(`/contract/${contractId}/movein-defects`, formData, { ...CONTRACT_CONFIG, timeout: 60000 })
+  if (status !== 201) throw new Error('입주 사진 등록 결과를 확인하지 못했습니다.')
+  return data
+}
+
 // AGENT_003 중개 이력. 본인이 중개해 계약 정보를 등록한 계약을 최근 계약일 순서로 10개씩 준다 (page는 1부터)
 export async function getContracts(page, signal) {
   const { data } = await api.get('/contract-details', { ...CONTRACT_CONFIG, params: { page }, signal })
