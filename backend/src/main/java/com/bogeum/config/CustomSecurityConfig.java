@@ -3,7 +3,9 @@ package com.bogeum.config;
 import com.bogeum.domain.agent.AgentService;
 import com.bogeum.domain.user.model.UserDto.LoginUser;
 import org.springframework.security.authorization.AuthorizationDecision;
+import org.springframework.security.authorization.AuthorityAuthorizationManager;
 import org.springframework.security.authorization.AuthorizationManager;
+import org.springframework.security.authorization.AuthorizationManagers;
 import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
 
 import java.util.Set;
@@ -115,6 +117,9 @@ public class CustomSecurityConfig {
 				.requestMatchers(HttpMethod.DELETE, "/favorites/*").hasRole("USER")
 				// 내 관심 매물 목록과 담은 매물 번호 (FAVORITE_003)
 				.requestMatchers(HttpMethod.GET, "/favorites/me", "/favorites/me/ids").hasRole("USER")
+				// 채팅방은 사용자와 승인된 중개사가 연다. 어떤 방인지는 서비스가 매물과의 관계로 고른다 (CHAT_002)
+				.requestMatchers(HttpMethod.POST, "/chat/create")
+					.access(AuthorizationManagers.anyOf(AuthorityAuthorizationManager.hasRole("USER"), approvedAgent))
 				// 매물 추천은 집을 찾는 사용자만 받는다 (RECOMMEND_001)
 				.requestMatchers(HttpMethod.GET, "/recommend/properties").hasRole("USER")
 				// 매물 상세의 비슷한 매물은 상세처럼 로그인한 사용자·중개사가 본다 (RECOMMEND_002)
