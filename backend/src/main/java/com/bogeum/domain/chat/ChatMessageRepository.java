@@ -19,6 +19,10 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
 	List<ChatMessage> findAllByChatRoom_ChatRoomIdAndChatMessageIdLessThanOrderByChatMessageIdDesc(Long chatRoomId,
 		Long cursor, Limit limit);
 
+	// 방의 마지막 메시지 번호. 메시지가 없으면 비어 있다 (CHAT_007 읽음 처리)
+	@Query("select max(m.chatMessageId) from ChatMessage m where m.chatRoom.chatRoomId = :chatRoomId")
+	Long findLastMessageId(@Param("chatRoomId") Long chatRoomId);
+
 	// 방마다 마지막 메시지. 메시지 번호가 클수록 나중에 보낸 것이다 (CHAT_005)
 	@Query("""
 		select m from ChatMessage m
