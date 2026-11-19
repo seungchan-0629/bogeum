@@ -10,3 +10,22 @@ export async function createChatRoom(propertyId) {
   const { data } = await api.post('/chat/create', { propertyId }, CHAT_CONFIG)
   return data
 }
+
+// CHAT_005 내가 참여한 채팅방 전부 ({ rooms }). 최근 대화 순이고, 메시지가 없는 새 방은 만든 시각으로 줄을 선다
+// 각 방: 상대 이름·사무소(partnerOfficeName, 상대가 중개사일 때), 매물 요약(원 단위), 마지막 메시지·시각,
+//        안 읽은 수(unreadCount, CHAT_007), 읽기 전용이면 readOnlyReason(DELETED·CONTRACTED, CHAT_009)
+export async function getChatRooms(signal) {
+  const { data } = await api.get('/chat/rooms', { ...CHAT_CONFIG, signal })
+  return data
+}
+
+// CHAT_006 채팅방의 이전 대화 ({ messages, nextCursor, hasNext }). messages는 오래된 것부터 30개
+// cursor가 없으면 최근 30개, 있으면 그 메시지보다 오래된 30개. 참여하지 않은 방이면 404(CHAT_ROOM_NOT_FOUND)
+export async function getChatMessages(chatRoomId, cursor, signal) {
+  const { data } = await api.get(`/chat/rooms/${chatRoomId}/messages`, {
+    ...CHAT_CONFIG,
+    params: cursor == null ? {} : { cursor },
+    signal,
+  })
+  return data
+}
