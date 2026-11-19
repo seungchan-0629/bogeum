@@ -6,7 +6,7 @@
 // - 대화 내역: GET /chat/rooms/{chatRoomId}/messages?cursor= — 30개씩, 위로 스크롤하면 이전 메시지를 이어 불러온다 (CHAT_006)
 // - 메시지 전송: POST /chat/rooms/{chatRoomId}/messages, 받기는 WebSocket /ws(STOMP) 구독 — 상대가 보고 있으면 바로 뜬다 (CHAT_003)
 // - 이미지 전송: POST /api/v1/chat/rooms/{roomId}/images (BE-041) (CHAT_004)
-// - 읽음 처리: PUT/PATCH /api/v1/chat/rooms/{roomId}/read (BE-042) — 방에 들어오면 호출 (CHAT_007)
+// - 읽음 처리: PATCH /chat/rooms/{chatRoomId}/read — 방을 열 때·보는 중 상대 메시지가 올 때·탭으로 돌아올 때 (CHAT_007)
 // - 차단: POST /api/v1/chat/blocks (BE-045) (CHAT_010)
 // - 임차인 위험 안내: GET /api/v1/chat/rooms/{roomId}/risk-notice (BE-046) (RISK_007, 임대인만)
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
@@ -18,7 +18,7 @@ import PhotoPlaceholder from '../../components/common/PhotoPlaceholder.jsx'
 import StatusBadge from '../../components/common/StatusBadge.jsx'
 import { useAuthStore } from '../../stores/authStore.js'
 import { ROLES } from '../../constants/auth.js'
-import { createChatMessage, getChatMessages, getChatRooms } from '../../api/chat/index.js'
+import { createChatMessage, getChatMessages, getChatRooms, updateChatRead } from '../../api/chat/index.js'
 import { useChatSocket } from '../../hooks/useChatSocket.js'
 import { formatLeasePrice, getPropertyTypeLabel } from '../../utils/format.js'
 
@@ -36,6 +36,22 @@ function appendMessage(data, message) {
   const [newest, ...older] = data.pages
   return { ...data, pages: [{ ...newest, messages: [...newest.messages, message] }, ...older] }
 }
+
+// 상대가 더 읽었다는 알림이 오면 첫 쪽의 상대 읽음 위치를 바꿔 내 메시지의 "1"을 지운다 (CHAT_007)
+function updatePartnerRead(data, lastReadMessageId) {
+  if (!data) return data
+  const [newest, ...older] = data.pages
+  return { ...data, pages: [{ ...newest, partnerLastReadMessageId: lastReadMessageId }, ...older] }
+}
+
+// 탭이 보일 때만 읽음 처리한다. 안 본 메시지가 읽은 것으로 바뀌지 않게 한다 (CHAT_007)
+// 실패해도 빨간 숫자가 조금 늦게 줄어들 뿐이라 따로 안내하지 않는다
+function markReadIfVisible(chatRoomId) {
+  if (document.visibilityState === 'visible') updateChatRead(chatRoomId).catch(() => {})
+}
+
+// "오후 3:12"
+const formatMessageTime = (dateTime) => new Date(dateTime).toLocaleTimeString('ko-KR', { hour: 'numeric', minute: '2-digit' })
 
 // CHAT_009 안내 문구 (요구사항 그대로)
 const READ_ONLY_MESSAGES = {
@@ -145,6 +161,18 @@ function ChatRoom({ room, isAgent }) {
   const pages = history.data?.pages ?? []
   // 화면은 위에서 아래로 오래된 것부터 그린다
   const messages = [...pages].reverse().flatMap((page) => page.messages)
+  // 쪽마다 받은 시각이 달라서 가장 앞선 값을 쓴다. 이 번호보다 뒤의 내 메시지는 상대가 아직 안 읽었다 (CHAT_007)
+  const partnerLastRead = Math.max(0, ...pages.map((page) => page.partnerLastReadMessageId ?? 0))
+  const isUnreadByPartner = (message) => isMineOf(message) && message.chatMessageId > partnerLastRead
+
+  // 대화를 불러오면, 그리고 다른 탭에 갔다가 돌아오면 읽음 처리한다 (CHAT_007)
+  useEffect(() => {
+    if (!history.isSuccess) return
+    const markRead = () => markReadIfVisible(room.chatRoomId)
+    markRead()
+    document.addEventListener('visibilitychange', markRead)
+    return () => document.removeEventListener('visibilitychange', markRead)
+  }, [history.isSuccess, room.chatRoomId])
 
   // 처음에는 맨 아래(최근 메시지)를 보여 주고, 이전 대화가 위에 붙으면 늘어난 높이만큼 내려서 보던 자리를 지킨다
   const scrollRef = useRef(null)
@@ -276,9 +304,18 @@ function ChatRoom({ room, isAgent }) {
             {!hasNextPage && <p className="pb-3 text-center text-xs text-gray-400">대화의 처음이에요.</p>}
             <ol className="flex flex-col gap-2.5">
               {messages.map((message) => (
-                <li key={message.chatMessageId} className={clsx('max-w-[70%] rounded-2xl', isMineOf(message) ? 'self-end rounded-br-sm bg-blue-600 text-white' : 'self-start rounded-bl-sm border border-gray-200 bg-white')}>
-                  {/* 사진 주소는 이미지 전송(CHAT_004)을 만들 때 받는다 */}
-                  {message.messageType === 'IMAGE' ? <PhotoPlaceholder label="보낸 사진" className="h-32 w-48" /> : <p className="px-4 py-2.5 text-[15px] break-words whitespace-pre-wrap">{message.content}</p>}
+                // 내 메시지는 말풍선 왼쪽에, 상대 메시지는 오른쪽에 "1"(상대가 아직 안 읽음)과 보낸 시각을 둔다
+                <li key={message.chatMessageId} className={clsx('flex max-w-[80%] items-end gap-1.5', isMineOf(message) ? 'flex-row-reverse self-end' : 'self-start')}>
+                  <div className={clsx('min-w-0 rounded-2xl', isMineOf(message) ? 'rounded-br-sm bg-blue-600 text-white' : 'rounded-bl-sm border border-gray-200 bg-white')}>
+                    {/* 사진 주소는 이미지 전송(CHAT_004)을 만들 때 받는다 */}
+                    {message.messageType === 'IMAGE' ? <PhotoPlaceholder label="보낸 사진" className="h-32 w-48" /> : <p className="px-4 py-2.5 text-[15px] break-words whitespace-pre-wrap">{message.content}</p>}
+                  </div>
+                  <span className={clsx('flex shrink-0 flex-col text-[11px] leading-4', isMineOf(message) ? 'items-end' : 'items-start')}>
+                    {isUnreadByPartner(message) && (
+                      <span className="font-bold text-amber-500">1<span className="sr-only"> 상대가 아직 안 읽음</span></span>
+                    )}
+                    <time dateTime={message.createdAt} className="whitespace-nowrap text-gray-400">{formatMessageTime(message.createdAt)}</time>
+                  </span>
                 </li>
               ))}
             </ol>
@@ -332,8 +369,19 @@ function ChatPage() {
   const activeRoom = rooms.find((room) => String(room.chatRoomId) === roomId)
   // 보고 있는 방에 상대가 보낸 메시지를 대화 끝에 바로 붙인다 (CHAT_003)
   const queryClient = useQueryClient()
-  const { isDisconnected } = useChatSocket(activeRoom?.chatRoomId, (chatRoomId, message) =>
-    queryClient.setQueryData(messagesKeyOf(chatRoomId, user?.userId), (data) => appendMessage(data, message)))
+  // 보는 중에 상대 메시지가 오면 바로 읽음 처리해 빨간 숫자가 올라가지 않게 한다 (CHAT_007)
+  // 상대가 읽었다는 알림이 오면 내 메시지의 "1"을 지운다. 내가 읽은 알림은 "1"과 상관없다
+  const { isDisconnected } = useChatSocket(
+    activeRoom?.chatRoomId,
+    (chatRoomId, message) => {
+      queryClient.setQueryData(messagesKeyOf(chatRoomId, user?.userId), (data) => appendMessage(data, message))
+      if (message.senderId !== user?.userId) markReadIfVisible(chatRoomId)
+    },
+    (chatRoomId, read) => {
+      if (read.userId === user?.userId) return
+      queryClient.setQueryData(messagesKeyOf(chatRoomId, user?.userId), (data) => updatePartnerRead(data, read.lastReadMessageId))
+    },
+  )
 
   return (
     <div className="page-container">
