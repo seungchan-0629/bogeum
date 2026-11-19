@@ -1,5 +1,6 @@
 package com.bogeum.domain.agent;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -31,4 +32,7 @@ public interface AgentRepository extends JpaRepository<Agent, Long> {
 	Optional<Agent> findByAgentProfileIdAndApprovalStatus(Long agentProfileId, ApprovalStatus approvalStatus);
 	@EntityGraph(attributePaths = "user")
 	List<Agent> findAllByApprovalStatus(ApprovalStatus approvalStatus);
+	// 채팅방 목록에서 상대 중개사들의 사무소 이름을 한 번에 찾는다 (CHAT_005)
+	@EntityGraph(attributePaths = "user")
+	List<Agent> findAllByUser_UserIdIn(Collection<Long> userIds);
 }

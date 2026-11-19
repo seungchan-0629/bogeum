@@ -11,4 +11,5 @@ public class ChatException extends RuntimeException {
 		this.errorCode = errorCode;
 	}
 	public static ChatException agentNotAssigned() { return new ChatException(ErrorCode.CHAT_AGENT_NOT_ASSIGNED); }
+	public static ChatException chatRoomNotFound() { return new ChatException(ErrorCode.CHAT_ROOM_NOT_FOUND); }
 }

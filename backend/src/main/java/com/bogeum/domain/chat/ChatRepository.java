@@ -11,6 +11,10 @@ import com.bogeum.domain.chat.model.ChatRoom;
 
 public interface ChatRepository extends JpaRepository<ChatRoom, Long> {
 
+	// 내가 문의자이거나 중개사인 방 전부. 목록에 매물 요약과 상대 이름을 보여 줘서 함께 가져온다 (CHAT_005)
+	@EntityGraph(attributePaths = {"property", "inquirer", "agent"})
+	List<ChatRoom> findAllByInquirer_UserIdOrAgent_UserId(Long inquirerUserId, Long agentUserId);
+
 	// 매물·문의자·중개사가 같은 방은 하나뿐이다 (chat_room 중복 금지 제약, CHAT_002)
 	Optional<ChatRoom> findByProperty_PropertyIdAndInquirer_UserIdAndAgent_UserId(Long propertyId, Long inquirerUserId,
 		Long agentUserId);
