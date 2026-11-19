@@ -11,6 +11,13 @@ export async function createChatRoom(propertyId) {
   return data
 }
 
+// CHAT_003 채팅방에 글을 보내고 저장된 메시지를 받는다. 방을 보고 있는 상대에게는 STOMP로 바로 간다
+// 빈 글·2,000자 초과 400(INVALID_REQUEST), 참여하지 않은 방 404(CHAT_ROOM_NOT_FOUND), 읽기 전용 방 409(CHAT_ROOM_READ_ONLY)
+export async function createChatMessage(chatRoomId, content) {
+  const { data } = await api.post(`/chat/rooms/${chatRoomId}/messages`, { content }, CHAT_CONFIG)
+  return data
+}
+
 // CHAT_005 내가 참여한 채팅방 전부 ({ rooms }). 최근 대화 순이고, 메시지가 없는 새 방은 만든 시각으로 줄을 선다
 // 각 방: 상대 이름·사무소(partnerOfficeName, 상대가 중개사일 때), 매물 요약(원 단위), 마지막 메시지·시각,
 //        안 읽은 수(unreadCount, CHAT_007), 읽기 전용이면 readOnlyReason(DELETED·CONTRACTED, CHAT_009)
