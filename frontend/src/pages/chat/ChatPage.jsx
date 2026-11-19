@@ -335,16 +335,23 @@ function ChatRoom({ room, isAgent }) {
         <p className="border-t border-gray-200 bg-white px-5 py-4 text-center text-gray-600">{READ_ONLY_MESSAGES[room.readOnlyReason]}</p>
       ) : (
         <form onSubmit={handleSend} className="flex flex-col gap-1.5 border-t border-gray-200 bg-white px-4 py-3">
-          <div className="flex items-center gap-2">
+          {/* 입력칸이 여러 줄로 커져도 사진 버튼과 [보내기]는 아래쪽에 붙는다 */}
+          <div className="flex items-end gap-2">
             {/* TODO: 사진 전송(CHAT_004)이 생기면 연결한다 */}
             <span className="flex size-11 shrink-0 items-center justify-center rounded-lg text-gray-300" aria-hidden="true">
               <Icon name="image" size={22} />
             </span>
             <label htmlFor="chat-input" className="sr-only">메시지</label>
-            {/* 한글을 조합하는 중에 누른 Enter는 보내지 않는다. 마지막 글자가 따로 한 번 더 가는 것을 막는다 */}
-            <input id="chat-input" value={draft} onChange={(event) => setDraft(event.target.value)} maxLength={MESSAGE_MAX_LENGTH}
-              onKeyDown={(event) => { if (event.key === 'Enter' && event.nativeEvent.isComposing) event.preventDefault() }}
-              placeholder="메시지를 입력하세요" className="h-11 min-w-0 grow rounded-xl border border-gray-300 px-4" />
+            {/* Enter는 보내기, Shift+Enter는 줄바꿈. 한글을 조합하는 중에 누른 Enter는 보내지 않아 마지막 글자가 따로 가지 않는다
+                글이 길어지면 다섯 줄쯤까지 칸이 자라고 그 뒤는 칸 안에서 스크롤한다 */}
+            <textarea id="chat-input" rows={1} value={draft} onChange={(event) => setDraft(event.target.value)} maxLength={MESSAGE_MAX_LENGTH}
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
+                event.preventDefault()
+                event.currentTarget.form.requestSubmit()
+              }}
+              placeholder="메시지를 입력하세요"
+              className="max-h-32 min-h-11 min-w-0 grow resize-none rounded-xl border border-gray-300 px-4 py-2.5 [field-sizing:content]" />
             <button type="submit" disabled={isSending || !draft.trim()} className="btn-primary disabled:cursor-not-allowed disabled:opacity-50">
               {isSending ? '보내는 중…' : '보내기'}
             </button>
