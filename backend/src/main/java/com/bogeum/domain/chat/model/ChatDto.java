@@ -81,6 +81,17 @@ public class ChatDto {
 		// 더 오래된 메시지를 받을 때 보낼 cursor. 더 없으면 비어 있다
 		private Long nextCursor;
 		private Boolean hasNext;
+		// 상대가 어디까지 읽었는지. 이 번호보다 뒤에 있는 내 메시지에 "1"을 붙인다. 아무것도 안 읽었으면 비어 있다 (CHAT_007)
+		private Long partnerLastReadMessageId;
+	}
+
+	/** 누가 어디까지 읽었는지. 방 구독자에게 보내 상대 화면의 "1"을 지운다 (CHAT_007) */
+	@Getter
+	@AllArgsConstructor
+	public static class ReadResponse {
+
+		private Long userId;
+		private Long lastReadMessageId;
 	}
 
 	/** 보낼 글. 앞뒤 공백은 빼고 저장한다 (CHAT_003) */
