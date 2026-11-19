@@ -7,3 +7,7 @@ spring:
     hibernate:
       ddl-auto: validate
     show-sql: false
+
+# 채팅 WebSocket(/ws)에 연결할 수 있는 화면 주소. 배포 환경 변수로 꼭 넣는다 (없으면 서버가 켜지지 않는다)
+chat:
+  allowed-origins: ${CHAT_ALLOWED_ORIGINS}

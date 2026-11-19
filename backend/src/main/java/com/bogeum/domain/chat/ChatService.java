@@ -10,6 +10,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
@@ -50,6 +51,7 @@ public class ChatService {
 	private final ChatRepository chatRepository;
 	private final ChatMessageRepository chatMessageRepository;
 	private final AgentRepository agentRepository;
+	private final ApplicationEventPublisher eventPublisher;
 
 	/**
 	 * 매물로 대화할 채팅방을 열고 번호를 준다. 이미 있으면 기존 방이다 (CHAT_002).
@@ -73,6 +75,27 @@ public class ChatService {
 		if (findSameRoom(chatRoom).isEmpty()) {
 			chatRepository.save(chatRoom);
 		}
+	}
+
+	/**
+	 * 채팅방에 글 메시지를 저장하고, 방을 보고 있는 사람과 두 참여자의 채팅 목록에 알린다 (CHAT_003).
+	 * 참여하지 않은 방은 CHAT_ROOM_NOT_FOUND, 읽기 전용 방은 CHAT_ROOM_READ_ONLY (CHAT_009)
+	 */
+	@Transactional
+	public ChatDto.MessageItemResponse createMessage(Long userId, Long chatRoomId, String content) {
+		ChatRoom chatRoom = chatRepository.findById(chatRoomId)
+			.filter(found -> isParticipant(found, userId))
+			.orElseThrow(ChatException::chatRoomNotFound);
+		if (chatRoom.getChatStatus() == ChatStatus.READ_ONLY) {
+			throw ChatException.chatRoomReadOnly();
+		}
+		User sender = chatRoom.getAgent().getUserId().equals(userId) ? chatRoom.getAgent() : chatRoom.getInquirer();
+		ChatMessage message = chatMessageRepository.saveAndFlush(ChatMessage.createText(chatRoom, sender, content.strip()));
+		chatRoom.recordMessage(message.getCreatedAt());
+		// 구독자에게 뿌리는 일은 저장이 확정된 뒤 ChatMessagePublisher가 한다
+		eventPublisher.publishEvent(new ChatMessageCreatedEvent(chatRoomId, ChatDto.MessageItemResponse.forRoom(message),
+			List.of(chatRoom.getInquirer().getUserId(), chatRoom.getAgent().getUserId())));
+		return ChatDto.MessageItemResponse.of(message, userId);
 	}
 
 	/**

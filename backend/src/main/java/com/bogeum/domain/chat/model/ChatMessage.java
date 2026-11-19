@@ -65,4 +65,14 @@ public class ChatMessage {
 	@CreationTimestamp
 	@Column(nullable = false, updatable = false)
 	private LocalDateTime createdAt;
+
+	// 채팅방에서 보낸 글 메시지 (CHAT_003)
+	public static ChatMessage createText(ChatRoom chatRoom, User sender, String content) {
+		return ChatMessage.builder()
+			.chatRoom(chatRoom)
+			.sender(sender)
+			.messageType(MessageType.TEXT)
+			.content(content)
+			.build();
+	}
 }

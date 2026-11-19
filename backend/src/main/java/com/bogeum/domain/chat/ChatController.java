@@ -29,6 +29,14 @@ public class ChatController {
 		return chatService.createRoom(loginUser.getUserId(), request.getPropertyId());
 	}
 
+	// 채팅방에 글을 보낸다. 저장한 메시지를 돌려주고, 방을 보고 있는 사람에게는 STOMP로 바로 전달한다 (CHAT_003)
+	// 참여하지 않은 방은 CHAT_ROOM_NOT_FOUND, 읽기 전용 방은 CHAT_ROOM_READ_ONLY
+	@PostMapping("/rooms/{chatRoomId}/messages")
+	public ChatDto.MessageItemResponse createMessage(@AuthenticationPrincipal LoginUser loginUser,
+			@PathVariable("chatRoomId") Long chatRoomId, @Valid @RequestBody ChatDto.MessageRequest request) {
+		return chatService.createMessage(loginUser.getUserId(), chatRoomId, request.getContent());
+	}
+
 	// 내가 참여한 채팅방 전부. 최근 대화 순이고 방마다 안 읽은 메시지 수를 준다 (CHAT_005, CHAT_007)
 	@GetMapping("/rooms")
 	public ChatDto.RoomListResponse readRooms(@AuthenticationPrincipal LoginUser loginUser) {

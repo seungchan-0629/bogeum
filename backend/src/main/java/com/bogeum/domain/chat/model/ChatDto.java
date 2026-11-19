@@ -11,7 +11,9 @@ import com.bogeum.common.enums.MessageType;
 import com.bogeum.common.enums.PropertyStatus;
 import com.bogeum.common.enums.PropertyType;
 
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -81,25 +83,47 @@ public class ChatDto {
 		private Boolean hasNext;
 	}
 
-	/** 메시지 하나. 사진 주소는 이미지 전송(CHAT_004)을 만들 때 더한다 (CHAT_006) */
+	/** 보낼 글. 앞뒤 공백은 빼고 저장한다 (CHAT_003) */
+	@Getter
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class MessageRequest {
+
+		@NotBlank(message = "메시지를 입력해 주세요.")
+		@Size(max = 2000, message = "메시지는 2,000자까지 보낼 수 있습니다.")
+		private String content;
+	}
+
+	/** 메시지 하나. 사진 주소는 이미지 전송(CHAT_004)을 만들 때 더한다 (CHAT_003, CHAT_006) */
 	@Getter
 	@Builder
 	public static class MessageItemResponse {
 
 		private Long chatMessageId;
+		// 방에 뿌린 메시지는 받는 사람마다 내 것인지가 달라서, 화면이 senderId로 판단한다
+		private Long senderId;
+		// 방에 뿌린 메시지에서는 비어 있다
 		private Boolean isMine;
 		private MessageType messageType;
 		private String content;
 		private LocalDateTime createdAt;
 
 		public static MessageItemResponse of(ChatMessage message, Long userId) {
+			return builderOf(message).isMine(message.getSender().getUserId().equals(userId)).build();
+		}
+
+		// 방 구독자 모두에게 같은 내용을 보낸다
+		public static MessageItemResponse forRoom(ChatMessage message) {
+			return builderOf(message).build();
+		}
+
+		private static MessageItemResponseBuilder builderOf(ChatMessage message) {
 			return MessageItemResponse.builder()
 				.chatMessageId(message.getChatMessageId())
-				.isMine(message.getSender().getUserId().equals(userId))
+				.senderId(message.getSender().getUserId())
 				.messageType(message.getMessageType())
 				.content(message.getContent())
-				.createdAt(message.getCreatedAt())
-				.build();
+				.createdAt(message.getCreatedAt());
 		}
 	}
 }

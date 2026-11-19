@@ -92,6 +92,11 @@ public class ChatRoom {
 			.build();
 	}
 
+	// 새 메시지가 오면 채팅 목록을 최근 대화 순으로 다시 세울 수 있게 시각을 남긴다 (CHAT_003, CHAT_005)
+	public void recordMessage(LocalDateTime sentAt) {
+		lastMessageAt = sentAt;
+	}
+
 	// 중개사가 임대인의 중개 신청을 수락할 때. 매물 쪽 로직에서 만들어진다 (CHAT_002)
 	public static ChatRoom createBrokerageRoom(Property property) {
 		return ChatRoom.builder()

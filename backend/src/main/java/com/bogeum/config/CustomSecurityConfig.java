@@ -50,7 +50,9 @@ public class CustomSecurityConfig {
 		"/auth/social/kakao/authorize", "/auth/social/kakao/callback",
 		"/auth/social/kakao/login", "/auth/social/kakao/signup",
 		"/auth/social/google/authorize", "/auth/social/google/callback",
-		"/auth/social/google/login", "/auth/social/google/signup");
+		"/auth/social/google/login", "/auth/social/google/signup",
+		// 채팅 WebSocket 연결. 브라우저가 헤더를 못 넣어서 로그인은 STOMP CONNECT에서 확인한다 (StompAuthInterceptor)
+		"/ws");
 
 	/** 사용자 조회와 비밀번호 검증을 Spring Security 인증 관리자에 연결한다. */
 	@Bean
@@ -122,6 +124,9 @@ public class CustomSecurityConfig {
 					.access(AuthorizationManagers.anyOf(AuthorityAuthorizationManager.hasRole("USER"), approvedAgent))
 				// 채팅방 목록과 대화 내역도 같은 사람들이 본다. 참여한 방인지는 서비스가 확인한다 (CHAT_005, CHAT_006)
 				.requestMatchers(HttpMethod.GET, "/chat/rooms", "/chat/rooms/*/messages")
+					.access(AuthorizationManagers.anyOf(AuthorityAuthorizationManager.hasRole("USER"), approvedAgent))
+				// 메시지 보내기도 같은 사람들이 한다 (CHAT_003)
+				.requestMatchers(HttpMethod.POST, "/chat/rooms/*/messages")
 					.access(AuthorizationManagers.anyOf(AuthorityAuthorizationManager.hasRole("USER"), approvedAgent))
 				// 매물 추천은 집을 찾는 사용자만 받는다 (RECOMMEND_001)
 				.requestMatchers(HttpMethod.GET, "/recommend/properties").hasRole("USER")
