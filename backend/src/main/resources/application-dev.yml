@@ -72,3 +72,7 @@ google:
   redirect-uri: ${GOOGLE_REDIRECT_URI:http://localhost:8080/auth/social/google/callback}
   frontend-url: ${GOOGLE_FRONTEND_URL:http://localhost:5173}
 
+
+# 채팅 WebSocket(/ws)에 연결할 수 있는 화면 주소. 여러 개면 쉼표로 나눈다
+chat:
+  allowed-origins: ${CHAT_ALLOWED_ORIGINS:http://localhost:5173}
