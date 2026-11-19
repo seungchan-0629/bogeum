@@ -83,9 +83,7 @@ public class ChatService {
 	 */
 	@Transactional
 	public ChatDto.MessageItemResponse createMessage(Long userId, Long chatRoomId, String content) {
-		ChatRoom chatRoom = chatRepository.findById(chatRoomId)
-			.filter(found -> isParticipant(found, userId))
-			.orElseThrow(ChatException::chatRoomNotFound);
+		ChatRoom chatRoom = findParticipantRoom(chatRoomId, userId);
 		if (chatRoom.getChatStatus() == ChatStatus.READ_ONLY) {
 			throw ChatException.chatRoomReadOnly();
 		}
@@ -128,9 +126,7 @@ public class ChatService {
 	 */
 	@Transactional(readOnly = true)
 	public ChatDto.MessageListResponse readMessages(Long userId, Long chatRoomId, Long cursor) {
-		chatRepository.findById(chatRoomId)
-			.filter(chatRoom -> isParticipant(chatRoom, userId))
-			.orElseThrow(ChatException::chatRoomNotFound);
+		ChatRoom chatRoom = findParticipantRoom(chatRoomId, userId);
 		// 하나 더 받아서 더 오래된 메시지가 남았는지 안다
 		Limit limit = Limit.of(MESSAGE_PAGE_SIZE + 1);
 		List<ChatMessage> found = cursor == null
@@ -143,7 +139,21 @@ public class ChatService {
 		Collections.reverse(messages);
 		Long nextCursor = hasNext ? messages.get(0).getChatMessageId() : null;
 		return new ChatDto.MessageListResponse(
-			messages.stream().map(message -> ChatDto.MessageItemResponse.of(message, userId)).toList(), nextCursor, hasNext);
+			messages.stream().map(message -> ChatDto.MessageItemResponse.of(message, userId)).toList(), nextCursor, hasNext,
+			chatRoom.partnerLastReadMessageId(userId));
+	}
+
+	/**
+	 * 방의 마지막 메시지까지 읽었다고 남기고, 상대 화면의 "1"과 내 채팅 목록의 안 읽은 수를 바로 바꾸게 알린다 (CHAT_007).
+	 * 읽기 전용 방도 남은 메시지를 읽을 수 있어 처리한다. 메시지가 없거나 이미 다 읽었으면 바꾸지 않는다
+	 */
+	@Transactional
+	public void updateRead(Long userId, Long chatRoomId) {
+		ChatRoom chatRoom = findParticipantRoom(chatRoomId, userId);
+		Long lastMessageId = chatMessageRepository.findLastMessageId(chatRoomId);
+		if (lastMessageId != null && chatRoom.markRead(userId, lastMessageId)) {
+			eventPublisher.publishEvent(new ChatMessageReadEvent(chatRoomId, userId, lastMessageId));
+		}
 	}
 
 	private ChatRoom openAgentRoom(Long agentUserId, Long propertyId) {
@@ -224,6 +234,13 @@ public class ChatService {
 			return null;
 		}
 		return message.getMessageType() == MessageType.IMAGE ? "사진" : message.getContent();
+	}
+
+	// 참여하지 않은 방은 없는 방과 똑같이 CHAT_ROOM_NOT_FOUND로 거절한다
+	private ChatRoom findParticipantRoom(Long chatRoomId, Long userId) {
+		return chatRepository.findById(chatRoomId)
+			.filter(chatRoom -> isParticipant(chatRoom, userId))
+			.orElseThrow(ChatException::chatRoomNotFound);
 	}
 
 	private boolean isParticipant(ChatRoom chatRoom, Long userId) {
