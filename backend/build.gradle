@@ -24,6 +24,9 @@ dependencies {
 	// 요청값 검증 (@Valid, @NotBlank 등)
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 
+	// 채팅 실시간 전달 (WebSocket + STOMP)
+	implementation 'org.springframework.boot:spring-boot-starter-websocket'
+
 	// Spring Security 인증과 Access/Refresh JWT를 사용한다.
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	implementation 'io.jsonwebtoken:jjwt-api:0.13.0'
