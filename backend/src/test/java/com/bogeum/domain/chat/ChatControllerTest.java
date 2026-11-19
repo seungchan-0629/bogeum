@@ -108,6 +108,43 @@ class ChatControllerTest {
 	}
 
 	@Test
+	@DisplayName("메시지를 보내면 로그인한 사용자·방 번호·내용으로 저장한 메시지를 200으로 준다")
+	void createsMessage() throws Exception {
+		when(chatService.createMessage(2L, 126L, "주차 되나요?")).thenReturn(ChatDto.MessageItemResponse.builder()
+			.chatMessageId(712L).senderId(2L).isMine(true).messageType(MessageType.TEXT).content("주차 되나요?").build());
+
+		mockMvc.perform(post("/chat/rooms/126/messages").contentType(MediaType.APPLICATION_JSON)
+				.content("{\"content\":\"주차 되나요?\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.chatMessageId").value(712))
+			.andExpect(jsonPath("$.isMine").value(true));
+	}
+
+	@Test
+	@DisplayName("빈 글이나 2,000자를 넘는 글은 400이고 서비스를 부르지 않는다")
+	void rejectsInvalidContent() throws Exception {
+		for (String content : new String[] {"", "   ", "가".repeat(2001)}) {
+			mockMvc.perform(post("/chat/rooms/126/messages").contentType(MediaType.APPLICATION_JSON)
+					.content("{\"content\":\"" + content + "\"}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+		}
+
+		verifyNoInteractions(chatService);
+	}
+
+	@Test
+	@DisplayName("읽기 전용 방에 보내면 409다")
+	void rejectsReadOnlyRoom() throws Exception {
+		when(chatService.createMessage(2L, 126L, "안녕하세요")).thenThrow(ChatException.chatRoomReadOnly());
+
+		mockMvc.perform(post("/chat/rooms/126/messages").contentType(MediaType.APPLICATION_JSON)
+				.content("{\"content\":\"안녕하세요\"}"))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("CHAT_ROOM_READ_ONLY"));
+	}
+
+	@Test
 	@DisplayName("채팅방 목록은 로그인한 사용자의 방을 준다")
 	void readsRooms() throws Exception {
 		when(chatService.readRooms(2L)).thenReturn(new ChatDto.RoomListResponse(List.of(
