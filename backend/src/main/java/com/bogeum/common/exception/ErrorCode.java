@@ -60,6 +60,7 @@ public enum ErrorCode {
 	// 채팅방 (CHAT_002)
 	CHAT_AGENT_NOT_ASSIGNED(HttpStatus.CONFLICT, "아직 중개사가 중개를 수락하지 않아 대화할 수 없습니다."),
 	CHAT_ROOM_NOT_FOUND(HttpStatus.NOT_FOUND, "채팅방을 찾을 수 없습니다."),
+	CHAT_ROOM_READ_ONLY(HttpStatus.CONFLICT, "읽기 전용 채팅방에는 메시지를 보낼 수 없습니다."),
 	INVALID_PROFILE(HttpStatus.BAD_REQUEST, "전화번호 또는 새 비밀번호와 확인값을 확인해 주세요. 비밀번호는 UTF-8 기준 72바이트까지 가능합니다."),
 	CURRENT_PASSWORD_MISMATCH(HttpStatus.BAD_REQUEST, "현재 비밀번호를 확인해 주세요."),
 	INVALID_SIGNUP(HttpStatus.BAD_REQUEST, "가입 정보와 필수 동의를 확인해 주세요."),
