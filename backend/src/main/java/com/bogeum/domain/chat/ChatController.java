@@ -1,12 +1,15 @@
 package com.bogeum.domain.chat;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.bogeum.domain.chat.model.ChatDto;
@@ -49,5 +52,13 @@ public class ChatController {
 	public ChatDto.MessageListResponse readMessages(@AuthenticationPrincipal LoginUser loginUser,
 			@PathVariable("chatRoomId") Long chatRoomId, @RequestParam(value = "cursor", required = false) Long cursor) {
 		return chatService.readMessages(loginUser.getUserId(), chatRoomId, cursor);
+	}
+
+	// 방의 마지막 메시지까지 읽었다고 남긴다. 화면이 방을 열 때와 보는 중에 새 메시지가 올 때 부른다 (CHAT_007)
+	// 돌려줄 내용이 없어 본문 없이 204로 답한다. 참여하지 않은 방이면 CHAT_ROOM_NOT_FOUND
+	@PatchMapping("/rooms/{chatRoomId}/read")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	public void updateRead(@AuthenticationPrincipal LoginUser loginUser, @PathVariable("chatRoomId") Long chatRoomId) {
+		chatService.updateRead(loginUser.getUserId(), chatRoomId);
 	}
 }

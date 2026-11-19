@@ -95,6 +95,8 @@ class StompAuthInterceptorTest {
 		when(chatRepository.existsParticipant(126L, 7L)).thenReturn(true);
 
 		assertDoesNotThrow(() -> interceptor.preSend(subscribe("/topic/chat-rooms/126", loginUser), channel));
+		// 상대가 어디까지 읽었는지 알림 (CHAT_007)
+		assertDoesNotThrow(() -> interceptor.preSend(subscribe("/topic/chat-rooms/126/read", loginUser), channel));
 		assertDoesNotThrow(() -> interceptor.preSend(subscribe("/user/queue/chat-rooms", loginUser), channel));
 	}
 
@@ -105,6 +107,8 @@ class StompAuthInterceptorTest {
 
 		assertThrows(AccessDeniedException.class,
 			() -> interceptor.preSend(subscribe("/topic/chat-rooms/127", loginUser), channel));
+		assertThrows(AccessDeniedException.class,
+			() -> interceptor.preSend(subscribe("/topic/chat-rooms/127/read", loginUser), channel));
 		assertThrows(AccessDeniedException.class,
 			() -> interceptor.preSend(subscribe("/topic/everything", loginUser), channel));
 		assertThrows(AccessDeniedException.class,

@@ -97,6 +97,27 @@ public class ChatRoom {
 		lastMessageAt = sentAt;
 	}
 
+	// 내가 어디까지 읽었는지 남긴다. 창을 여러 개 열어 둬도 앞으로만 간다. 바뀌었으면 true (CHAT_007)
+	public boolean markRead(Long userId, Long messageId) {
+		if (agent.getUserId().equals(userId)) {
+			if (agentLastReadMessageId != null && agentLastReadMessageId >= messageId) {
+				return false;
+			}
+			agentLastReadMessageId = messageId;
+			return true;
+		}
+		if (inquirerLastReadMessageId != null && inquirerLastReadMessageId >= messageId) {
+			return false;
+		}
+		inquirerLastReadMessageId = messageId;
+		return true;
+	}
+
+	// 상대가 어디까지 읽었는지. 내 메시지 옆 "1"을 지우는 데 쓴다 (CHAT_007)
+	public Long partnerLastReadMessageId(Long userId) {
+		return agent.getUserId().equals(userId) ? inquirerLastReadMessageId : agentLastReadMessageId;
+	}
+
 	// 중개사가 임대인의 중개 신청을 수락할 때. 매물 쪽 로직에서 만들어진다 (CHAT_002)
 	public static ChatRoom createBrokerageRoom(Property property) {
 		return ChatRoom.builder()

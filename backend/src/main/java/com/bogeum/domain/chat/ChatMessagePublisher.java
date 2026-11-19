@@ -25,7 +25,19 @@ public class ChatMessagePublisher {
 		// 방을 보고 있는 사람에게 새 메시지를 보낸다
 		messagingTemplate.convertAndSend("/topic/chat-rooms/" + event.chatRoomId(), event.message());
 		// 두 참여자의 채팅 목록 순서·마지막 메시지·안 읽은 수가 바뀌었다고 알린다. 화면은 목록을 다시 불러온다
-		event.participantIds().forEach(userId -> messagingTemplate.convertAndSendToUser(String.valueOf(userId),
-			"/queue/chat-rooms", new ChatDto.RoomResponse(event.chatRoomId())));
+		event.participantIds().forEach(userId -> publishRoomUpdated(userId, event.chatRoomId()));
+	}
+
+	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+	public void publish(ChatMessageReadEvent event) {
+		// 상대 화면에서 이 번호까지 내 메시지의 "1"을 지운다
+		messagingTemplate.convertAndSend("/topic/chat-rooms/" + event.chatRoomId() + "/read",
+			new ChatDto.ReadResponse(event.userId(), event.lastReadMessageId()));
+		// 읽은 사람의 다른 창에서도 안 읽은 수가 0이 되게 목록을 다시 불러오게 한다
+		publishRoomUpdated(event.userId(), event.chatRoomId());
+	}
+
+	private void publishRoomUpdated(Long userId, Long chatRoomId) {
+		messagingTemplate.convertAndSendToUser(String.valueOf(userId), "/queue/chat-rooms", new ChatDto.RoomResponse(chatRoomId));
 	}
 }

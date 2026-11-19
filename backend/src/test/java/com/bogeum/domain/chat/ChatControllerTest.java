@@ -1,9 +1,13 @@
 package com.bogeum.domain.chat;
 
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -161,16 +165,17 @@ class ChatControllerTest {
 	@DisplayName("대화 내역은 cursor가 없으면 비워서, 있으면 그대로 넘긴다")
 	void readsMessages() throws Exception {
 		var response = new ChatDto.MessageListResponse(List.of(ChatDto.MessageItemResponse.builder().chatMessageId(31L)
-			.isMine(true).messageType(MessageType.TEXT).content("안녕하세요").build()), 31L, true);
+			.isMine(true).messageType(MessageType.TEXT).content("안녕하세요").build()), 31L, true, 30L);
 		when(chatService.readMessages(2L, 126L, null)).thenReturn(response);
-		when(chatService.readMessages(2L, 126L, 31L)).thenReturn(new ChatDto.MessageListResponse(List.of(), null, false));
+		when(chatService.readMessages(2L, 126L, 31L)).thenReturn(new ChatDto.MessageListResponse(List.of(), null, false, 30L));
 
 		mockMvc.perform(get("/chat/rooms/126/messages"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.messages[0].content").value("안녕하세요"))
 			.andExpect(jsonPath("$.messages[0].isMine").value(true))
 			.andExpect(jsonPath("$.nextCursor").value(31))
-			.andExpect(jsonPath("$.hasNext").value(true));
+			.andExpect(jsonPath("$.hasNext").value(true))
+			.andExpect(jsonPath("$.partnerLastReadMessageId").value(30));
 		mockMvc.perform(get("/chat/rooms/126/messages").param("cursor", "31"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.hasNext").value(false));
@@ -182,6 +187,26 @@ class ChatControllerTest {
 		when(chatService.readMessages(2L, 999L, null)).thenThrow(ChatException.chatRoomNotFound());
 
 		mockMvc.perform(get("/chat/rooms/999/messages"))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.code").value("CHAT_ROOM_NOT_FOUND"));
+	}
+
+	@Test
+	@DisplayName("읽음 처리는 로그인한 사용자와 방 번호로 하고 본문 없이 204다")
+	void updatesRead() throws Exception {
+		mockMvc.perform(patch("/chat/rooms/126/read"))
+			.andExpect(status().isNoContent())
+			.andExpect(content().string(""));
+
+		verify(chatService).updateRead(2L, 126L);
+	}
+
+	@Test
+	@DisplayName("참여하지 않은 방의 읽음 처리는 404다")
+	void rejectsReadOfOthersRoom() throws Exception {
+		doThrow(ChatException.chatRoomNotFound()).when(chatService).updateRead(2L, 999L);
+
+		mockMvc.perform(patch("/chat/rooms/999/read"))
 			.andExpect(status().isNotFound())
 			.andExpect(jsonPath("$.code").value("CHAT_ROOM_NOT_FOUND"));
 	}
