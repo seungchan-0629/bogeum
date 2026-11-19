@@ -18,6 +18,12 @@ export async function createChatMessage(chatRoomId, content) {
   return data
 }
 
+// CHAT_007 방의 마지막 메시지까지 읽었다고 남긴다 (204). 상대 화면의 "1"과 내 목록의 안 읽은 수가 바로 바뀐다
+// 참여하지 않은 방이면 404(CHAT_ROOM_NOT_FOUND)
+export async function updateChatRead(chatRoomId) {
+  await api.patch(`/chat/rooms/${chatRoomId}/read`, null, CHAT_CONFIG)
+}
+
 // CHAT_005 내가 참여한 채팅방 전부 ({ rooms }). 최근 대화 순이고, 메시지가 없는 새 방은 만든 시각으로 줄을 선다
 // 각 방: 상대 이름·사무소(partnerOfficeName, 상대가 중개사일 때), 매물 요약(원 단위), 마지막 메시지·시각,
 //        안 읽은 수(unreadCount, CHAT_007), 읽기 전용이면 readOnlyReason(DELETED·CONTRACTED, CHAT_009)
