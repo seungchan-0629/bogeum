@@ -46,6 +46,8 @@ export default defineConfig({
       '/recommend/': backendProxy,
       // 채팅 API(/chat/...). 끝의 /가 있어야 화면 주소 /chats/...가 백엔드로 넘어가지 않는다 (CHAT_002)
       '/chat/': backendProxy,
+      // 채팅 실시간 연결(WebSocket + STOMP). ws: true가 있어야 WebSocket 연결도 백엔드로 넘긴다 (CHAT_003)
+      '/ws': { target: 'http://localhost:8080', changeOrigin: true, ws: true },
       // 계약 API(/contract/..., /contract-details). 화면 주소에는 /contract로 시작하는 곳이 없다
       '/contract/': backendProxy,
       '/contract-details': backendProxy,

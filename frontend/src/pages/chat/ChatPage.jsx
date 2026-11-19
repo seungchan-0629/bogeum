@@ -4,22 +4,38 @@
 // API:
 // - 방 목록: GET /chat/rooms — 내 방 전부, 최근 대화 순, 방별 안 읽은 수 (CHAT_005, CHAT_007)
 // - 대화 내역: GET /chat/rooms/{chatRoomId}/messages?cursor= — 30개씩, 위로 스크롤하면 이전 메시지를 이어 불러온다 (CHAT_006)
-// - 메시지 전송: WebSocket /ws/chat/rooms/{roomId} (BE-040) — 상대가 접속해 있으면 실시간 전달 (CHAT_003)
+// - 메시지 전송: POST /chat/rooms/{chatRoomId}/messages, 받기는 WebSocket /ws(STOMP) 구독 — 상대가 보고 있으면 바로 뜬다 (CHAT_003)
 // - 이미지 전송: POST /api/v1/chat/rooms/{roomId}/images (BE-041) (CHAT_004)
 // - 읽음 처리: PUT/PATCH /api/v1/chat/rooms/{roomId}/read (BE-042) — 방에 들어오면 호출 (CHAT_007)
 // - 차단: POST /api/v1/chat/blocks (BE-045) (CHAT_010)
 // - 임차인 위험 안내: GET /api/v1/chat/rooms/{roomId}/risk-notice (BE-046) (RISK_007, 임대인만)
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router'
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import clsx from 'clsx'
 import Icon from '../../components/common/Icon.jsx'
 import PhotoPlaceholder from '../../components/common/PhotoPlaceholder.jsx'
 import StatusBadge from '../../components/common/StatusBadge.jsx'
 import { useAuthStore } from '../../stores/authStore.js'
 import { ROLES } from '../../constants/auth.js'
-import { getChatMessages, getChatRooms } from '../../api/chat/index.js'
+import { createChatMessage, getChatMessages, getChatRooms } from '../../api/chat/index.js'
+import { useChatSocket } from '../../hooks/useChatSocket.js'
 import { formatLeasePrice, getPropertyTypeLabel } from '../../utils/format.js'
+
+// 서버가 받는 메시지 최대 길이 (CHAT_003)
+const MESSAGE_MAX_LENGTH = 2000
+// 맨 아래에서 이만큼 안이면 새 메시지가 올 때 따라 내려간다
+const NEAR_BOTTOM_PX = 80
+
+const messagesKeyOf = (chatRoomId, userId) => ['chat-messages', chatRoomId, userId]
+
+// 같은 메시지가 보내기 응답과 실시간 전달로 두 번 올 수 있어서 번호로 한 번만 붙인다. 첫 쪽이 최근 대화다
+// 대화를 아직 불러오지 않았으면 그대로 두고, 불러올 때 함께 받는다
+function appendMessage(data, message) {
+  if (!data || data.pages.some((page) => page.messages.some((item) => item.chatMessageId === message.chatMessageId))) return data
+  const [newest, ...older] = data.pages
+  return { ...data, pages: [{ ...newest, messages: [...newest.messages, message] }, ...older] }
+}
 
 // CHAT_009 안내 문구 (요구사항 그대로)
 const READ_ONLY_MESSAGES = {
@@ -115,10 +131,12 @@ function ChatRoomList({ rooms, activeRoomId, isAgent }) {
 
 function ChatRoom({ room, isAgent }) {
   const user = useAuthStore((state) => state.user)
+  const queryClient = useQueryClient()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const isMineOf = (message) => message.senderId === user?.userId
   // 첫 쪽이 최근 30개이고, 다음 쪽으로 갈수록 오래된 대화다
   const history = useInfiniteQuery({
-    queryKey: ['chat-messages', room.chatRoomId, user?.userId],
+    queryKey: messagesKeyOf(room.chatRoomId, user?.userId),
     queryFn: ({ pageParam, signal }) => getChatMessages(room.chatRoomId, pageParam, signal),
     initialPageParam: null,
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
@@ -139,6 +157,54 @@ function ChatRoom({ room, isAgent }) {
       : scroller.scrollTop + scroller.scrollHeight - previousHeightRef.current
     previousHeightRef.current = scroller.scrollHeight
   }, [pages.length])
+
+  // 새 메시지가 붙으면 맨 아래 근처에 있을 때와 내가 보낸 메시지만 따라 내려간다
+  // 위로 올려 예전 대화를 보고 있으면 자리를 지키고 [새 메시지] 버튼을 띄운다
+  const isNearBottomRef = useRef(true)
+  const [hasNewMessage, setHasNewMessage] = useState(false)
+  const lastMessageId = messages.at(-1)?.chatMessageId
+  const isLastMine = messages.length > 0 && isMineOf(messages.at(-1))
+  useLayoutEffect(() => {
+    const scroller = scrollRef.current
+    if (!scroller || lastMessageId === undefined) return
+    if (isNearBottomRef.current || isLastMine) scroller.scrollTop = scroller.scrollHeight
+    else setHasNewMessage(true)
+    previousHeightRef.current = scroller.scrollHeight
+  }, [lastMessageId, isLastMine])
+
+  const handleScroll = () => {
+    const scroller = scrollRef.current
+    isNearBottomRef.current = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < NEAR_BOTTOM_PX
+    if (isNearBottomRef.current) setHasNewMessage(false)
+  }
+
+  const scrollToBottom = () => {
+    scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
+    setHasNewMessage(false)
+  }
+
+  // 보내기에 실패하면 쓴 글은 그대로 두고 입력창 아래에 서버 문구를 보여 준다
+  const [draft, setDraft] = useState('')
+  const [isSending, setIsSending] = useState(false)
+  const [sendError, setSendError] = useState(null)
+  const handleSend = async (event) => {
+    event.preventDefault()
+    const content = draft.trim()
+    if (!content || isSending) return
+    setIsSending(true)
+    setSendError(null)
+    try {
+      const message = await createChatMessage(room.chatRoomId, content)
+      queryClient.setQueryData(messagesKeyOf(room.chatRoomId, user?.userId), (data) => appendMessage(data, message))
+      setDraft('')
+    } catch (error) {
+      setSendError(error.response?.data?.message || '서버에 연결할 수 없습니다.')
+      // 보내는 사이 매물이 삭제·계약돼 읽기 전용이 됐으면 목록을 새로 받아 안내 문구로 바꾼다
+      if (error.response?.data?.code === 'CHAT_ROOM_READ_ONLY') queryClient.invalidateQueries({ queryKey: ['chat-rooms'] })
+    } finally {
+      setIsSending(false)
+    }
+  }
 
   // 맨 위에 닿기 조금 전(200px)부터 이전 대화를 불러와 스크롤이 끊기지 않게 한다
   const sentinelRef = useRef(null)
@@ -191,7 +257,7 @@ function ChatRoom({ room, isAgent }) {
         </p>
       )}
 
-      <div ref={scrollRef} className="min-h-0 grow overflow-y-auto px-5 py-5">
+      <div ref={scrollRef} onScroll={handleScroll} className="relative min-h-0 grow overflow-y-auto px-5 py-5">
         {history.isPending && <p role="status" className="text-center text-gray-500">대화를 불러오고 있어요.</p>}
         {history.isError && <p role="alert" className="text-center text-gray-500">대화를 불러오지 못했어요.</p>}
         {history.isSuccess && messages.length === 0 && (
@@ -210,7 +276,7 @@ function ChatRoom({ room, isAgent }) {
             {!hasNextPage && <p className="pb-3 text-center text-xs text-gray-400">대화의 처음이에요.</p>}
             <ol className="flex flex-col gap-2.5">
               {messages.map((message) => (
-                <li key={message.chatMessageId} className={clsx('max-w-[70%] rounded-2xl', message.isMine ? 'self-end rounded-br-sm bg-blue-600 text-white' : 'self-start rounded-bl-sm border border-gray-200 bg-white')}>
+                <li key={message.chatMessageId} className={clsx('max-w-[70%] rounded-2xl', isMineOf(message) ? 'self-end rounded-br-sm bg-blue-600 text-white' : 'self-start rounded-bl-sm border border-gray-200 bg-white')}>
                   {/* 사진 주소는 이미지 전송(CHAT_004)을 만들 때 받는다 */}
                   {message.messageType === 'IMAGE' ? <PhotoPlaceholder label="보낸 사진" className="h-32 w-48" /> : <p className="px-4 py-2.5 text-[15px] break-words whitespace-pre-wrap">{message.content}</p>}
                 </li>
@@ -219,20 +285,35 @@ function ChatRoom({ room, isAgent }) {
           </>
         )}
       </div>
+      {hasNewMessage && (
+        <div className="relative">
+          <button type="button" onClick={scrollToBottom} className="btn-primary btn-sm absolute bottom-3 left-1/2 -translate-x-1/2 shadow-lg">
+            새 메시지 ↓
+          </button>
+        </div>
+      )}
 
       {room.chatStatus === 'READ_ONLY' ? (
         // CHAT_009: 읽기 전용이면 입력창 대신 안내 문구. 이전 대화는 그대로 볼 수 있다
         <p className="border-t border-gray-200 bg-white px-5 py-4 text-center text-gray-600">{READ_ONLY_MESSAGES[room.readOnlyReason]}</p>
       ) : (
-        // TODO: 메시지 전송(CHAT_003, WebSocket)·사진 전송(CHAT_004)이 생기면 연결한다. 저장되지 않는 메시지가 섞이지 않게 지금은 막아 둔다
-        <div className="flex items-center gap-2 border-t border-gray-200 bg-white px-4 py-3">
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-lg text-gray-300" aria-hidden="true">
-            <Icon name="image" size={22} />
-          </span>
-          <label htmlFor="chat-input" className="sr-only">메시지</label>
-          <input id="chat-input" disabled placeholder="메시지 보내기는 준비 중이에요" className="h-11 min-w-0 grow rounded-xl border border-gray-300 bg-gray-50 px-4" />
-          <button type="button" disabled className="btn-primary disabled:cursor-not-allowed disabled:opacity-50">보내기</button>
-        </div>
+        <form onSubmit={handleSend} className="flex flex-col gap-1.5 border-t border-gray-200 bg-white px-4 py-3">
+          <div className="flex items-center gap-2">
+            {/* TODO: 사진 전송(CHAT_004)이 생기면 연결한다 */}
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-lg text-gray-300" aria-hidden="true">
+              <Icon name="image" size={22} />
+            </span>
+            <label htmlFor="chat-input" className="sr-only">메시지</label>
+            {/* 한글을 조합하는 중에 누른 Enter는 보내지 않는다. 마지막 글자가 따로 한 번 더 가는 것을 막는다 */}
+            <input id="chat-input" value={draft} onChange={(event) => setDraft(event.target.value)} maxLength={MESSAGE_MAX_LENGTH}
+              onKeyDown={(event) => { if (event.key === 'Enter' && event.nativeEvent.isComposing) event.preventDefault() }}
+              placeholder="메시지를 입력하세요" className="h-11 min-w-0 grow rounded-xl border border-gray-300 px-4" />
+            <button type="submit" disabled={isSending || !draft.trim()} className="btn-primary disabled:cursor-not-allowed disabled:opacity-50">
+              {isSending ? '보내는 중…' : '보내기'}
+            </button>
+          </div>
+          {sendError && <p role="alert" className="text-sm text-rose-700">{sendError}</p>}
+        </form>
       )}
     </section>
   )
@@ -249,9 +330,17 @@ function ChatPage() {
   })
   const rooms = list.data?.rooms ?? []
   const activeRoom = rooms.find((room) => String(room.chatRoomId) === roomId)
+  // 보고 있는 방에 상대가 보낸 메시지를 대화 끝에 바로 붙인다 (CHAT_003)
+  const queryClient = useQueryClient()
+  const { isDisconnected } = useChatSocket(activeRoom?.chatRoomId, (chatRoomId, message) =>
+    queryClient.setQueryData(messagesKeyOf(chatRoomId, user?.userId), (data) => appendMessage(data, message)))
 
   return (
     <div className="page-container">
+      {/* 다시 이어지면 끊긴 사이 메시지를 새로 불러온다 */}
+      {isDisconnected && (
+        <p role="status" className="mb-3 rounded-xl bg-amber-50 px-4 py-2.5 text-sm text-amber-900">서버와의 연결이 끊겼어요. 잠시만 기다려주세요.</p>
+      )}
       <div className="card grid grid-cols-1 overflow-hidden p-0 md:grid-cols-[320px_1fr]">
         {/* 모바일은 방을 고르면 목록을 숨기고 대화만 보여 준다. 넓은 화면에서는 대화 칸과 같은 높이 안에서 목록만 스크롤한다 */}
         <div className={clsx('border-gray-200 md:h-[min(720px,calc(100dvh-10rem))] md:min-h-[480px] md:overflow-y-auto md:border-r', roomId && 'hidden md:block')}>

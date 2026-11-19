@@ -164,6 +164,12 @@ export function createAuthClient(store, cookies = cookieUtil) {
     return (await requestLogin('/auth/social/google/signup', body)).user
   }
 
+  // STOMP 연결(CHAT_003)은 axios를 거치지 않아 Access를 직접 넣는다. 30초 안에 만료되면 먼저 갱신한다
+  async function getFreshAccessToken() {
+    if (!accessToken || expiresWithin(accessToken, 30)) await refreshOnce()
+    return accessToken
+  }
+
   function restoreSession() {
     // React StrictMode가 Effect를 다시 실행해도 초기 복원은 한 번만 한다.
     if (!restorePromise) {
@@ -186,7 +192,17 @@ export function createAuthClient(store, cookies = cookieUtil) {
     await publicApi.post('/auth/logout', { refreshToken })
   }
 
-  return { api, publicApi, login, loginNaver, signupNaver, loginKakao, signupKakao, loginGoogle, signupGoogle, logout, restoreSession }
+  return { api, publicApi, login, loginNaver, signupNaver, loginKakao, signupKakao, loginGoogle, signupGoogle, logout, restoreSession, getFreshAccessToken }
 }
 
-export const { api, publicApi, login, loginNaver, signupNaver, loginKakao, signupKakao, loginGoogle, signupGoogle, logout, restoreSession } = createAuthClient(useAuthStore)
+// JWT 가운데 조각의 exp(초)로 만료가 가까운지 본다. 읽을 수 없으면 만료된 것으로 본다
+function expiresWithin(token, seconds) {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
+    return payload.exp * 1000 - Date.now() < seconds * 1000
+  } catch {
+    return true
+  }
+}
+
+export const { api, publicApi, login, loginNaver, signupNaver, loginKakao, signupKakao, loginGoogle, signupGoogle, logout, restoreSession, getFreshAccessToken } = createAuthClient(useAuthStore)

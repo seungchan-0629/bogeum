@@ -300,3 +300,30 @@ test('중개사도 공통 로그인·복원·로그아웃을 사용하고 갱신
   assert.equal(client.state.user, null)
   assert.equal(client.cookies.getCookie('member'), undefined)
 })
+
+// exp만 담은 JWT 모양 문자열. 서명은 검사하지 않는다
+function tokenExpiringIn(seconds) {
+  const payload = Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + seconds })).toString('base64url')
+  return `header.${payload}.signature`
+}
+
+test('채팅 연결용 토큰은 넉넉하면 그대로 주고 30초 안에 만료되면 먼저 갱신한다', async () => {
+  const longToken = tokenExpiringIn(600)
+  const shortToken = tokenExpiringIn(10)
+  const renewedToken = tokenExpiringIn(900)
+  const urls = []
+  const client = setup()
+  publicAdapter(client, (config) => {
+    urls.push(config.url)
+    if (config.url === '/auth/login') {
+      return response(config, { user, accessToken: JSON.parse(config.data).email === 'long@example.com' ? longToken : shortToken })
+    }
+    return response(config, { user, accessToken: renewedToken })
+  })
+
+  await client.login('long@example.com', 'password')
+  assert.equal(await client.getFreshAccessToken(), longToken)
+  await client.login('short@example.com', 'password')
+  assert.equal(await client.getFreshAccessToken(), renewedToken)
+  assert.deepEqual(urls, ['/auth/login', '/auth/login', '/auth/refresh'])
+})
