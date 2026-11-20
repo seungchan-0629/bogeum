@@ -9,7 +9,7 @@
 // - 읽음 처리: PATCH /chat/rooms/{chatRoomId}/read — 방을 열 때·보는 중 상대 메시지가 올 때·탭으로 돌아올 때 (CHAT_007)
 // - 차단: POST /api/v1/chat/blocks (BE-045) (CHAT_010)
 // - 임차인 위험 안내: GET /api/v1/chat/rooms/{roomId}/risk-notice (BE-046) (RISK_007, 임대인만)
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
 import clsx from 'clsx'
@@ -52,6 +52,12 @@ function markReadIfVisible(chatRoomId) {
 
 // "오후 3:12"
 const formatMessageTime = (dateTime) => new Date(dateTime).toLocaleTimeString('ko-KR', { hour: 'numeric', minute: '2-digit' })
+
+// "2026년 11월 19일 수요일". 날짜가 바뀌는 곳의 구분선에 쓴다
+const formatMessageDate = (dateTime) =>
+  new Date(dateTime).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
+
+const isSameDay = (left, right) => new Date(left).toDateString() === new Date(right).toDateString()
 
 // CHAT_009 안내 문구 (요구사항 그대로)
 const READ_ONLY_MESSAGES = {
@@ -303,20 +309,30 @@ function ChatRoom({ room, isAgent }) {
             )}
             {!hasNextPage && <p className="pb-3 text-center text-xs text-gray-400">대화의 처음이에요.</p>}
             <ol className="flex flex-col gap-2.5">
-              {messages.map((message) => (
-                // 내 메시지는 말풍선 왼쪽에, 상대 메시지는 오른쪽에 "1"(상대가 아직 안 읽음)과 보낸 시각을 둔다
-                <li key={message.chatMessageId} className={clsx('flex max-w-[80%] items-end gap-1.5', isMineOf(message) ? 'flex-row-reverse self-end' : 'self-start')}>
-                  <div className={clsx('min-w-0 rounded-2xl', isMineOf(message) ? 'rounded-br-sm bg-blue-600 text-white' : 'rounded-bl-sm border border-gray-200 bg-white')}>
-                    {/* 사진 주소는 이미지 전송(CHAT_004)을 만들 때 받는다 */}
-                    {message.messageType === 'IMAGE' ? <PhotoPlaceholder label="보낸 사진" className="h-32 w-48" /> : <p className="px-4 py-2.5 text-[15px] break-words whitespace-pre-wrap">{message.content}</p>}
-                  </div>
-                  <span className={clsx('flex shrink-0 flex-col text-[11px] leading-4', isMineOf(message) ? 'items-end' : 'items-start')}>
-                    {isUnreadByPartner(message) && (
-                      <span className="font-bold text-amber-500">1<span className="sr-only"> 상대가 아직 안 읽음</span></span>
-                    )}
-                    <time dateTime={message.createdAt} className="whitespace-nowrap text-gray-400">{formatMessageTime(message.createdAt)}</time>
-                  </span>
-                </li>
+              {messages.map((message, index) => (
+                <Fragment key={message.chatMessageId}>
+                  {/* 바로 앞 메시지와 날짜가 다르면 그 위에 날짜 구분선을 둔다. 맨 위 메시지에도 둔다 */}
+                  {(index === 0 || !isSameDay(messages[index - 1].createdAt, message.createdAt)) && (
+                    <li className="flex items-center gap-3 py-1 text-xs text-gray-400">
+                      <span className="h-px grow bg-gray-200" aria-hidden="true" />
+                      <time dateTime={message.createdAt.slice(0, 10)} className="whitespace-nowrap">{formatMessageDate(message.createdAt)}</time>
+                      <span className="h-px grow bg-gray-200" aria-hidden="true" />
+                    </li>
+                  )}
+                  {/* 내 메시지는 말풍선 왼쪽에, 상대 메시지는 오른쪽에 "1"(상대가 아직 안 읽음)과 보낸 시각을 둔다 */}
+                  <li className={clsx('flex max-w-[80%] items-end gap-1.5', isMineOf(message) ? 'flex-row-reverse self-end' : 'self-start')}>
+                    <div className={clsx('min-w-0 rounded-2xl', isMineOf(message) ? 'rounded-br-sm bg-blue-600 text-white' : 'rounded-bl-sm border border-gray-200 bg-white')}>
+                      {/* 사진 주소는 이미지 전송(CHAT_004)을 만들 때 받는다 */}
+                      {message.messageType === 'IMAGE' ? <PhotoPlaceholder label="보낸 사진" className="h-32 w-48" /> : <p className="px-4 py-2.5 text-[15px] break-words whitespace-pre-wrap">{message.content}</p>}
+                    </div>
+                    <span className={clsx('flex shrink-0 flex-col text-[11px] leading-4', isMineOf(message) ? 'items-end' : 'items-start')}>
+                      {isUnreadByPartner(message) && (
+                        <span className="font-bold text-amber-500">1<span className="sr-only"> 상대가 아직 안 읽음</span></span>
+                      )}
+                      <time dateTime={message.createdAt} className="whitespace-nowrap text-gray-400">{formatMessageTime(message.createdAt)}</time>
+                    </span>
+                  </li>
+                </Fragment>
               ))}
             </ol>
           </>
