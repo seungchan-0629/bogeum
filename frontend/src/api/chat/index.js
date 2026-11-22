@@ -18,6 +18,16 @@ export async function createChatMessage(chatRoomId, content) {
   return data
 }
 
+// CHAT_004 채팅방에 사진 한 장을 보내고 저장된 사진 메시지(imageUrl 포함)를 받는다. 상대에게는 STOMP로 바로 간다
+// 서버가 사진을 검사·변환해 올리느라 오래 걸릴 수 있어 기본 제한 시간(10초)보다 길게 기다린다 (매물 사진과 같음)
+// 형식·용량이 맞지 않으면 400(INVALID_IMAGE), 읽기 전용 방 409(CHAT_ROOM_READ_ONLY), 저장소를 쓸 수 없으면 503(CHAT_STORAGE_UNAVAILABLE)
+export async function createChatImage(chatRoomId, file) {
+  const formData = new FormData()
+  formData.append('image', file)
+  const { data } = await api.post(`/chat/rooms/${chatRoomId}/images`, formData, { ...CHAT_CONFIG, timeout: 60000 })
+  return data
+}
+
 // CHAT_007 방의 마지막 메시지까지 읽었다고 남긴다 (204). 상대 화면의 "1"과 내 목록의 안 읽은 수가 바로 바뀐다
 // 참여하지 않은 방이면 404(CHAT_ROOM_NOT_FOUND)
 export async function updateChatRead(chatRoomId) {
