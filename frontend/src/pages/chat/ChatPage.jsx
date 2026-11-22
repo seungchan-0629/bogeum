@@ -5,7 +5,7 @@
 // - 방 목록: GET /chat/rooms — 내 방 전부, 최근 대화 순, 방별 안 읽은 수 (CHAT_005, CHAT_007)
 // - 대화 내역: GET /chat/rooms/{chatRoomId}/messages?cursor= — 30개씩, 위로 스크롤하면 이전 메시지를 이어 불러온다 (CHAT_006)
 // - 메시지 전송: POST /chat/rooms/{chatRoomId}/messages, 받기는 WebSocket /ws(STOMP) 구독 — 상대가 보고 있으면 바로 뜬다 (CHAT_003)
-// - 이미지 전송: POST /api/v1/chat/rooms/{roomId}/images (BE-041) (CHAT_004)
+// - 이미지 전송: POST /chat/rooms/{chatRoomId}/images — 고른 사진을 미리보기로 확인하고 한 장씩 보낸다 (CHAT_004)
 // - 읽음 처리: PATCH /chat/rooms/{chatRoomId}/read — 방을 열 때·보는 중 상대 메시지가 올 때·탭으로 돌아올 때 (CHAT_007)
 // - 차단: POST /api/v1/chat/blocks (BE-045) (CHAT_010)
 // - 임차인 위험 안내: GET /api/v1/chat/rooms/{roomId}/risk-notice (BE-046) (RISK_007, 임대인만)
@@ -18,12 +18,15 @@ import PhotoPlaceholder from '../../components/common/PhotoPlaceholder.jsx'
 import StatusBadge from '../../components/common/StatusBadge.jsx'
 import { useAuthStore } from '../../stores/authStore.js'
 import { ROLES } from '../../constants/auth.js'
-import { createChatMessage, getChatMessages, getChatRooms, updateChatRead } from '../../api/chat/index.js'
+import { createChatImage, createChatMessage, getChatMessages, getChatRooms, updateChatRead } from '../../api/chat/index.js'
 import { useChatSocket } from '../../hooks/useChatSocket.js'
 import { formatLeasePrice, getPropertyTypeLabel } from '../../utils/format.js'
 
 // 서버가 받는 메시지 최대 길이 (CHAT_003)
 const MESSAGE_MAX_LENGTH = 2000
+// 서버의 공통 사진 검사와 같은 기준 (CHAT_004)
+const IMAGE_TYPES = ['image/jpeg', 'image/png']
+const IMAGE_MAX_BYTES = 20 * 1024 * 1024
 // 맨 아래에서 이만큼 안이면 새 메시지가 올 때 따라 내려간다
 const NEAR_BOTTOM_PX = 80
 
@@ -124,6 +127,29 @@ function formatChatTime(dateTime) {
   if (time.toDateString() === yesterday.toDateString()) return '어제'
   const monthDay = `${twoDigits(time.getMonth() + 1)}.${twoDigits(time.getDate())}`
   return time.getFullYear() === now.getFullYear() ? monthDay : `${time.getFullYear()}.${monthDay}`
+}
+
+// 말풍선 속 사진 (CHAT_004). 누르면 새 탭에서 원본을 연다
+// 주소가 만료돼 안 뜨면 한 번만 대화를 새로 받아 새 주소로 바꾸고, 그래도 안 되면 회색 칸으로 둔다 (파일이 없는 사진에서 계속 다시 받지 않게)
+// 잘 뜨고 나면 다시 기회를 줘서, 화면을 오래 열어 둬 또 만료돼도 한 번 더 새로 받는다
+function ChatImage({ imageUrl, onExpired }) {
+  const [hasRetried, setHasRetried] = useState(false)
+  const [isBroken, setIsBroken] = useState(false)
+  // 저장소가 없는 환경이면 주소가 비어 있다
+  if (!imageUrl || isBroken) return <PhotoPlaceholder label={imageUrl ? '사진을 불러올 수 없어요' : '보낸 사진'} className="h-32 w-48" />
+  const handleError = () => {
+    if (hasRetried) {
+      setIsBroken(true)
+      return
+    }
+    setHasRetried(true)
+    onExpired()
+  }
+  return (
+    <a href={imageUrl} target="_blank" rel="noreferrer" aria-label="사진 크게 보기">
+      <img src={imageUrl} alt="보낸 사진" loading="lazy" onLoad={() => setHasRetried(false)} onError={handleError} className="block max-h-72 max-w-60 bg-gray-100 object-cover" />
+    </a>
+  )
 }
 
 function ChatRoomList({ rooms, activeRoomId, isAgent }) {
@@ -236,6 +262,13 @@ function ChatRoom({ room, isAgent }) {
   const [draft, setDraft] = useState('')
   const [isSending, setIsSending] = useState(false)
   const [sendError, setSendError] = useState(null)
+  const appendToHistory = (message) =>
+    queryClient.setQueryData(messagesKeyOf(room.chatRoomId, user?.userId), (data) => appendMessage(data, message))
+  const showSendError = (error) => {
+    setSendError(error.response?.data?.message || '서버에 연결할 수 없습니다.')
+    // 보내는 사이 매물이 삭제·계약돼 읽기 전용이 됐으면 목록을 새로 받아 안내 문구로 바꾼다
+    if (error.response?.data?.code === 'CHAT_ROOM_READ_ONLY') queryClient.invalidateQueries({ queryKey: ['chat-rooms'] })
+  }
   const handleSend = async (event) => {
     event.preventDefault()
     const content = draft.trim()
@@ -243,17 +276,53 @@ function ChatRoom({ room, isAgent }) {
     setIsSending(true)
     setSendError(null)
     try {
-      const message = await createChatMessage(room.chatRoomId, content)
-      queryClient.setQueryData(messagesKeyOf(room.chatRoomId, user?.userId), (data) => appendMessage(data, message))
+      appendToHistory(await createChatMessage(room.chatRoomId, content))
       setDraft('')
     } catch (error) {
-      setSendError(error.response?.data?.message || '서버에 연결할 수 없습니다.')
-      // 보내는 사이 매물이 삭제·계약돼 읽기 전용이 됐으면 목록을 새로 받아 안내 문구로 바꾼다
-      if (error.response?.data?.code === 'CHAT_ROOM_READ_ONLY') queryClient.invalidateQueries({ queryKey: ['chat-rooms'] })
+      showSendError(error)
     } finally {
       setIsSending(false)
     }
   }
+
+  // 사진은 고른 뒤 미리보기에서 [보내기]를 눌러야 간다. 잘못 고른 사진이 바로 상대에게 가지 않게 한다 (CHAT_004)
+  const [imagePreview, setImagePreview] = useState(null)
+  const [isSendingImage, setIsSendingImage] = useState(false)
+  // 미리보기를 바꾸거나 닫으면 브라우저가 잡아 둔 미리보기 주소를 놓아준다
+  useEffect(() => () => {
+    if (imagePreview) URL.revokeObjectURL(imagePreview.url)
+  }, [imagePreview])
+
+  const handleImageSelect = (event) => {
+    const file = event.target.files[0]
+    // 같은 사진을 다시 골라도 onChange가 오도록 비운다
+    event.target.value = ''
+    if (!file) return
+    // 서버와 같은 기준으로 먼저 걸러 올리지 않고 바로 알려 준다
+    if (!IMAGE_TYPES.includes(file.type) || file.size > IMAGE_MAX_BYTES) {
+      setSendError('JPEG·PNG 사진만 20MB까지 보낼 수 있어요.')
+      return
+    }
+    setSendError(null)
+    setImagePreview({ file, url: URL.createObjectURL(file) })
+  }
+
+  const handleSendImage = async () => {
+    if (!imagePreview || isSendingImage) return
+    setIsSendingImage(true)
+    setSendError(null)
+    try {
+      appendToHistory(await createChatImage(room.chatRoomId, imagePreview.file))
+      setImagePreview(null)
+    } catch (error) {
+      showSendError(error)
+    } finally {
+      setIsSendingImage(false)
+    }
+  }
+
+  // 사진 주소는 10분 뒤 만료된다. 안 뜨면 대화를 새로 받아 새 주소로 바꾼다
+  const refreshHistory = () => queryClient.invalidateQueries({ queryKey: messagesKeyOf(room.chatRoomId, user?.userId) })
 
   // 맨 위에 닿기 조금 전(200px)부터 이전 대화를 불러와 스크롤이 끊기지 않게 한다
   const sentinelRef = useRef(null)
@@ -342,9 +411,10 @@ function ChatRoom({ room, isAgent }) {
                   )}
                   {/* 내 메시지는 말풍선 왼쪽에, 상대 메시지는 오른쪽에 "1"(상대가 아직 안 읽음)과 보낸 시각을 둔다 */}
                   <li className={clsx('flex max-w-[80%] items-end gap-1.5', isMineOf(message) ? 'flex-row-reverse self-end' : 'self-start')}>
-                    <div className={clsx('min-w-0 rounded-2xl', isMineOf(message) ? 'rounded-br-sm bg-blue-600 text-white' : 'rounded-bl-sm border border-gray-200 bg-white')}>
-                      {/* 사진 주소는 이미지 전송(CHAT_004)을 만들 때 받는다 */}
-                      {message.messageType === 'IMAGE' ? <PhotoPlaceholder label="보낸 사진" className="h-32 w-48" /> : <p className="px-4 py-2.5 text-[15px] break-words whitespace-pre-wrap">{message.content}</p>}
+                    <div className={clsx('min-w-0 overflow-hidden rounded-2xl', isMineOf(message) ? 'rounded-br-sm bg-blue-600 text-white' : 'rounded-bl-sm border border-gray-200 bg-white')}>
+                      {message.messageType === 'IMAGE'
+                        ? <ChatImage imageUrl={message.imageUrl} onExpired={refreshHistory} />
+                        : <p className="px-4 py-2.5 text-[15px] break-words whitespace-pre-wrap">{message.content}</p>}
                     </div>
                     <span className={clsx('flex shrink-0 flex-col text-[11px] leading-4', isMineOf(message) ? 'items-end' : 'items-start')}>
                       {isUnreadByPartner(message) && (
@@ -372,12 +442,23 @@ function ChatRoom({ room, isAgent }) {
         <p className="border-t border-gray-300 bg-gray-200 px-5 py-4 text-center font-medium text-gray-600">{READ_ONLY_MESSAGES[room.readOnlyReason]}</p>
       ) : (
         <form onSubmit={handleSend} className="flex flex-col gap-1.5 border-t border-gray-200 bg-white px-4 py-3">
+          {imagePreview && (
+            <div className="flex items-center gap-3 rounded-xl bg-slate-50 p-2">
+              <img src={imagePreview.url} alt="보낼 사진 미리보기" className="size-16 shrink-0 rounded-lg object-cover" />
+              <span className="min-w-0 grow truncate text-sm text-gray-600">{isSendingImage ? '사진 보내는 중…' : imagePreview.file.name}</span>
+              <button type="button" onClick={handleSendImage} disabled={isSendingImage} className="btn-primary btn-sm disabled:cursor-wait">보내기</button>
+              <button type="button" onClick={() => setImagePreview(null)} disabled={isSendingImage} className="btn-secondary btn-sm">취소</button>
+            </div>
+          )}
           {/* 입력칸이 여러 줄로 커져도 사진 버튼과 [보내기]는 아래쪽에 붙는다 */}
           <div className="flex items-end gap-2">
-            {/* TODO: 사진 전송(CHAT_004)이 생기면 연결한다 */}
-            <span className="flex size-11 shrink-0 items-center justify-center rounded-lg text-gray-300" aria-hidden="true">
+            {/* 휴대폰에서는 사진 찍기·보관함을 고르는 창이 뜬다. 서버가 받는 JPEG·PNG만 고를 수 있게 한다 (CHAT_004) */}
+            <label className={clsx('flex size-11 shrink-0 items-center justify-center rounded-lg text-gray-600 hover:bg-gray-100',
+              isSendingImage ? 'cursor-wait opacity-50' : 'cursor-pointer')}>
               <Icon name="image" size={22} />
-            </span>
+              <span className="sr-only">사진 보내기</span>
+              <input type="file" accept={IMAGE_TYPES.join(',')} onChange={handleImageSelect} disabled={isSendingImage} className="sr-only" />
+            </label>
             <label htmlFor="chat-input" className="sr-only">메시지</label>
             {/* Enter는 보내기, Shift+Enter는 줄바꿈. 한글을 조합하는 중에 누른 Enter는 보내지 않아 마지막 글자가 따로 가지 않는다
                 글이 길어지면 다섯 줄쯤까지 칸이 자라고 그 뒤는 칸 안에서 스크롤한다 */}
