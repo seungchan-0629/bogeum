@@ -49,4 +49,9 @@ public class ChatBlock {
 	@CreationTimestamp
 	@Column(nullable = false, updatable = false)
 	private LocalDateTime createdAt;
+
+	// 채팅방에서 상대를 차단한다. 두 사람이 함께 있는 모든 방에서 서로 메시지를 보낼 수 없게 된다 (CHAT_010)
+	public static ChatBlock create(User blocker, User blocked) {
+		return ChatBlock.builder().blocker(blocker).blocked(blocked).build();
+	}
 }

@@ -8,6 +8,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -250,5 +251,34 @@ class ChatControllerTest {
 		mockMvc.perform(patch("/chat/rooms/999/read"))
 			.andExpect(status().isNotFound())
 			.andExpect(jsonPath("$.code").value("CHAT_ROOM_NOT_FOUND"));
+	}
+
+	@Test
+	@DisplayName("차단과 차단 해제는 로그인한 사용자와 방 번호로 하고 본문 없이 204다 (CHAT_010)")
+	void createsAndDeletesBlock() throws Exception {
+		mockMvc.perform(post("/chat/rooms/126/block"))
+			.andExpect(status().isNoContent())
+			.andExpect(content().string(""));
+		mockMvc.perform(delete("/chat/rooms/126/block"))
+			.andExpect(status().isNoContent())
+			.andExpect(content().string(""));
+
+		verify(chatService).createBlock(2L, 126L);
+		verify(chatService).deleteBlock(2L, 126L);
+	}
+
+	@Test
+	@DisplayName("참여하지 않은 방의 차단은 404, 차단된 상대에게 보내면 409다")
+	void mapsBlockErrors() throws Exception {
+		doThrow(ChatException.chatRoomNotFound()).when(chatService).createBlock(2L, 999L);
+		when(chatService.createMessage(2L, 126L, "안녕하세요")).thenThrow(ChatException.blocked());
+
+		mockMvc.perform(post("/chat/rooms/999/block"))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.code").value("CHAT_ROOM_NOT_FOUND"));
+		mockMvc.perform(post("/chat/rooms/126/messages").contentType(MediaType.APPLICATION_JSON)
+				.content("{\"content\":\"안녕하세요\"}"))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("CHAT_BLOCKED"));
 	}
 }

@@ -2,6 +2,7 @@ package com.bogeum.domain.chat;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -50,6 +51,14 @@ public class ChatController {
 		return chatService.createImageMessage(loginUser.getUserId(), chatRoomId, image);
 	}
 
+	// 채팅방에서 상대를 차단한다. 두 사람이 함께 있는 모든 방에서 서로 보낼 수 없게 된다 (CHAT_010)
+	// 이미 차단했어도 204다. 참여하지 않은 방이면 CHAT_ROOM_NOT_FOUND
+	@PostMapping("/rooms/{chatRoomId}/block")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	public void createBlock(@AuthenticationPrincipal LoginUser loginUser, @PathVariable("chatRoomId") Long chatRoomId) {
+		chatService.createBlock(loginUser.getUserId(), chatRoomId);
+	}
+
 	// 내가 참여한 채팅방 전부. 최근 대화 순이고 방마다 안 읽은 메시지 수를 준다 (CHAT_005, CHAT_007)
 	@GetMapping("/rooms")
 	public ChatDto.RoomListResponse readRooms(@AuthenticationPrincipal LoginUser loginUser) {
@@ -70,5 +79,12 @@ public class ChatController {
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	public void updateRead(@AuthenticationPrincipal LoginUser loginUser, @PathVariable("chatRoomId") Long chatRoomId) {
 		chatService.updateRead(loginUser.getUserId(), chatRoomId);
+	}
+
+	// 내가 걸어 둔 차단을 푼다. 차단한 적이 없어도 204다. 상대가 나를 차단한 것은 풀 수 없다 (CHAT_010)
+	@DeleteMapping("/rooms/{chatRoomId}/block")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	public void deleteBlock(@AuthenticationPrincipal LoginUser loginUser, @PathVariable("chatRoomId") Long chatRoomId) {
+		chatService.deleteBlock(loginUser.getUserId(), chatRoomId);
 	}
 }
