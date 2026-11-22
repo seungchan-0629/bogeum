@@ -16,6 +16,7 @@ import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.bogeum.common.enums.ChatRoomType;
 import com.bogeum.common.enums.ChatStatus;
 import com.bogeum.common.enums.MessageType;
 import com.bogeum.common.enums.PropertyStatus;
@@ -156,6 +157,24 @@ public class ChatService {
 		}
 	}
 
+	/** 임대인이 매물을 삭제하면 매물 삭제와 같은 트랜잭션에서 그 매물의 방을 모두 읽기 전용으로 바꾼다 (CHAT_009) */
+	@Transactional
+	public void updateReadOnlyByDelete(Long propertyId) {
+		changeToReadOnly(chatRepository.findAllByProperty_PropertyId(propertyId));
+	}
+
+	/**
+	 * 중개사가 계약을 등록하면 계약 등록과 같은 트랜잭션에서 계약하지 않은 문의자의 방을 읽기 전용으로 바꾼다 (CHAT_009).
+	 * 계약한 임차인–중개사 방과 임대인–중개사 방은 잔금·입주 이야기를 이어 가도록 그대로 둔다
+	 */
+	@Transactional
+	public void updateReadOnlyByContract(Long propertyId, Long tenantUserId) {
+		changeToReadOnly(chatRepository.findAllByProperty_PropertyId(propertyId).stream()
+			.filter(chatRoom -> chatRoom.getRoomType() == ChatRoomType.TENANT_AGENT
+				&& !chatRoom.getInquirer().getUserId().equals(tenantUserId))
+			.toList());
+	}
+
 	private ChatRoom openAgentRoom(Long agentUserId, Long propertyId) {
 		Property property = propertyRepository.findByPropertyIdAndAgent_UserId(propertyId, agentUserId)
 			.filter(found -> found.getPropertyStatus() != PropertyStatus.DELETED)
@@ -234,6 +253,18 @@ public class ChatService {
 			return null;
 		}
 		return message.getMessageType() == MessageType.IMAGE ? "사진" : message.getContent();
+	}
+
+	// 이미 읽기 전용인 방은 건너뛰고, 바뀐 방의 두 참여자에게만 열어 둔 화면을 갱신하라고 알린다
+	private void changeToReadOnly(List<ChatRoom> chatRooms) {
+		List<ChatRoomsReadOnlyEvent.Room> changed = chatRooms.stream()
+			.filter(ChatRoom::changeToReadOnly)
+			.map(chatRoom -> new ChatRoomsReadOnlyEvent.Room(chatRoom.getChatRoomId(),
+				List.of(chatRoom.getInquirer().getUserId(), chatRoom.getAgent().getUserId())))
+			.toList();
+		if (!changed.isEmpty()) {
+			eventPublisher.publishEvent(new ChatRoomsReadOnlyEvent(changed));
+		}
 	}
 
 	// 참여하지 않은 방은 없는 방과 똑같이 CHAT_ROOM_NOT_FOUND로 거절한다
