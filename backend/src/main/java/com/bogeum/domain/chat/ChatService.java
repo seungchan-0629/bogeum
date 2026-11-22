@@ -7,20 +7,26 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.bogeum.common.enums.ChatRoomType;
 import com.bogeum.common.enums.ChatStatus;
 import com.bogeum.common.enums.MessageType;
 import com.bogeum.common.enums.PropertyStatus;
 import com.bogeum.common.enums.Role;
+import com.bogeum.common.exception.ImageException;
 import com.bogeum.domain.agent.AgentRepository;
 import com.bogeum.domain.agent.model.Agent;
 import com.bogeum.domain.chat.model.ChatDto;
@@ -32,10 +38,13 @@ import com.bogeum.domain.property.PropertyRepository;
 import com.bogeum.domain.property.model.Property;
 import com.bogeum.domain.user.UserService;
 import com.bogeum.domain.user.model.User;
+import com.bogeum.utils.ImageProcessor;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class ChatService {
 
@@ -53,6 +62,8 @@ public class ChatService {
 	private final ChatMessageRepository chatMessageRepository;
 	private final AgentRepository agentRepository;
 	private final ApplicationEventPublisher eventPublisher;
+	private final ObjectProvider<ChatImageStorage> storageProvider;
+	private final ImageProcessor imageProcessor;
 
 	/**
 	 * 매물로 대화할 채팅방을 열고 번호를 준다. 이미 있으면 기존 방이다 (CHAT_002).
@@ -84,17 +95,47 @@ public class ChatService {
 	 */
 	@Transactional
 	public ChatDto.MessageItemResponse createMessage(Long userId, Long chatRoomId, String content) {
-		ChatRoom chatRoom = findParticipantRoom(chatRoomId, userId);
-		if (chatRoom.getChatStatus() == ChatStatus.READ_ONLY) {
-			throw ChatException.chatRoomReadOnly();
+		ChatRoom chatRoom = findSendableRoom(chatRoomId, userId);
+		return saveAndPublish(chatRoom, userId, ChatMessage.createText(chatRoom, senderOf(chatRoom, userId), content.strip()), null);
+	}
+
+	/**
+	 * 채팅방에 사진 한 장을 보낸다 (CHAT_004). 공통 사진 검사(JPEG·PNG, 용량·픽셀 제한)를 거쳐 JPEG로 바꿔 저장한다.
+	 * 메시지 저장이 롤백되면 올린 파일을 지운다. 외부 저장소와 DB의 원자성까지 보장하지는 않는다.
+	 *
+	 * @throws ChatException 참여하지 않은 방(CHAT_ROOM_NOT_FOUND), 읽기 전용 방(CHAT_ROOM_READ_ONLY), 저장소 없음·저장 실패
+	 * @throws com.bogeum.common.exception.ImageException 사진이 없거나 형식·용량·픽셀 제한을 벗어난 경우
+	 */
+	@Transactional
+	public ChatDto.MessageItemResponse createImageMessage(Long userId, Long chatRoomId, MultipartFile image) {
+		ChatRoom chatRoom = findSendableRoom(chatRoomId, userId);
+		if (image == null || image.isEmpty()) {
+			throw ImageException.invalidImage();
 		}
-		User sender = chatRoom.getAgent().getUserId().equals(userId) ? chatRoom.getAgent() : chatRoom.getInquirer();
-		ChatMessage message = chatMessageRepository.saveAndFlush(ChatMessage.createText(chatRoom, sender, content.strip()));
-		chatRoom.recordMessage(message.getCreatedAt());
-		// 구독자에게 뿌리는 일은 저장이 확정된 뒤 ChatMessagePublisher가 한다
-		eventPublisher.publishEvent(new ChatMessageCreatedEvent(chatRoomId, ChatDto.MessageItemResponse.forRoom(message),
-			List.of(chatRoom.getInquirer().getUserId(), chatRoom.getAgent().getUserId())));
-		return ChatDto.MessageItemResponse.of(message, userId);
+		ChatImageStorage storage = storageProvider.getIfAvailable();
+		// 저장소 없이 사진 보내기를 성공으로 처리하지 않는다
+		if (storage == null) {
+			throw ChatException.storageUnavailable();
+		}
+		byte[] jpeg = imageProcessor.process(image);
+		String key = "chat-images/" + chatRoomId + "/" + UUID.randomUUID() + ".jpg";
+		// 저장 도중 일부만 기록된 경우도 지울 수 있도록 쓰기 전에 정리 작업을 등록한다
+		TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+			@Override
+			public void afterCompletion(int status) {
+				if (status != STATUS_COMMITTED) {
+					deleteImage(storage, key);
+				}
+			}
+		});
+		try {
+			storage.write(key, jpeg);
+		} catch (RuntimeException exception) {
+			log.error("채팅 사진 저장 실패: key={}", key, exception);
+			throw ChatException.storageUnavailable();
+		}
+		ChatMessage message = ChatMessage.createImage(chatRoom, senderOf(chatRoom, userId), key);
+		return saveAndPublish(chatRoom, userId, message, storage.createReadUrl(key));
 	}
 
 	/**
@@ -139,9 +180,11 @@ public class ChatService {
 		// 화면은 위에서 아래로 오래된 것부터 그린다
 		Collections.reverse(messages);
 		Long nextCursor = hasNext ? messages.get(0).getChatMessageId() : null;
+		// 저장소가 없으면 사진 주소만 비우고 대화 내역은 그대로 준다
+		ChatImageStorage storage = storageProvider.getIfAvailable();
 		return new ChatDto.MessageListResponse(
-			messages.stream().map(message -> ChatDto.MessageItemResponse.of(message, userId)).toList(), nextCursor, hasNext,
-			chatRoom.partnerLastReadMessageId(userId));
+			messages.stream().map(message -> ChatDto.MessageItemResponse.of(message, userId, imageUrlOf(storage, message))).toList(),
+			nextCursor, hasNext, chatRoom.partnerLastReadMessageId(userId));
 	}
 
 	/**
@@ -264,6 +307,44 @@ public class ChatService {
 			.toList();
 		if (!changed.isEmpty()) {
 			eventPublisher.publishEvent(new ChatRoomsReadOnlyEvent(changed));
+		}
+	}
+
+	// 글·사진 모두 참여한 방에만, 읽기 전용이 아닐 때만 보낼 수 있다 (CHAT_009)
+	private ChatRoom findSendableRoom(Long chatRoomId, Long userId) {
+		ChatRoom chatRoom = findParticipantRoom(chatRoomId, userId);
+		if (chatRoom.getChatStatus() == ChatStatus.READ_ONLY) {
+			throw ChatException.chatRoomReadOnly();
+		}
+		return chatRoom;
+	}
+
+	private User senderOf(ChatRoom chatRoom, Long userId) {
+		return chatRoom.getAgent().getUserId().equals(userId) ? chatRoom.getAgent() : chatRoom.getInquirer();
+	}
+
+	// 메시지를 저장하고 방의 마지막 대화 시각을 남긴다. 구독자에게 뿌리는 일은 저장이 확정된 뒤 ChatMessagePublisher가 한다
+	private ChatDto.MessageItemResponse saveAndPublish(ChatRoom chatRoom, Long userId, ChatMessage newMessage, String imageUrl) {
+		ChatMessage message = chatMessageRepository.saveAndFlush(newMessage);
+		chatRoom.recordMessage(message.getCreatedAt());
+		eventPublisher.publishEvent(new ChatMessageCreatedEvent(chatRoom.getChatRoomId(),
+			ChatDto.MessageItemResponse.forRoom(message, imageUrl),
+			List.of(chatRoom.getInquirer().getUserId(), chatRoom.getAgent().getUserId())));
+		return ChatDto.MessageItemResponse.of(message, userId, imageUrl);
+	}
+
+	private String imageUrlOf(ChatImageStorage storage, ChatMessage message) {
+		if (storage == null || message.getMessageType() != MessageType.IMAGE || message.getImageFileKey() == null) {
+			return null;
+		}
+		return storage.createReadUrl(message.getImageFileKey());
+	}
+
+	private void deleteImage(ChatImageStorage storage, String key) {
+		try {
+			storage.delete(key);
+		} catch (RuntimeException exception) {
+			log.error("롤백된 채팅 사진 정리 실패: key={}", key, exception);
 		}
 	}
 
