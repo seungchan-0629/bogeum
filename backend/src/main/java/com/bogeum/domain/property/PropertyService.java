@@ -397,7 +397,8 @@ public class PropertyService {
 	/**
 	 * 임대인이 본인 매물을 삭제한다. 행은 남기고 상태만 삭제로 바꾼다 (PROPERTY_007).
 	 * 중개사의 계약 등록과 겹치지 않도록 수정처럼 매물 행을 잠근다.
-	 * 관련 채팅방 읽기 전용(CHAT_009)과 관심 등록자 알림(NOTIFY_020)은 채팅·알림 기능에서 매물 상태를 보고 처리한다.
+	 * 같은 트랜잭션에서 그 매물의 채팅방을 모두 읽기 전용으로 바꾼다 (CHAT_009).
+	 * 관심 등록자 알림(NOTIFY_020)은 알림 기능에서 매물 상태를 보고 처리한다.
 	 *
 	 * @throws PropertyException 없거나 남의 매물, 이미 삭제한 매물, 계약이 끝난 매물인 경우
 	 */
@@ -405,6 +406,7 @@ public class PropertyService {
 	public void deleteMyProperty(Long landlordUserId, Long propertyId) {
 		requireNotDeleted(propertyRepository.findForUpdateByPropertyIdAndLandlord_UserId(propertyId, landlordUserId))
 			.delete();
+		chatService.updateReadOnlyByDelete(propertyId);
 	}
 
 	/**
