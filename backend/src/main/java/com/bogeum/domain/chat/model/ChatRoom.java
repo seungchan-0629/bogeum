@@ -113,6 +113,15 @@ public class ChatRoom {
 		return true;
 	}
 
+	// 매물이 삭제되거나 계약되면 새 메시지를 받지 않는다. 이전 대화는 그대로 볼 수 있다. 이미 읽기 전용이면 false (CHAT_009)
+	public boolean changeToReadOnly() {
+		if (chatStatus == ChatStatus.READ_ONLY) {
+			return false;
+		}
+		chatStatus = ChatStatus.READ_ONLY;
+		return true;
+	}
+
 	// 상대가 어디까지 읽었는지. 내 메시지 옆 "1"을 지우는 데 쓴다 (CHAT_007)
 	public Long partnerLastReadMessageId(Long userId) {
 		return agent.getUserId().equals(userId) ? inquirerLastReadMessageId : agentLastReadMessageId;

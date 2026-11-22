@@ -24,6 +24,9 @@ public interface ChatRepository extends JpaRepository<ChatRoom, Long> {
 		""")
 	boolean existsParticipant(@Param("chatRoomId") Long chatRoomId, @Param("userId") Long userId);
 
+	// 매물이 삭제·계약될 때 읽기 전용으로 바꿀 방들. 알림을 보낼 참여자 번호도 쓴다 (CHAT_009)
+	List<ChatRoom> findAllByProperty_PropertyId(Long propertyId);
+
 	// 매물·문의자·중개사가 같은 방은 하나뿐이다 (chat_room 중복 금지 제약, CHAT_002)
 	Optional<ChatRoom> findByProperty_PropertyIdAndInquirer_UserIdAndAgent_UserId(Long propertyId, Long inquirerUserId,
 		Long agentUserId);

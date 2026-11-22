@@ -17,11 +17,14 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import com.bogeum.common.enums.BrokerageStatus;
+import com.bogeum.common.enums.ChatStatus;
 import com.bogeum.common.enums.LeaseType;
 import com.bogeum.common.enums.PropertyStatus;
 import com.bogeum.common.enums.Role;
 import com.bogeum.common.exception.ErrorCode;
+import com.bogeum.domain.chat.ChatRepository;
 import com.bogeum.domain.chat.ChatService;
+import com.bogeum.domain.chat.model.ChatRoom;
 import com.bogeum.domain.property.model.BrokerageRequest;
 import com.bogeum.domain.property.model.Property;
 import com.bogeum.domain.property.model.PropertyDto;
@@ -55,6 +58,8 @@ class MyPropertyDeleteTest {
 	private UserRepository userRepository;
 	@Autowired
 	private EntityManager entityManager;
+	@Autowired
+	private ChatRepository chatRepository;
 	// 삭제에 쓰지 않는 의존성
 	@MockitoBean
 	private UserService userService;
@@ -74,12 +79,16 @@ class MyPropertyDeleteTest {
 	@DisplayName("공개 중인 매물을 삭제하면 행은 남고 상태만 바뀌어 내 매물 목록과 공개 상세에서 빠진다")
 	void deletesActiveProperty() {
 		Long propertyId = request(landlord, PropertyStatus.ACTIVE, BrokerageStatus.ACCEPTED);
+		chatRepository.saveAndFlush(ChatRoom.createBrokerageRoom(reload(propertyId)));
 
 		propertyService.deleteMyProperty(landlord.getUserId(), propertyId);
 
 		assertEquals(PropertyStatus.DELETED, reload(propertyId).getPropertyStatus());
 		assertEquals(0L, propertyService.readMyProperties(landlord.getUserId(), 1).getTotalElements());
 		assertErrorCode(ErrorCode.PROPERTY_NOT_FOUND, () -> propertyService.readPublicProperty(propertyId));
+		// 그 매물의 채팅방은 읽기 전용이 된다 (CHAT_009)
+		assertEquals(List.of(ChatStatus.READ_ONLY), chatRepository.findAllByProperty_PropertyId(propertyId).stream()
+			.map(ChatRoom::getChatStatus).toList());
 	}
 
 	@Test

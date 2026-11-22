@@ -37,6 +37,12 @@ public class ChatMessagePublisher {
 		publishRoomUpdated(event.userId(), event.chatRoomId());
 	}
 
+	// 열어 둔 화면은 목록을 다시 불러와 그 방의 입력창이 안내 문구로 바뀐다
+	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+	public void publish(ChatRoomsReadOnlyEvent event) {
+		event.rooms().forEach(room -> room.participantIds().forEach(userId -> publishRoomUpdated(userId, room.chatRoomId())));
+	}
+
 	private void publishRoomUpdated(Long userId, Long chatRoomId) {
 		messagingTemplate.convertAndSendToUser(String.valueOf(userId), "/queue/chat-rooms", new ChatDto.RoomResponse(chatRoomId));
 	}

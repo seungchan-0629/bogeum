@@ -20,6 +20,7 @@ import com.bogeum.common.enums.ChatRoomType;
 import com.bogeum.common.enums.LeaseType;
 import com.bogeum.common.enums.UserStatus;
 import com.bogeum.domain.chat.ChatRepository;
+import com.bogeum.domain.chat.ChatService;
 import com.bogeum.domain.chat.model.ChatRoom;
 import com.bogeum.domain.contract.model.Contract;
 import com.bogeum.domain.contract.model.ContractDocument;
@@ -49,6 +50,7 @@ public class ContractService {
 	private final ContractDocumentRepository contractDocumentRepository;
 	private final ObjectProvider<ContractDocumentStorage> storageProvider;
 	private final ImageProcessor imageProcessor;
+	private final ChatService chatService;
 
 	/**
 	 * 중개사가 맡은 공개 매물의 계약 정보와 계약서 이미지를 등록하고 매물을 계약 완료로 바꾼다 (PROPERTY_011).
@@ -98,6 +100,8 @@ public class ContractService {
 			.contractedAt(request.getContractedAt().atStartOfDay())
 			.build());
 		saveDocuments(storage, contract, jpegs);
+		// 계약하지 않은 문의자의 채팅방은 읽기 전용이 된다. 계약 당사자 방은 그대로 쓴다 (CHAT_009)
+		chatService.updateReadOnlyByContract(property.getPropertyId(), tenant.getUserId());
 		return ContractDto.SaveResponse.from(contract);
 	}
 

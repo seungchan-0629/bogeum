@@ -45,6 +45,7 @@ import com.bogeum.common.enums.UserStatus;
 import com.bogeum.common.exception.ErrorCode;
 import com.bogeum.common.exception.ImageException;
 import com.bogeum.domain.chat.ChatRepository;
+import com.bogeum.domain.chat.ChatService;
 import com.bogeum.domain.chat.model.ChatRoom;
 import com.bogeum.domain.contract.model.Contract;
 import com.bogeum.domain.contract.model.ContractDocument;
@@ -76,6 +77,8 @@ class ContractServiceTest {
 	private ContractDocumentStorage storage;
 	@Mock
 	private ImageProcessor imageProcessor;
+	@Mock
+	private ChatService chatService;
 
 	private ContractService contractService;
 	private final User landlord = User.builder().userId(1L).name("박임대").email("park@example.com").build();
@@ -85,7 +88,7 @@ class ContractServiceTest {
 	@BeforeEach
 	void setUp() {
 		contractService = new ContractService(propertyRepository, chatRepository, contractRepository,
-			contractDocumentRepository, storageProvider, imageProcessor);
+			contractDocumentRepository, storageProvider, imageProcessor, chatService);
 	}
 
 	@AfterEach
@@ -124,6 +127,8 @@ class ContractServiceTest {
 		assertEquals(new BigDecimal("300000"), contract.getBrokerageFee());
 		assertEquals(LocalDate.now().minusDays(3).atStartOfDay(), contract.getContractedAt());
 		assertEquals(PropertyStatus.CONTRACTED, property.getPropertyStatus());
+		// 계약하지 않은 문의자의 채팅방을 읽기 전용으로 바꾼다 (CHAT_009)
+		verify(chatService).updateReadOnlyByContract(property.getPropertyId(), seip.getUserId());
 
 		var documents = ArgumentCaptor.forClass(ContractDocument.class);
 		verify(contractDocumentRepository, times(2)).save(documents.capture());
