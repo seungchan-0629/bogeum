@@ -28,6 +28,7 @@ import com.bogeum.domain.property.model.Property;
 import com.bogeum.domain.user.UserRepository;
 import com.bogeum.domain.user.UserService;
 import com.bogeum.domain.user.model.User;
+import com.bogeum.utils.ImageProcessor;
 
 /**
  * 매물이 삭제되면 방이 모두, 계약되면 계약 당사자가 아닌 문의 방만 읽기 전용이 되는지 H2로 확인한다 (CHAT_009).
@@ -56,6 +57,8 @@ class ChatReadOnlyUpdateTest {
 	// 채팅방 열기에만 쓰는 의존성
 	@MockitoBean
 	private UserService userService;
+	@MockitoBean
+	private ImageProcessor imageProcessor;
 
 	private User landlord;
 	private User agent;

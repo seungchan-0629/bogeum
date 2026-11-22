@@ -34,6 +34,7 @@ import com.bogeum.domain.property.model.Property;
 import com.bogeum.domain.user.UserRepository;
 import com.bogeum.domain.user.UserService;
 import com.bogeum.domain.user.model.User;
+import com.bogeum.utils.ImageProcessor;
 
 /**
  * 방에 들어오면 내 읽음 위치가 마지막 메시지로 가고, 상대가 어디까지 읽었는지 대화 내역에 나오는지 H2로 확인한다 (CHAT_007).
@@ -64,6 +65,8 @@ class ChatReadUpdateTest {
 	// 채팅방 열기에만 쓰는 의존성
 	@MockitoBean
 	private UserService userService;
+	@MockitoBean
+	private ImageProcessor imageProcessor;
 
 	private User tenant;
 	private User agent;
