@@ -9,8 +9,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.bogeum.domain.chat.model.ChatDto;
 import com.bogeum.domain.user.model.UserDto.LoginUser;
@@ -38,6 +40,14 @@ public class ChatController {
 	public ChatDto.MessageItemResponse createMessage(@AuthenticationPrincipal LoginUser loginUser,
 			@PathVariable("chatRoomId") Long chatRoomId, @Valid @RequestBody ChatDto.MessageRequest request) {
 		return chatService.createMessage(loginUser.getUserId(), chatRoomId, request.getContent());
+	}
+
+	// 채팅방에 사진 한 장을 보낸다. 글 보내기와 같이 저장한 메시지(imageUrl 포함)를 돌려주고 방 구독자에게 바로 전달한다 (CHAT_004)
+	// 사진이 없거나 형식·용량을 벗어나면 INVALID_IMAGE, 저장소를 쓸 수 없으면 CHAT_STORAGE_UNAVAILABLE
+	@PostMapping(value = "/rooms/{chatRoomId}/images", consumes = "multipart/form-data")
+	public ChatDto.MessageItemResponse createImageMessage(@AuthenticationPrincipal LoginUser loginUser,
+			@PathVariable("chatRoomId") Long chatRoomId, @RequestPart(value = "image", required = false) MultipartFile image) {
+		return chatService.createImageMessage(loginUser.getUserId(), chatRoomId, image);
 	}
 
 	// 내가 참여한 채팅방 전부. 최근 대화 순이고 방마다 안 읽은 메시지 수를 준다 (CHAT_005, CHAT_007)

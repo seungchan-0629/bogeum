@@ -28,6 +28,7 @@ import com.bogeum.domain.property.model.Property;
 import com.bogeum.domain.user.UserRepository;
 import com.bogeum.domain.user.UserService;
 import com.bogeum.domain.user.model.User;
+import com.bogeum.utils.ImageProcessor;
 
 /**
  * 누른 사람과 매물의 관계에 따라 맞는 채팅방이 열리고, 같은 방은 하나만 생기는지 H2로 확인한다 (CHAT_002).
@@ -53,6 +54,8 @@ class ChatRoomCreateTest {
 	// 로그인한 사용자를 찾는 부분만 대신한다
 	@MockitoBean
 	private UserService userService;
+	@MockitoBean
+	private ImageProcessor imageProcessor;
 
 	private User landlord;
 	private User tenant;

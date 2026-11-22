@@ -1,10 +1,15 @@
 package com.bogeum.domain.chat;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -17,12 +22,14 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
@@ -30,9 +37,11 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.bogeum.common.enums.MessageType;
 import com.bogeum.common.enums.Role;
+import com.bogeum.common.exception.ImageException;
 import com.bogeum.domain.chat.model.ChatDto;
 import com.bogeum.domain.property.PropertyException;
 import com.bogeum.domain.user.model.User;
@@ -135,6 +144,38 @@ class ChatControllerTest {
 		}
 
 		verifyNoInteractions(chatService);
+	}
+
+	@Test
+	@DisplayName("사진을 보내면 image 파일로 받아 저장한 사진 메시지를 200으로 준다 (CHAT_004)")
+	void createsImageMessage() throws Exception {
+		var image = new MockMultipartFile("image", "defect.png", "image/png", new byte[] {9, 9});
+		when(chatService.createImageMessage(eq(2L), eq(126L), any())).thenReturn(ChatDto.MessageItemResponse.builder()
+			.chatMessageId(713L).senderId(2L).isMine(true).messageType(MessageType.IMAGE)
+			.imageUrl("https://s3.example.com/chat-images/126/a.jpg").build());
+
+		mockMvc.perform(multipart("/chat/rooms/126/images").file(image))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.messageType").value("IMAGE"))
+			.andExpect(jsonPath("$.imageUrl").value("https://s3.example.com/chat-images/126/a.jpg"));
+
+		var sent = ArgumentCaptor.forClass(MultipartFile.class);
+		verify(chatService).createImageMessage(eq(2L), eq(126L), sent.capture());
+		assertEquals("defect.png", sent.getValue().getOriginalFilename());
+	}
+
+	@Test
+	@DisplayName("사진이 없거나 잘못되면 400, 저장소를 쓸 수 없으면 503이다")
+	void mapsImageErrors() throws Exception {
+		when(chatService.createImageMessage(eq(2L), eq(126L), isNull())).thenThrow(ImageException.invalidImage());
+		when(chatService.createImageMessage(eq(2L), eq(127L), any())).thenThrow(ChatException.storageUnavailable());
+
+		mockMvc.perform(multipart("/chat/rooms/126/images"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("INVALID_IMAGE"));
+		mockMvc.perform(multipart("/chat/rooms/127/images").file(new MockMultipartFile("image", "a.png", "image/png", new byte[] {1})))
+			.andExpect(status().isServiceUnavailable())
+			.andExpect(jsonPath("$.code").value("CHAT_STORAGE_UNAVAILABLE"));
 	}
 
 	@Test

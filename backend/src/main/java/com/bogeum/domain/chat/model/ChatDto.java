@@ -105,7 +105,7 @@ public class ChatDto {
 		private String content;
 	}
 
-	/** 메시지 하나. 사진 주소는 이미지 전송(CHAT_004)을 만들 때 더한다 (CHAT_003, CHAT_006) */
+	/** 메시지 하나 (CHAT_003, CHAT_004, CHAT_006) */
 	@Getter
 	@Builder
 	public static class MessageItemResponse {
@@ -117,23 +117,26 @@ public class ChatDto {
 		private Boolean isMine;
 		private MessageType messageType;
 		private String content;
+		// 사진 메시지의 10분짜리 조회 주소. 글 메시지이거나 저장소가 없으면 비어 있다 (CHAT_004)
+		private String imageUrl;
 		private LocalDateTime createdAt;
 
-		public static MessageItemResponse of(ChatMessage message, Long userId) {
-			return builderOf(message).isMine(message.getSender().getUserId().equals(userId)).build();
+		public static MessageItemResponse of(ChatMessage message, Long userId, String imageUrl) {
+			return builderOf(message, imageUrl).isMine(message.getSender().getUserId().equals(userId)).build();
 		}
 
 		// 방 구독자 모두에게 같은 내용을 보낸다
-		public static MessageItemResponse forRoom(ChatMessage message) {
-			return builderOf(message).build();
+		public static MessageItemResponse forRoom(ChatMessage message, String imageUrl) {
+			return builderOf(message, imageUrl).build();
 		}
 
-		private static MessageItemResponseBuilder builderOf(ChatMessage message) {
+		private static MessageItemResponseBuilder builderOf(ChatMessage message, String imageUrl) {
 			return MessageItemResponse.builder()
 				.chatMessageId(message.getChatMessageId())
 				.senderId(message.getSender().getUserId())
 				.messageType(message.getMessageType())
 				.content(message.getContent())
+				.imageUrl(imageUrl)
 				.createdAt(message.getCreatedAt());
 		}
 	}

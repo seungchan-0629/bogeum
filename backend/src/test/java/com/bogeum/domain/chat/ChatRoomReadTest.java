@@ -39,6 +39,7 @@ import com.bogeum.domain.property.model.Property;
 import com.bogeum.domain.user.UserRepository;
 import com.bogeum.domain.user.UserService;
 import com.bogeum.domain.user.model.User;
+import com.bogeum.utils.ImageProcessor;
 
 /**
  * 채팅방 목록이 내 방만 최근 대화 순으로 나오고, 대화 내역이 30개씩 이어지는지 H2로 확인한다 (CHAT_005, CHAT_006, CHAT_007).
@@ -71,6 +72,8 @@ class ChatRoomReadTest {
 	// 채팅방 열기에만 쓰는 의존성
 	@MockitoBean
 	private UserService userService;
+	@MockitoBean
+	private ImageProcessor imageProcessor;
 
 	private User landlord;
 	private User tenant;

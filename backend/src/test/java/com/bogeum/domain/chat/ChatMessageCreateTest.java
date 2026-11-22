@@ -16,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.context.annotation.Import;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.event.ApplicationEvents;
 import org.springframework.test.context.event.RecordApplicationEvents;
@@ -34,6 +35,7 @@ import com.bogeum.domain.property.model.Property;
 import com.bogeum.domain.user.UserRepository;
 import com.bogeum.domain.user.UserService;
 import com.bogeum.domain.user.model.User;
+import com.bogeum.utils.ImageProcessor;
 
 /**
  * 메시지가 저장되고 방의 마지막 대화 시각이 바뀌며, 구독자에게 뿌릴 이벤트가 나가는지 H2로 확인한다 (CHAT_003).
@@ -65,6 +67,8 @@ class ChatMessageCreateTest {
 	// 채팅방 열기에만 쓰는 의존성
 	@MockitoBean
 	private UserService userService;
+	@MockitoBean
+	private ImageProcessor imageProcessor;
 
 	private User tenant;
 	private User agent;
@@ -121,6 +125,17 @@ class ChatMessageCreateTest {
 		}
 		assertEquals(0L, chatMessageRepository.count());
 		assertEquals(0L, applicationEvents.stream(ChatMessageCreatedEvent.class).count());
+	}
+
+	@Test
+	@DisplayName("사진 저장소가 없는 환경에서는 사진을 보낼 수 없고, 대화 내역의 사진 주소는 비어 있다 (CHAT_004)")
+	void rejectsImageWithoutStorage() {
+		var exception = assertThrows(ChatException.class, () -> chatService.createImageMessage(tenant.getUserId(),
+			chatRoom.getChatRoomId(), new MockMultipartFile("image", "defect.png", "image/png", new byte[] {9})));
+		chatMessageRepository.saveAndFlush(ChatMessage.createImage(chatRoom, tenant, "chat-images/1/a.jpg"));
+
+		assertEquals(ErrorCode.CHAT_STORAGE_UNAVAILABLE, exception.getErrorCode());
+		assertNull(chatService.readMessages(agent.getUserId(), chatRoom.getChatRoomId(), null).getMessages().get(0).getImageUrl());
 	}
 
 	@Test

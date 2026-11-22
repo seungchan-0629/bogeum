@@ -75,4 +75,14 @@ public class ChatMessage {
 			.content(content)
 			.build();
 	}
+
+	// 채팅방에서 보낸 사진 메시지. 사진은 저장소에 두고 키만 남긴다 (CHAT_004)
+	public static ChatMessage createImage(ChatRoom chatRoom, User sender, String imageFileKey) {
+		return ChatMessage.builder()
+			.chatRoom(chatRoom)
+			.sender(sender)
+			.messageType(MessageType.IMAGE)
+			.imageFileKey(imageFileKey)
+			.build();
+	}
 }
