@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import com.bogeum.common.enums.ChatBlockStatus;
 import com.bogeum.common.enums.ChatRoomType;
 import com.bogeum.common.enums.ChatStatus;
 import com.bogeum.common.enums.LeaseType;
@@ -57,6 +58,8 @@ public class ChatDto {
 		private ChatStatus chatStatus;
 		// 읽기 전용이면 매물이 삭제(DELETED)됐는지 계약(CONTRACTED)됐는지. 화면 안내 문구를 고른다
 		private PropertyStatus readOnlyReason;
+		// 상대와의 차단 상태. 차단이 있으면 두 사람 모두 보낼 수 없다 (CHAT_010)
+		private ChatBlockStatus blockStatus;
 		private String partnerName;
 		// 상대가 중개사일 때만 있다
 		private String partnerOfficeName;
