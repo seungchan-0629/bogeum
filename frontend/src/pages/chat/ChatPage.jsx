@@ -7,7 +7,7 @@
 // - 메시지 전송: POST /chat/rooms/{chatRoomId}/messages, 받기는 WebSocket /ws(STOMP) 구독 — 상대가 보고 있으면 바로 뜬다 (CHAT_003)
 // - 이미지 전송: POST /chat/rooms/{chatRoomId}/images — 고른 사진을 미리보기로 확인하고 한 장씩 보낸다 (CHAT_004)
 // - 읽음 처리: PATCH /chat/rooms/{chatRoomId}/read — 방을 열 때·보는 중 상대 메시지가 올 때·탭으로 돌아올 때 (CHAT_007)
-// - 차단: POST /api/v1/chat/blocks (BE-045) (CHAT_010)
+// - 차단·해제: POST·DELETE /chat/rooms/{chatRoomId}/block — 머리글 오른쪽 버튼 (CHAT_010)
 // - 임차인 위험 안내: GET /api/v1/chat/rooms/{roomId}/risk-notice (BE-046) (RISK_007, 임대인만)
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router'
@@ -16,9 +16,10 @@ import clsx from 'clsx'
 import Icon from '../../components/common/Icon.jsx'
 import PhotoPlaceholder from '../../components/common/PhotoPlaceholder.jsx'
 import StatusBadge from '../../components/common/StatusBadge.jsx'
+import ConfirmModal from '../../components/common/ConfirmModal.jsx'
 import { useAuthStore } from '../../stores/authStore.js'
 import { ROLES } from '../../constants/auth.js'
-import { createChatImage, createChatMessage, getChatMessages, getChatRooms, updateChatRead } from '../../api/chat/index.js'
+import { createChatBlock, createChatImage, createChatMessage, deleteChatBlock, getChatMessages, getChatRooms, updateChatRead } from '../../api/chat/index.js'
 import { useChatSocket } from '../../hooks/useChatSocket.js'
 import { formatLeasePrice, getPropertyTypeLabel } from '../../utils/format.js'
 
@@ -164,11 +165,12 @@ function ChatRoomList({ rooms, activeRoomId, isAgent }) {
           className={clsx('flex gap-3 px-5 py-3.5 hover:bg-slate-50', room.chatRoomId === activeRoomId && 'bg-blue-50')}
         >
           <PhotoPlaceholder label="" className="size-12 shrink-0" />
-          {/* 읽기 전용 방은 들어가기 전에도 닫힌 방인 걸 알 수 있게 글자를 연하게 하고, 닫힌 이유 배지는 또렷하게 붙인다 (CHAT_009) */}
+          {/* 읽기 전용 방은 들어가기 전에도 닫힌 방인 걸 알 수 있게 글자를 연하게 하고, 닫힌 이유 배지는 또렷하게 붙인다 (CHAT_009)
+              내가 차단한 상대는 이름을 빨간 글자로 보여 준다. 상대가 나를 차단한 건 드러내지 않는다 (CHAT_010) */}
           <div className="flex min-w-0 grow flex-col">
             <div className="flex justify-between gap-2">
               <span className="flex min-w-0 items-center gap-1.5 font-bold">
-                <span className={clsx('min-w-0', dimIfReadOnly(room))}><PartnerName room={room} isAgent={isAgent} /></span>
+                <span className={clsx('min-w-0', dimIfReadOnly(room), room.blockStatus === 'BLOCKED_BY_ME' && 'text-red-600')}><PartnerName room={room} isAgent={isAgent} /></span>
                 {room.chatStatus === 'READ_ONLY' && (
                   <StatusBadge tone={READ_ONLY_BADGES[room.readOnlyReason]?.tone}>{READ_ONLY_BADGES[room.readOnlyReason]?.label}</StatusBadge>
                 )}
@@ -195,7 +197,6 @@ function ChatRoomList({ rooms, activeRoomId, isAgent }) {
 function ChatRoom({ room, isAgent }) {
   const user = useAuthStore((state) => state.user)
   const queryClient = useQueryClient()
-  const [isMenuOpen, setIsMenuOpen] = useState(false)
   const isMineOf = (message) => message.senderId === user?.userId
   // 첫 쪽이 최근 30개이고, 다음 쪽으로 갈수록 오래된 대화다
   const history = useInfiniteQuery({
@@ -266,8 +267,8 @@ function ChatRoom({ room, isAgent }) {
     queryClient.setQueryData(messagesKeyOf(room.chatRoomId, user?.userId), (data) => appendMessage(data, message))
   const showSendError = (error) => {
     setSendError(error.response?.data?.message || '서버에 연결할 수 없습니다.')
-    // 보내는 사이 매물이 삭제·계약돼 읽기 전용이 됐으면 목록을 새로 받아 안내 문구로 바꾼다
-    if (error.response?.data?.code === 'CHAT_ROOM_READ_ONLY') queryClient.invalidateQueries({ queryKey: ['chat-rooms'] })
+    // 보내는 사이 매물이 삭제·계약돼 읽기 전용이 됐거나 차단됐으면 목록을 새로 받아 안내 문구로 바꾼다
+    if (['CHAT_ROOM_READ_ONLY', 'CHAT_BLOCKED'].includes(error.response?.data?.code)) queryClient.invalidateQueries({ queryKey: ['chat-rooms'] })
   }
   const handleSend = async (event) => {
     event.preventDefault()
@@ -338,10 +339,27 @@ function ChatRoom({ room, isAgent }) {
 
   const isReadOnly = room.chatStatus === 'READ_ONLY'
 
-  // TODO: POST /api/v1/chat/blocks (BE-045, 요청: { roomId 또는 상대 userId }) — 요청 필드는 백엔드와 협의 필요
-  const handleBlock = () => {
-    setIsMenuOpen(false)
+  // CHAT_010: 차단·해제한 뒤 목록을 새로 받아 입력창 자리와 목록의 이름 색을 바로 바꾼다. 상대 화면은 서버 알림으로 바뀐다
+  const [isBlockConfirmOpen, setIsBlockConfirmOpen] = useState(false)
+  const [isBlockPending, setIsBlockPending] = useState(false)
+  const changeBlock = async (request) => {
+    if (isBlockPending) return
+    setIsBlockPending(true)
+    try {
+      await request(room.chatRoomId)
+      await queryClient.invalidateQueries({ queryKey: ['chat-rooms'] })
+    } catch (error) {
+      window.alert(error.response?.data?.message || '서버에 연결할 수 없습니다.')
+    } finally {
+      setIsBlockPending(false)
+    }
   }
+  const handleBlock = () => {
+    setIsBlockConfirmOpen(false)
+    changeBlock(createChatBlock)
+  }
+  // 풀기는 되돌리는 동작이라 확인 없이 바로 푼다
+  const handleUnblock = () => changeBlock(deleteChatBlock)
 
   return (
     // CHAT_009: 읽기 전용이면 대화 칸을 연한 회색으로 바꿔 닫힌 방인 걸 한눈에 보이게 한다. 열어 둔 채 바뀌면 색이 천천히 바뀐다
@@ -354,23 +372,32 @@ function ChatRoom({ room, isAgent }) {
             <Icon name="back" />
           </Link>
           <div className="flex min-w-0 flex-col">
-            {/* CHAT_010: 상대 이름을 누르면 차단 버튼이 나온다 */}
-            <div className="relative">
-              <button type="button" onClick={() => setIsMenuOpen((prev) => !prev)} aria-expanded={isMenuOpen} className="max-w-full font-bold hover:underline">
-                <PartnerName room={room} isAgent={isAgent} />
-              </button>
-              {isMenuOpen && (
-                <div className="absolute top-8 left-0 z-10 rounded-xl border border-gray-200 bg-white p-1.5 shadow-lg">
-                  <button type="button" onClick={handleBlock} className="rounded-lg px-4 py-2 text-sm whitespace-nowrap text-red-700 hover:bg-red-50">
-                    이 사용자 차단하기
-                  </button>
-                </div>
-              )}
-            </div>
+            <span className="min-w-0 font-bold"><PartnerName room={room} isAgent={isAgent} /></span>
             <span className="truncate text-sm text-gray-500">{propertyTitleOf(room)}</span>
           </div>
         </div>
+        {/* CHAT_010: 요구사항의 "이름을 누르면 차단 버튼"을 한눈에 보이도록 머리글 오른쪽 버튼으로 둔다
+            상대가 나를 차단했어도 나도 차단할 수 있다. 내가 차단했으면 [차단 해제] */}
+        {room.blockStatus === 'BLOCKED_BY_ME' ? (
+          <button type="button" onClick={handleUnblock} disabled={isBlockPending} className="btn-secondary btn-sm shrink-0 disabled:cursor-wait">
+            차단 해제
+          </button>
+        ) : (
+          <button type="button" onClick={() => setIsBlockConfirmOpen(true)} disabled={isBlockPending}
+            className="inline-flex h-9 shrink-0 items-center rounded-lg bg-red-600 px-3 text-sm font-bold whitespace-nowrap text-white hover:bg-red-700 disabled:cursor-wait disabled:opacity-60">
+            차단
+          </button>
+        )}
       </header>
+      {isBlockConfirmOpen && (
+        <ConfirmModal
+          title={`${partnerNameOf(room)}님을 차단할까요?`}
+          description="차단하면 서로 메시지와 사진을 보낼 수 없어요. 이전 대화는 그대로 남고, 언제든 풀 수 있어요."
+          confirmLabel="차단"
+          onConfirm={handleBlock}
+          onClose={() => setIsBlockConfirmOpen(false)}
+        />
+      )}
 
       {/* RISK_007: 해당 매물 등록자(임대인)에게만 보이고 사유 상세·연체 금액은 보여주지 않는다
           참고: CHAT_002 기준으로 임대인은 중개사와만 채팅하므로 이 안내가 뜨는 경우가 있는지 팀 확인 필요 */}
@@ -440,6 +467,15 @@ function ChatRoom({ room, isAgent }) {
       {isReadOnly ? (
         // CHAT_009: 읽기 전용이면 입력창 대신 안내 문구. 이전 대화는 그대로 볼 수 있다
         <p className="border-t border-gray-300 bg-gray-200 px-5 py-4 text-center font-medium text-gray-600">{READ_ONLY_MESSAGES[room.readOnlyReason]}</p>
+      ) : room.blockStatus === 'BLOCKED_BY_ME' ? (
+        // CHAT_010: 내가 차단했으면 여기서도 바로 풀 수 있게 한다
+        <div className="flex items-center justify-center gap-3 border-t border-gray-200 bg-white px-5 py-3.5 text-gray-600">
+          차단한 사용자예요.
+          <button type="button" onClick={handleUnblock} disabled={isBlockPending} className="btn-secondary btn-sm disabled:cursor-wait">차단 해제</button>
+        </div>
+      ) : room.blockStatus === 'BLOCKED_ME' ? (
+        // 차단당한 사실을 직접 알리지 않는다
+        <p className="border-t border-gray-200 bg-white px-5 py-4 text-center text-gray-600">지금은 메시지를 보낼 수 없어요.</p>
       ) : (
         <form onSubmit={handleSend} className="flex flex-col gap-1.5 border-t border-gray-200 bg-white px-4 py-3">
           {imagePreview && (

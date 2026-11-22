@@ -28,6 +28,16 @@ export async function createChatImage(chatRoomId, file) {
   return data
 }
 
+// CHAT_010 채팅방의 상대를 차단한다 (204). 두 사람이 함께 있는 모든 방에서 서로 보낼 수 없게 된다. 이미 차단했어도 204
+export async function createChatBlock(chatRoomId) {
+  await api.post(`/chat/rooms/${chatRoomId}/block`, null, CHAT_CONFIG)
+}
+
+// CHAT_010 내가 건 차단을 푼다 (204). 상대가 나를 차단한 것은 풀 수 없다
+export async function deleteChatBlock(chatRoomId) {
+  await api.delete(`/chat/rooms/${chatRoomId}/block`, CHAT_CONFIG)
+}
+
 // CHAT_007 방의 마지막 메시지까지 읽었다고 남긴다 (204). 상대 화면의 "1"과 내 목록의 안 읽은 수가 바로 바뀐다
 // 참여하지 않은 방이면 404(CHAT_ROOM_NOT_FOUND)
 export async function updateChatRead(chatRoomId) {
