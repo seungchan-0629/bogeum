@@ -43,6 +43,12 @@ public class ChatMessagePublisher {
 		event.rooms().forEach(room -> room.participantIds().forEach(userId -> publishRoomUpdated(userId, room.chatRoomId())));
 	}
 
+	// 두 사람의 화면이 목록을 다시 불러와 입력창 자리에 차단 안내가 생기거나 사라진다
+	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+	public void publish(ChatBlockChangedEvent event) {
+		event.userIds().forEach(userId -> publishRoomUpdated(userId, event.chatRoomId()));
+	}
+
 	private void publishRoomUpdated(Long userId, Long chatRoomId) {
 		messagingTemplate.convertAndSendToUser(String.valueOf(userId), "/queue/chat-rooms", new ChatDto.RoomResponse(chatRoomId));
 	}
