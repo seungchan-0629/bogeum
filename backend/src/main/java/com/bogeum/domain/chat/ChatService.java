@@ -3,6 +3,7 @@ package com.bogeum.domain.chat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -21,6 +22,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.bogeum.common.enums.ChatBlockStatus;
 import com.bogeum.common.enums.ChatRoomType;
 import com.bogeum.common.enums.ChatStatus;
 import com.bogeum.common.enums.MessageType;
@@ -29,6 +31,7 @@ import com.bogeum.common.enums.Role;
 import com.bogeum.common.exception.ImageException;
 import com.bogeum.domain.agent.AgentRepository;
 import com.bogeum.domain.agent.model.Agent;
+import com.bogeum.domain.chat.model.ChatBlock;
 import com.bogeum.domain.chat.model.ChatDto;
 import com.bogeum.domain.chat.model.ChatMessage;
 import com.bogeum.domain.chat.model.ChatRoom;
@@ -64,6 +67,7 @@ public class ChatService {
 	private final ApplicationEventPublisher eventPublisher;
 	private final ObjectProvider<ChatImageStorage> storageProvider;
 	private final ImageProcessor imageProcessor;
+	private final ChatBlockRepository chatBlockRepository;
 
 	/**
 	 * 매물로 대화할 채팅방을 열고 번호를 준다. 이미 있으면 기존 방이다 (CHAT_002).
@@ -139,8 +143,24 @@ public class ChatService {
 	}
 
 	/**
+	 * 채팅방에서 상대를 차단한다. 이미 차단했으면 그대로 끝낸다 (CHAT_010).
+	 * 차단은 사람 단위라 두 사람이 함께 있는 모든 방에서 서로 보낼 수 없다. 이전 대화는 그대로 볼 수 있다.
+	 * 두 사람의 화면이 바로 바뀌도록 알린다
+	 */
+	@Transactional
+	public void createBlock(Long userId, Long chatRoomId) {
+		ChatRoom chatRoom = findParticipantRoom(chatRoomId, userId);
+		User partner = partnerOf(chatRoom, userId);
+		if (chatBlockRepository.findByBlocker_UserIdAndBlocked_UserId(userId, partner.getUserId()).isPresent()) {
+			return;
+		}
+		chatBlockRepository.save(ChatBlock.create(senderOf(chatRoom, userId), partner));
+		eventPublisher.publishEvent(new ChatBlockChangedEvent(chatRoomId, List.of(userId, partner.getUserId())));
+	}
+
+	/**
 	 * 내가 참여한 채팅방 전부를 최근 대화 순으로 준다 (CHAT_005).
-	 * 방마다 마지막 메시지와 안 읽은 메시지 수(CHAT_007)를 붙인다. 방 수와 상관없이 쿼리 네 번으로 끝낸다
+	 * 방마다 마지막 메시지와 안 읽은 메시지 수(CHAT_007), 차단 상태(CHAT_010)를 붙인다. 방 수와 상관없이 쿼리 다섯 번으로 끝낸다
 	 */
 	@Transactional(readOnly = true)
 	public ChatDto.RoomListResponse readRooms(Long userId) {
@@ -154,10 +174,11 @@ public class ChatService {
 		Map<Long, Long> unreadCounts = chatMessageRepository.countUnreadMessages(chatRoomIds, userId).stream()
 			.collect(Collectors.toMap(ChatRoomUnreadCount::getChatRoomId, ChatRoomUnreadCount::getUnreadCount));
 		Map<Long, String> officeNames = readOfficeNames(chatRooms, userId);
+		Map<Long, ChatBlockStatus> blockStatuses = readBlockStatuses(userId);
 		List<ChatDto.RoomItemResponse> rooms = chatRooms.stream()
 			.sorted(RECENT_ROOM_FIRST)
 			.map(chatRoom -> toRoomItem(chatRoom, userId, lastMessages.get(chatRoom.getChatRoomId()),
-				unreadCounts.getOrDefault(chatRoom.getChatRoomId(), 0L), officeNames))
+				unreadCounts.getOrDefault(chatRoom.getChatRoomId(), 0L), officeNames, blockStatuses))
 			.toList();
 		return new ChatDto.RoomListResponse(rooms);
 	}
@@ -218,6 +239,20 @@ public class ChatService {
 			.toList());
 	}
 
+	/**
+	 * 채팅방에서 내가 상대를 차단했던 것을 푼다. 차단한 적이 없어도 그대로 끝낸다 (CHAT_010).
+	 * 상대가 나를 차단한 것은 풀 수 없다. 두 사람의 화면이 바로 바뀌도록 알린다
+	 */
+	@Transactional
+	public void deleteBlock(Long userId, Long chatRoomId) {
+		ChatRoom chatRoom = findParticipantRoom(chatRoomId, userId);
+		Long partnerUserId = partnerOf(chatRoom, userId).getUserId();
+		chatBlockRepository.findByBlocker_UserIdAndBlocked_UserId(userId, partnerUserId).ifPresent(chatBlock -> {
+			chatBlockRepository.delete(chatBlock);
+			eventPublisher.publishEvent(new ChatBlockChangedEvent(chatRoomId, List.of(userId, partnerUserId)));
+		});
+	}
+
 	private ChatRoom openAgentRoom(Long agentUserId, Long propertyId) {
 		Property property = propertyRepository.findByPropertyIdAndAgent_UserId(propertyId, agentUserId)
 			.filter(found -> found.getPropertyStatus() != PropertyStatus.DELETED)
@@ -268,15 +303,27 @@ public class ChatService {
 			.collect(Collectors.toMap(agent -> agent.getUser().getUserId(), Agent::getOfficeName));
 	}
 
+	// 상대 번호별 차단 상태. 서로 차단했으면 내가 풀 수 있게 내가 차단한 쪽으로 보여 준다
+	private Map<Long, ChatBlockStatus> readBlockStatuses(Long userId) {
+		List<ChatBlock> chatBlocks = chatBlockRepository.findAllByBlocker_UserIdOrBlocked_UserId(userId, userId);
+		Map<Long, ChatBlockStatus> blockStatuses = new HashMap<>();
+		chatBlocks.stream().filter(chatBlock -> chatBlock.getBlocked().getUserId().equals(userId))
+			.forEach(chatBlock -> blockStatuses.put(chatBlock.getBlocker().getUserId(), ChatBlockStatus.BLOCKED_ME));
+		chatBlocks.stream().filter(chatBlock -> chatBlock.getBlocker().getUserId().equals(userId))
+			.forEach(chatBlock -> blockStatuses.put(chatBlock.getBlocked().getUserId(), ChatBlockStatus.BLOCKED_BY_ME));
+		return blockStatuses;
+	}
+
 	private ChatDto.RoomItemResponse toRoomItem(ChatRoom chatRoom, Long userId, ChatMessage lastMessage, Long unreadCount,
-			Map<Long, String> officeNames) {
-		User partner = chatRoom.getAgent().getUserId().equals(userId) ? chatRoom.getInquirer() : chatRoom.getAgent();
+			Map<Long, String> officeNames, Map<Long, ChatBlockStatus> blockStatuses) {
+		User partner = partnerOf(chatRoom, userId);
 		Property property = chatRoom.getProperty();
 		return ChatDto.RoomItemResponse.builder()
 			.chatRoomId(chatRoom.getChatRoomId())
 			.roomType(chatRoom.getRoomType())
 			.chatStatus(chatRoom.getChatStatus())
 			.readOnlyReason(chatRoom.getChatStatus() == ChatStatus.READ_ONLY ? property.getPropertyStatus() : null)
+			.blockStatus(blockStatuses.getOrDefault(partner.getUserId(), ChatBlockStatus.NONE))
 			.partnerName(partner.getName())
 			.partnerOfficeName(officeNames.get(partner.getUserId()))
 			.propertyId(property.getPropertyId())
@@ -316,7 +363,15 @@ public class ChatService {
 		if (chatRoom.getChatStatus() == ChatStatus.READ_ONLY) {
 			throw ChatException.chatRoomReadOnly();
 		}
+		// 누가 누구를 차단했든 두 사람 모두 보낼 수 없다 (CHAT_010)
+		if (chatBlockRepository.existsBetween(userId, partnerOf(chatRoom, userId).getUserId())) {
+			throw ChatException.blocked();
+		}
 		return chatRoom;
+	}
+
+	private User partnerOf(ChatRoom chatRoom, Long userId) {
+		return chatRoom.getAgent().getUserId().equals(userId) ? chatRoom.getInquirer() : chatRoom.getAgent();
 	}
 
 	private User senderOf(ChatRoom chatRoom, Long userId) {
