@@ -64,7 +64,8 @@ function MyPropertyListPage() {
   const { openChatRoom, isOpening, errorOf } = useOpenChatRoom()
 
   // 확인 창을 먼저 닫아 [삭제]를 두 번 눌러 같은 매물을 또 지우지 않게 한다 (PROPERTY_007)
-  // TODO: 관련 채팅방 읽기 전용(CHAT_009)·관심 등록자 알림(NOTIFY_020)이 생기면 확인 창 문구에 더한다
+  // 삭제하면 그 매물의 채팅방이 읽기 전용이 되는 것(CHAT_009)을 확인 창 문구로 미리 알린다
+  // TODO: 관심 등록자 알림(NOTIFY_020)이 생기면 확인 창 문구에 더한다
   const handleDelete = async () => {
     const { propertyId } = deleteTarget
     setDeleteTarget(null)
@@ -164,7 +165,7 @@ function MyPropertyListPage() {
       {deleteTarget && (
         <ConfirmModal
           title="이 매물을 삭제할까요?"
-          description={`${addressOf(deleteTarget)} — 삭제하면 매물 목록과 담당 중개사의 진행 목록에서 빠지고, 되돌릴 수 없어요.`}
+          description={`${addressOf(deleteTarget)} — 삭제하면 매물 목록과 담당 중개사의 진행 목록에서 빠지고, 이 매물의 채팅방은 읽기 전용이 돼요. 되돌릴 수 없어요.`}
           confirmLabel="삭제"
           onConfirm={handleDelete}
           onClose={() => setDeleteTarget(null)}

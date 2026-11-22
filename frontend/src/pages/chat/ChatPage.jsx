@@ -59,6 +59,15 @@ const formatMessageDate = (dateTime) =>
 
 const isSameDay = (left, right) => new Date(left).toDateString() === new Date(right).toDateString()
 
+// CHAT_009 채팅 목록에서 왜 닫힌 방인지 보여 주는 배지. 빨강은 실패·연체에만 쓰므로 삭제는 주황으로 둔다
+const READ_ONLY_BADGES = {
+  CONTRACTED: { label: '계약 완료', tone: 'green' },
+  DELETED: { label: '매물 삭제', tone: 'amber' },
+}
+
+// 읽기 전용 방의 목록 글자를 연하게 한다 (배지는 빼고)
+const dimIfReadOnly = (room) => room.chatStatus === 'READ_ONLY' && 'opacity-60'
+
 // CHAT_009 안내 문구 (요구사항 그대로)
 const READ_ONLY_MESSAGES = {
   DELETED: '해당 매물은 삭제 되었습니다',
@@ -129,13 +138,19 @@ function ChatRoomList({ rooms, activeRoomId, isAgent }) {
           className={clsx('flex gap-3 px-5 py-3.5 hover:bg-slate-50', room.chatRoomId === activeRoomId && 'bg-blue-50')}
         >
           <PhotoPlaceholder label="" className="size-12 shrink-0" />
+          {/* 읽기 전용 방은 들어가기 전에도 닫힌 방인 걸 알 수 있게 글자를 연하게 하고, 닫힌 이유 배지는 또렷하게 붙인다 (CHAT_009) */}
           <div className="flex min-w-0 grow flex-col">
             <div className="flex justify-between gap-2">
-              <span className="min-w-0 font-bold"><PartnerName room={room} isAgent={isAgent} /></span>
-              <span className="shrink-0 text-xs text-gray-500">{formatChatTime(room.lastMessageAt)}</span>
+              <span className="flex min-w-0 items-center gap-1.5 font-bold">
+                <span className={clsx('min-w-0', dimIfReadOnly(room))}><PartnerName room={room} isAgent={isAgent} /></span>
+                {room.chatStatus === 'READ_ONLY' && (
+                  <StatusBadge tone={READ_ONLY_BADGES[room.readOnlyReason]?.tone}>{READ_ONLY_BADGES[room.readOnlyReason]?.label}</StatusBadge>
+                )}
+              </span>
+              <span className={clsx('shrink-0 text-xs text-gray-500', dimIfReadOnly(room))}>{formatChatTime(room.lastMessageAt)}</span>
             </div>
-            <span className="truncate text-xs text-gray-500">{propertyTitleOf(room)}</span>
-            <div className="flex items-center justify-between gap-2">
+            <span className={clsx('truncate text-xs text-gray-500', dimIfReadOnly(room))}>{propertyTitleOf(room)}</span>
+            <div className={clsx('flex items-center justify-between gap-2', dimIfReadOnly(room))}>
               <span className="truncate text-sm text-gray-700">{room.lastMessage ?? '아직 대화가 없어요.'}</span>
               {room.unreadCount > 0 && (
                 <span className="min-w-5 rounded-full bg-red-600 px-1.5 text-center text-xs leading-5 font-bold text-white">
@@ -252,13 +267,18 @@ function ChatRoom({ room, isAgent }) {
     return () => observer.disconnect()
   }, [hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage])
 
+  const isReadOnly = room.chatStatus === 'READ_ONLY'
+
   // TODO: POST /api/v1/chat/blocks (BE-045, 요청: { roomId 또는 상대 userId }) — 요청 필드는 백엔드와 협의 필요
   const handleBlock = () => {
     setIsMenuOpen(false)
   }
 
   return (
-    <section aria-label={`${partnerNameOf(room)} 채팅방`} className="flex h-[min(720px,calc(100dvh-10rem))] min-h-[480px] min-w-0 grow flex-col bg-slate-50">
+    // CHAT_009: 읽기 전용이면 대화 칸을 연한 회색으로 바꿔 닫힌 방인 걸 한눈에 보이게 한다. 열어 둔 채 바뀌면 색이 천천히 바뀐다
+    <section aria-label={`${partnerNameOf(room)} 채팅방`}
+      className={clsx('flex h-[min(720px,calc(100dvh-10rem))] min-h-[480px] min-w-0 grow flex-col transition-colors duration-300',
+        isReadOnly ? 'bg-gray-100' : 'bg-slate-50')}>
       <header className="flex items-center justify-between gap-3 border-b border-gray-200 bg-white px-5 py-3">
         <div className="flex min-w-0 items-center gap-3">
           <Link to="/chats" className="md:hidden" aria-label="채팅방 목록으로">
@@ -308,7 +328,8 @@ function ChatRoom({ room, isAgent }) {
               </div>
             )}
             {!hasNextPage && <p className="pb-3 text-center text-xs text-gray-400">대화의 처음이에요.</p>}
-            <ol className="flex flex-col gap-2.5">
+            {/* 읽기 전용이면 이전 대화를 조금 흐리게 둔다. 글자는 그대로 읽을 수 있을 만큼만 */}
+            <ol className={clsx('flex flex-col gap-2.5 transition-opacity duration-300', isReadOnly && 'opacity-70')}>
               {messages.map((message, index) => (
                 <Fragment key={message.chatMessageId}>
                   {/* 바로 앞 메시지와 날짜가 다르면 그 위에 날짜 구분선을 둔다. 맨 위 메시지에도 둔다 */}
@@ -346,9 +367,9 @@ function ChatRoom({ room, isAgent }) {
         </div>
       )}
 
-      {room.chatStatus === 'READ_ONLY' ? (
+      {isReadOnly ? (
         // CHAT_009: 읽기 전용이면 입력창 대신 안내 문구. 이전 대화는 그대로 볼 수 있다
-        <p className="border-t border-gray-200 bg-white px-5 py-4 text-center text-gray-600">{READ_ONLY_MESSAGES[room.readOnlyReason]}</p>
+        <p className="border-t border-gray-300 bg-gray-200 px-5 py-4 text-center font-medium text-gray-600">{READ_ONLY_MESSAGES[room.readOnlyReason]}</p>
       ) : (
         <form onSubmit={handleSend} className="flex flex-col gap-1.5 border-t border-gray-200 bg-white px-4 py-3">
           {/* 입력칸이 여러 줄로 커져도 사진 버튼과 [보내기]는 아래쪽에 붙는다 */}
