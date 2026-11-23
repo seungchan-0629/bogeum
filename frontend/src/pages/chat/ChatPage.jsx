@@ -8,6 +8,7 @@
 // - 이미지 전송: POST /chat/rooms/{chatRoomId}/images — 고른 사진을 미리보기로 확인하고 한 장씩 보낸다 (CHAT_004)
 // - 읽음 처리: PATCH /chat/rooms/{chatRoomId}/read — 방을 열 때·보는 중 상대 메시지가 올 때·탭으로 돌아올 때 (CHAT_007)
 // - 차단·해제: POST·DELETE /chat/rooms/{chatRoomId}/block — 머리글 오른쪽 버튼 (CHAT_010)
+// - 신고: POST /chat/rooms/{chatRoomId}/report — 차단 옆 버튼, 사유를 골라 관리자에게 보낸다 (CHAT_011)
 // - 임차인 위험 안내: GET /api/v1/chat/rooms/{roomId}/risk-notice (BE-046) (RISK_007, 임대인만)
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router'
@@ -17,9 +18,10 @@ import Icon from '../../components/common/Icon.jsx'
 import PhotoPlaceholder from '../../components/common/PhotoPlaceholder.jsx'
 import StatusBadge from '../../components/common/StatusBadge.jsx'
 import ConfirmModal from '../../components/common/ConfirmModal.jsx'
+import { SelectInput, TextArea } from '../../components/common/FormControls.jsx'
 import { useAuthStore } from '../../stores/authStore.js'
 import { ROLES } from '../../constants/auth.js'
-import { createChatBlock, createChatImage, createChatMessage, deleteChatBlock, getChatMessages, getChatRooms, updateChatRead } from '../../api/chat/index.js'
+import { createChatBlock, createChatImage, createChatMessage, createChatReport, deleteChatBlock, getChatMessages, getChatRooms, updateChatRead } from '../../api/chat/index.js'
 import { useChatSocket } from '../../hooks/useChatSocket.js'
 import { formatLeasePrice, getPropertyTypeLabel } from '../../utils/format.js'
 
@@ -28,6 +30,17 @@ const MESSAGE_MAX_LENGTH = 2000
 // 서버의 공통 사진 검사와 같은 기준 (CHAT_004)
 const IMAGE_TYPES = ['image/jpeg', 'image/png']
 const IMAGE_MAX_BYTES = 20 * 1024 * 1024
+// 서버가 받는 신고 사유와 내용 최대 길이 (CHAT_011). 기타는 내용이 있어야 한다
+const REPORT_REASON_OPTIONS = [
+  { value: '', label: '사유를 골라 주세요' },
+  { value: 'FALSE_LISTING', label: '허위 매물' },
+  { value: 'RISKY_PROPERTY', label: '위험 매물' },
+  { value: 'RISK_INFO', label: '위험 정보' },
+  { value: 'ABUSIVE', label: '욕설·비매너' },
+  { value: 'FRAUD', label: '사기 의심' },
+  { value: 'ETC', label: '기타' },
+]
+const REPORT_CONTENT_MAX_LENGTH = 1000
 // 맨 아래에서 이만큼 안이면 새 메시지가 올 때 따라 내려간다
 const NEAR_BOTTOM_PX = 80
 
@@ -361,6 +374,28 @@ function ChatRoom({ room, isAgent }) {
   // 풀기는 되돌리는 동작이라 확인 없이 바로 푼다
   const handleUnblock = () => changeBlock(deleteChatBlock)
 
+  // CHAT_011: 신고는 차단과 따로 한다. 읽기 전용·차단된 방도 신고할 수 있다
+  const [report, setReport] = useState(null)
+  const [isReportPending, setIsReportPending] = useState(false)
+  const openReport = () => setReport({ reasonType: '', content: '', error: null })
+  const handleReport = async () => {
+    if (isReportPending) return
+    const content = report.content.trim()
+    if (!report.reasonType) return setReport({ ...report, error: '신고 사유를 골라 주세요.' })
+    if (report.reasonType === 'ETC' && !content) return setReport({ ...report, error: '기타를 골랐으면 내용을 적어 주세요.' })
+    setIsReportPending(true)
+    try {
+      await createChatReport(room.chatRoomId, report.reasonType, content || null)
+      setReport(null)
+      window.alert('신고가 접수됐어요. 관리자가 확인할게요.')
+    } catch (error) {
+      setReport(null)
+      window.alert(error.response?.data?.message || '서버에 연결할 수 없습니다.')
+    } finally {
+      setIsReportPending(false)
+    }
+  }
+
   return (
     // CHAT_009: 읽기 전용이면 대화 칸을 연한 회색으로 바꿔 닫힌 방인 걸 한눈에 보이게 한다. 열어 둔 채 바뀌면 색이 천천히 바뀐다
     <section aria-label={`${partnerNameOf(room)} 채팅방`}
@@ -376,19 +411,47 @@ function ChatRoom({ room, isAgent }) {
             <span className="truncate text-sm text-gray-500">{propertyTitleOf(room)}</span>
           </div>
         </div>
-        {/* CHAT_010: 요구사항의 "이름을 누르면 차단 버튼"을 한눈에 보이도록 머리글 오른쪽 버튼으로 둔다
-            상대가 나를 차단했어도 나도 차단할 수 있다. 내가 차단했으면 [차단 해제] */}
-        {room.blockStatus === 'BLOCKED_BY_ME' ? (
-          <button type="button" onClick={handleUnblock} disabled={isBlockPending} className="btn-secondary btn-sm shrink-0 disabled:cursor-wait">
-            차단 해제
+        <div className="flex shrink-0 items-center gap-2">
+          {/* CHAT_011: 차단과 같은 빨간 계열이지만 바탕을 비워 다른 버튼으로 보이게 한다 */}
+          <button type="button" onClick={openReport} disabled={isReportPending}
+            className="inline-flex h-9 shrink-0 items-center rounded-lg border border-red-600 bg-white px-3 text-sm font-bold whitespace-nowrap text-red-600 hover:bg-red-50 disabled:cursor-wait disabled:opacity-60">
+            신고
           </button>
-        ) : (
-          <button type="button" onClick={() => setIsBlockConfirmOpen(true)} disabled={isBlockPending}
-            className="inline-flex h-9 shrink-0 items-center rounded-lg bg-red-600 px-3 text-sm font-bold whitespace-nowrap text-white hover:bg-red-700 disabled:cursor-wait disabled:opacity-60">
-            차단
-          </button>
-        )}
+          {/* CHAT_010: 요구사항의 "이름을 누르면 차단 버튼"을 한눈에 보이도록 머리글 오른쪽 버튼으로 둔다
+              상대가 나를 차단했어도 나도 차단할 수 있다. 내가 차단했으면 [차단 해제] */}
+          {room.blockStatus === 'BLOCKED_BY_ME' ? (
+            <button type="button" onClick={handleUnblock} disabled={isBlockPending} className="btn-secondary btn-sm shrink-0 disabled:cursor-wait">
+              차단 해제
+            </button>
+          ) : (
+            <button type="button" onClick={() => setIsBlockConfirmOpen(true)} disabled={isBlockPending}
+              className="inline-flex h-9 shrink-0 items-center rounded-lg bg-red-600 px-3 text-sm font-bold whitespace-nowrap text-white hover:bg-red-700 disabled:cursor-wait disabled:opacity-60">
+              차단
+            </button>
+          )}
+        </div>
       </header>
+      {report && (
+        <ConfirmModal
+          title={`${partnerNameOf(room)}님을 신고할까요?`}
+          description="신고 내용은 관리자에게만 전달되고 상대에게는 알리지 않아요."
+          confirmLabel="신고"
+          onConfirm={handleReport}
+          onClose={() => setReport(null)}
+        >
+          <div className="flex flex-col gap-2">
+            <SelectInput aria-label="신고 사유" options={REPORT_REASON_OPTIONS} value={report.reasonType}
+              onChange={(event) => setReport({ ...report, reasonType: event.target.value, error: null })} />
+            <TextArea aria-label="신고 내용" maxLength={REPORT_CONTENT_MAX_LENGTH} value={report.content}
+              placeholder={report.reasonType === 'ETC' ? '자세한 내용 (필수)' : '자세한 내용 (선택)'}
+              onChange={(event) => setReport({ ...report, content: event.target.value, error: null })} />
+            <div className="flex justify-between gap-2 text-sm">
+              <span className="text-red-600">{report.error}</span>
+              <span className="shrink-0 text-gray-400">{report.content.length}/{REPORT_CONTENT_MAX_LENGTH}</span>
+            </div>
+          </div>
+        </ConfirmModal>
+      )}
       {isBlockConfirmOpen && (
         <ConfirmModal
           title={`${partnerNameOf(room)}님을 차단할까요?`}
