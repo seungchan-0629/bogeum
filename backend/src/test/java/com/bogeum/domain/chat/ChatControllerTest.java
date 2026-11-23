@@ -40,6 +40,7 @@ import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.bogeum.common.enums.ChatReportReason;
 import com.bogeum.common.enums.MessageType;
 import com.bogeum.common.enums.Role;
 import com.bogeum.common.exception.ImageException;
@@ -280,5 +281,45 @@ class ChatControllerTest {
 				.content("{\"content\":\"안녕하세요\"}"))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.code").value("CHAT_BLOCKED"));
+	}
+
+	@Test
+	@DisplayName("신고는 로그인한 사용자·방 번호·사유·내용으로 하고 본문 없이 204다 (CHAT_011)")
+	void createsReport() throws Exception {
+		mockMvc.perform(post("/chat/rooms/126/report").contentType(MediaType.APPLICATION_JSON)
+				.content("{\"reasonType\":\"ABUSIVE\",\"content\":\"욕설을 했어요\"}"))
+			.andExpect(status().isNoContent())
+			.andExpect(content().string(""));
+
+		verify(chatService).createReport(2L, 126L, ChatReportReason.ABUSIVE, "욕설을 했어요");
+	}
+
+	@Test
+	@DisplayName("사유가 없거나 모르는 사유, 1,000자를 넘는 내용은 400이고 서비스를 부르지 않는다")
+	void rejectsInvalidReport() throws Exception {
+		for (String body : new String[] {"{}", "{\"reasonType\":\"UNKNOWN\"}",
+				"{\"reasonType\":\"ETC\",\"content\":\"" + "가".repeat(1001) + "\"}"}) {
+			mockMvc.perform(post("/chat/rooms/126/report").contentType(MediaType.APPLICATION_JSON).content(body))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+		}
+
+		verifyNoInteractions(chatService);
+	}
+
+	@Test
+	@DisplayName("기타 사유에 내용이 없으면 400, 같은 방을 다시 신고하면 409다")
+	void mapsReportErrors() throws Exception {
+		doThrow(ChatException.reportContentRequired()).when(chatService).createReport(2L, 126L, ChatReportReason.ETC, null);
+		doThrow(ChatException.alreadyReported()).when(chatService).createReport(2L, 127L, ChatReportReason.FRAUD, null);
+
+		mockMvc.perform(post("/chat/rooms/126/report").contentType(MediaType.APPLICATION_JSON)
+				.content("{\"reasonType\":\"ETC\"}"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("CHAT_REPORT_CONTENT_REQUIRED"));
+		mockMvc.perform(post("/chat/rooms/127/report").contentType(MediaType.APPLICATION_JSON)
+				.content("{\"reasonType\":\"FRAUD\"}"))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("CHAT_ALREADY_REPORTED"));
 	}
 }
