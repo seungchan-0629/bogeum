@@ -15,4 +15,6 @@ public class ChatException extends RuntimeException {
 	public static ChatException chatRoomReadOnly() { return new ChatException(ErrorCode.CHAT_ROOM_READ_ONLY); }
 	public static ChatException storageUnavailable() { return new ChatException(ErrorCode.CHAT_STORAGE_UNAVAILABLE); }
 	public static ChatException blocked() { return new ChatException(ErrorCode.CHAT_BLOCKED); }
+	public static ChatException reportContentRequired() { return new ChatException(ErrorCode.CHAT_REPORT_CONTENT_REQUIRED); }
+	public static ChatException alreadyReported() { return new ChatException(ErrorCode.CHAT_ALREADY_REPORTED); }
 }
