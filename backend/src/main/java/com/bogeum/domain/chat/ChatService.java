@@ -23,6 +23,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.multipart.MultipartFile;
 
 import com.bogeum.common.enums.ChatBlockStatus;
+import com.bogeum.common.enums.ChatReportReason;
 import com.bogeum.common.enums.ChatRoomType;
 import com.bogeum.common.enums.ChatStatus;
 import com.bogeum.common.enums.MessageType;
@@ -34,6 +35,7 @@ import com.bogeum.domain.agent.model.Agent;
 import com.bogeum.domain.chat.model.ChatBlock;
 import com.bogeum.domain.chat.model.ChatDto;
 import com.bogeum.domain.chat.model.ChatMessage;
+import com.bogeum.domain.chat.model.ChatReport;
 import com.bogeum.domain.chat.model.ChatRoom;
 import com.bogeum.domain.chat.model.ChatRoomUnreadCount;
 import com.bogeum.domain.property.PropertyException;
@@ -68,6 +70,7 @@ public class ChatService {
 	private final ObjectProvider<ChatImageStorage> storageProvider;
 	private final ImageProcessor imageProcessor;
 	private final ChatBlockRepository chatBlockRepository;
+	private final ChatReportRepository chatReportRepository;
 
 	/**
 	 * 매물로 대화할 채팅방을 열고 번호를 준다. 이미 있으면 기존 방이다 (CHAT_002).
@@ -156,6 +159,24 @@ public class ChatService {
 		}
 		chatBlockRepository.save(ChatBlock.create(senderOf(chatRoom, userId), partner));
 		eventPublisher.publishEvent(new ChatBlockChangedEvent(chatRoomId, List.of(userId, partner.getUserId())));
+	}
+
+	/**
+	 * 채팅방에서 상대를 관리자에게 신고한다 (CHAT_011).
+	 * 읽기 전용·차단된 방도 신고할 수 있다. 상대에게는 알리지 않는다.
+	 * 관리자는 신고된 방의 대화 전체를 보므로 같은 사람이 같은 방을 두 번 신고하지 않게 막는다
+	 */
+	@Transactional
+	public void createReport(Long userId, Long chatRoomId, ChatReportReason reasonType, String content) {
+		ChatRoom chatRoom = findParticipantRoom(chatRoomId, userId);
+		String trimmedContent = content == null || content.isBlank() ? null : content.strip();
+		if (reasonType == ChatReportReason.ETC && trimmedContent == null) {
+			throw ChatException.reportContentRequired();
+		}
+		if (chatReportRepository.existsByChatRoom_ChatRoomIdAndReporter_UserId(chatRoomId, userId)) {
+			throw ChatException.alreadyReported();
+		}
+		chatReportRepository.save(ChatReport.create(chatRoom, senderOf(chatRoom, userId), reasonType, trimmedContent));
 	}
 
 	/**
