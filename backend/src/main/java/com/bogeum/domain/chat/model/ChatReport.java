@@ -59,4 +59,9 @@ public class ChatReport {
 	@CreationTimestamp
 	@Column(nullable = false, updatable = false)
 	private LocalDateTime createdAt;
+
+	// 채팅방에서 상대를 관리자에게 신고한다. 신고된 방만 관리자가 대화를 열람한다 (CHAT_011)
+	public static ChatReport create(ChatRoom chatRoom, User reporter, ChatReportReason reasonType, String content) {
+		return ChatReport.builder().chatRoom(chatRoom).reporter(reporter).reasonType(reasonType).content(content).build();
+	}
 }
