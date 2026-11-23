@@ -59,6 +59,15 @@ public class ChatController {
 		chatService.createBlock(loginUser.getUserId(), chatRoomId);
 	}
 
+	// 채팅방에서 상대를 관리자에게 신고한다. 사유는 필수, 내용은 선택이고 기타 사유는 내용이 있어야 한다 (CHAT_011)
+	// 같은 방을 다시 신고하면 CHAT_ALREADY_REPORTED, 참여하지 않은 방이면 CHAT_ROOM_NOT_FOUND
+	@PostMapping("/rooms/{chatRoomId}/report")
+	@ResponseStatus(HttpStatus.NO_CONTENT)
+	public void createReport(@AuthenticationPrincipal LoginUser loginUser, @PathVariable("chatRoomId") Long chatRoomId,
+			@Valid @RequestBody ChatDto.ReportRequest request) {
+		chatService.createReport(loginUser.getUserId(), chatRoomId, request.getReasonType(), request.getContent());
+	}
+
 	// 내가 참여한 채팅방 전부. 최근 대화 순이고 방마다 안 읽은 메시지 수를 준다 (CHAT_005, CHAT_007)
 	@GetMapping("/rooms")
 	public ChatDto.RoomListResponse readRooms(@AuthenticationPrincipal LoginUser loginUser) {

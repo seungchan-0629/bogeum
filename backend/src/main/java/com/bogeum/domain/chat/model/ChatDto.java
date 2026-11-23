@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import com.bogeum.common.enums.ChatBlockStatus;
+import com.bogeum.common.enums.ChatReportReason;
 import com.bogeum.common.enums.ChatRoomType;
 import com.bogeum.common.enums.ChatStatus;
 import com.bogeum.common.enums.LeaseType;
@@ -105,6 +106,19 @@ public class ChatDto {
 
 		@NotBlank(message = "메시지를 입력해 주세요.")
 		@Size(max = 2000, message = "메시지는 2,000자까지 보낼 수 있습니다.")
+		private String content;
+	}
+
+	/** 신고 사유와 내용. 내용은 선택이지만 기타 사유는 서비스가 내용을 요구한다 (CHAT_011) */
+	@Getter
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class ReportRequest {
+
+		@NotNull(message = "신고 사유를 골라 주세요.")
+		private ChatReportReason reasonType;
+
+		@Size(max = 1000, message = "신고 내용은 1,000자까지 입력할 수 있습니다.")
 		private String content;
 	}
 

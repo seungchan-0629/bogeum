@@ -63,6 +63,8 @@ public enum ErrorCode {
 	CHAT_ROOM_READ_ONLY(HttpStatus.CONFLICT, "읽기 전용 채팅방에는 메시지를 보낼 수 없습니다."),
 	CHAT_STORAGE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "사진을 저장할 수 없습니다. 잠시 후 다시 시도해 주세요."),
 	CHAT_BLOCKED(HttpStatus.CONFLICT, "차단한 상대와는 메시지를 주고받을 수 없습니다."),
+	CHAT_REPORT_CONTENT_REQUIRED(HttpStatus.BAD_REQUEST, "기타 사유는 신고 내용을 입력해 주세요."),
+	CHAT_ALREADY_REPORTED(HttpStatus.CONFLICT, "이미 신고한 채팅방입니다."),
 	INVALID_PROFILE(HttpStatus.BAD_REQUEST, "전화번호 또는 새 비밀번호와 확인값을 확인해 주세요. 비밀번호는 UTF-8 기준 72바이트까지 가능합니다."),
 	CURRENT_PASSWORD_MISMATCH(HttpStatus.BAD_REQUEST, "현재 비밀번호를 확인해 주세요."),
 	INVALID_SIGNUP(HttpStatus.BAD_REQUEST, "가입 정보와 필수 동의를 확인해 주세요."),
