@@ -128,6 +128,17 @@ public class ChatDto {
 		private String content;
 	}
 
+	/** 관리자가 신고를 처리 완료할 때 남기는 처리 내용 (CHAT_012) */
+	@Getter
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class ReportResolveRequest {
+
+		@NotBlank(message = "처리 내용을 입력해 주세요.")
+		@Size(max = 1000, message = "처리 내용은 1,000자까지 입력할 수 있습니다.")
+		private String resolutionNote;
+	}
+
 	/** 관리자 신고 목록 한 줄. 신고한 사람과 신고당한 사람(방의 상대), 매물 주소를 함께 준다 (CHAT_001) */
 	@Getter
 	@Builder
@@ -147,6 +158,9 @@ public class ChatDto {
 		private String reportedName;
 		private Long propertyId;
 		private String roadAddress;
+		// 처리 완료 전에는 비어 있다 (CHAT_012)
+		private String resolutionNote;
+		private LocalDateTime resolvedAt;
 
 		public static ReportItemResponse from(ChatReport report) {
 			ChatRoom chatRoom = report.getChatRoom();
@@ -166,6 +180,8 @@ public class ChatDto {
 				.reportedName(reported.getName())
 				.propertyId(chatRoom.getProperty().getPropertyId())
 				.roadAddress(chatRoom.getProperty().getRoadAddress())
+				.resolutionNote(report.getResolutionNote())
+				.resolvedAt(report.getResolvedAt())
 				.build();
 		}
 	}
