@@ -17,4 +17,6 @@ public class ChatException extends RuntimeException {
 	public static ChatException blocked() { return new ChatException(ErrorCode.CHAT_BLOCKED); }
 	public static ChatException reportContentRequired() { return new ChatException(ErrorCode.CHAT_REPORT_CONTENT_REQUIRED); }
 	public static ChatException alreadyReported() { return new ChatException(ErrorCode.CHAT_ALREADY_REPORTED); }
+	public static ChatException reportNotFound() { return new ChatException(ErrorCode.CHAT_REPORT_NOT_FOUND); }
+	public static ChatException invalidRequest() { return new ChatException(ErrorCode.INVALID_REQUEST); }
 }

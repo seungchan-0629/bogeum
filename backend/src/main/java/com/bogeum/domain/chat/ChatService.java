@@ -16,6 +16,8 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Limit;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -24,6 +26,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.bogeum.common.enums.ChatBlockStatus;
 import com.bogeum.common.enums.ChatReportReason;
+import com.bogeum.common.enums.ChatReportStatus;
 import com.bogeum.common.enums.ChatRoomType;
 import com.bogeum.common.enums.ChatStatus;
 import com.bogeum.common.enums.MessageType;
@@ -55,6 +58,7 @@ public class ChatService {
 
 	// 대화 내역을 한 번에 불러오는 개수 (CHAT_006)
 	private static final int MESSAGE_PAGE_SIZE = 30;
+	private static final int REPORT_PAGE_SIZE = 5;
 	// 최근 대화 순. 메시지가 없는 새 방은 만든 시각으로 줄을 세운다 (CHAT_005)
 	private static final Comparator<ChatRoom> RECENT_ROOM_FIRST = Comparator
 		.comparing((ChatRoom chatRoom) -> chatRoom.getLastMessageAt() != null ? chatRoom.getLastMessageAt() : chatRoom.getCreatedAt())
@@ -173,7 +177,8 @@ public class ChatService {
 		if (reasonType == ChatReportReason.ETC && trimmedContent == null) {
 			throw ChatException.reportContentRequired();
 		}
-		if (chatReportRepository.existsByChatRoom_ChatRoomIdAndReporter_UserId(chatRoomId, userId)) {
+		if (chatReportRepository.existsByChatRoom_ChatRoomIdAndReporter_UserIdAndChatReportStatusNot(chatRoomId, userId,
+				ChatReportStatus.RESOLVED)) {
 			throw ChatException.alreadyReported();
 		}
 		chatReportRepository.save(ChatReport.create(chatRoom, senderOf(chatRoom, userId), reasonType, trimmedContent));
@@ -181,7 +186,7 @@ public class ChatService {
 
 	/**
 	 * 내가 참여한 채팅방 전부를 최근 대화 순으로 준다 (CHAT_005).
-	 * 방마다 마지막 메시지와 안 읽은 메시지 수(CHAT_007), 차단 상태(CHAT_010)를 붙인다. 방 수와 상관없이 쿼리 다섯 번으로 끝낸다
+	 * 방마다 마지막 메시지와 안 읽은 메시지 수(CHAT_007), 차단 상태(CHAT_010), 내 신고 상태(CHAT_001)를 붙인다. 방 수와 상관없이 쿼리 여섯 번으로 끝낸다
 	 */
 	@Transactional(readOnly = true)
 	public ChatDto.RoomListResponse readRooms(Long userId) {
@@ -196,10 +201,12 @@ public class ChatService {
 			.collect(Collectors.toMap(ChatRoomUnreadCount::getChatRoomId, ChatRoomUnreadCount::getUnreadCount));
 		Map<Long, String> officeNames = readOfficeNames(chatRooms, userId);
 		Map<Long, ChatBlockStatus> blockStatuses = readBlockStatuses(userId);
+		Map<Long, ChatReportStatus> reportStatuses = readReportStatuses(userId);
 		List<ChatDto.RoomItemResponse> rooms = chatRooms.stream()
 			.sorted(RECENT_ROOM_FIRST)
 			.map(chatRoom -> toRoomItem(chatRoom, userId, lastMessages.get(chatRoom.getChatRoomId()),
-				unreadCounts.getOrDefault(chatRoom.getChatRoomId(), 0L), officeNames, blockStatuses))
+				unreadCounts.getOrDefault(chatRoom.getChatRoomId(), 0L), officeNames, blockStatuses,
+				reportStatuses.get(chatRoom.getChatRoomId())))
 			.toList();
 		return new ChatDto.RoomListResponse(rooms);
 	}
@@ -211,22 +218,42 @@ public class ChatService {
 	@Transactional(readOnly = true)
 	public ChatDto.MessageListResponse readMessages(Long userId, Long chatRoomId, Long cursor) {
 		ChatRoom chatRoom = findParticipantRoom(chatRoomId, userId);
-		// 하나 더 받아서 더 오래된 메시지가 남았는지 안다
-		Limit limit = Limit.of(MESSAGE_PAGE_SIZE + 1);
-		List<ChatMessage> found = cursor == null
-			? chatMessageRepository.findAllByChatRoom_ChatRoomIdOrderByChatMessageIdDesc(chatRoomId, limit)
-			: chatMessageRepository.findAllByChatRoom_ChatRoomIdAndChatMessageIdLessThanOrderByChatMessageIdDesc(
-				chatRoomId, cursor, limit);
-		boolean hasNext = found.size() > MESSAGE_PAGE_SIZE;
-		List<ChatMessage> messages = new ArrayList<>(found.subList(0, Math.min(found.size(), MESSAGE_PAGE_SIZE)));
-		// 화면은 위에서 아래로 오래된 것부터 그린다
-		Collections.reverse(messages);
-		Long nextCursor = hasNext ? messages.get(0).getChatMessageId() : null;
+		MessagePage page = readMessagePage(chatRoomId, cursor);
 		// 저장소가 없으면 사진 주소만 비우고 대화 내역은 그대로 준다
 		ChatImageStorage storage = storageProvider.getIfAvailable();
 		return new ChatDto.MessageListResponse(
-			messages.stream().map(message -> ChatDto.MessageItemResponse.of(message, userId, imageUrlOf(storage, message))).toList(),
-			nextCursor, hasNext, chatRoom.partnerLastReadMessageId(userId));
+			page.messages().stream().map(message -> ChatDto.MessageItemResponse.of(message, userId, imageUrlOf(storage, message))).toList(),
+			page.nextCursor(), page.hasNext(), chatRoom.partnerLastReadMessageId(userId));
+	}
+
+	/** 관리자 신고 목록. 최근 신고부터 다섯 개씩 준다 (CHAT_001) */
+	@Transactional(readOnly = true)
+	public ChatDto.ReportListResponse readReports(int page) {
+		var pageable = PageRequest.of(Math.max(page, 1) - 1, REPORT_PAGE_SIZE,
+			Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("chatReportId")));
+		// 다른 관리자 목록과 같이 JPA int 오프셋 범위를 넘는 페이지는 거절한다
+		if (pageable.getOffset() > Integer.MAX_VALUE) {
+			throw ChatException.invalidRequest();
+		}
+		return ChatDto.ReportListResponse.from(chatReportRepository.findAllBy(pageable));
+	}
+
+	/**
+	 * 관리자가 신고된 방의 대화를 30개씩 본다 (CHAT_001). 신고 번호로만 열 수 있어 신고된 방만 열람한다.
+	 * 처음 열면 신고를 확인 상태로 바꿔 신고한 사람 화면에 "관리자가 확인했어요"가 보이게 한다.
+	 * 관리자는 참여자가 아니라 읽음 처리는 하지 않는다
+	 */
+	@Transactional
+	public ChatDto.ReportMessageListResponse readReportMessages(Long chatReportId, Long cursor) {
+		ChatReport report = chatReportRepository.findById(chatReportId).orElseThrow(ChatException::reportNotFound);
+		report.check();
+		ChatRoom chatRoom = report.getChatRoom();
+		MessagePage page = readMessagePage(chatRoom.getChatRoomId(), cursor);
+		ChatImageStorage storage = storageProvider.getIfAvailable();
+		return new ChatDto.ReportMessageListResponse(chatRoom.getRoomType(),
+			ChatDto.ParticipantResponse.from(chatRoom.getInquirer()), ChatDto.ParticipantResponse.from(chatRoom.getAgent()),
+			page.messages().stream().map(message -> ChatDto.MessageItemResponse.forRoom(message, imageUrlOf(storage, message))).toList(),
+			page.nextCursor(), page.hasNext());
 	}
 
 	/**
@@ -335,8 +362,17 @@ public class ChatService {
 		return blockStatuses;
 	}
 
+	// 방 번호별 내 가장 최근 신고의 상태. 처리 완료 뒤 다시 신고하면 새 신고 상태로 보여 준다
+	private Map<Long, ChatReportStatus> readReportStatuses(Long userId) {
+		return chatReportRepository.findAllByReporter_UserId(userId).stream()
+			.collect(Collectors.toMap(report -> report.getChatRoom().getChatRoomId(), Function.identity(),
+				(first, second) -> first.getChatReportId() > second.getChatReportId() ? first : second))
+			.entrySet().stream()
+			.collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().getChatReportStatus()));
+	}
+
 	private ChatDto.RoomItemResponse toRoomItem(ChatRoom chatRoom, Long userId, ChatMessage lastMessage, Long unreadCount,
-			Map<Long, String> officeNames, Map<Long, ChatBlockStatus> blockStatuses) {
+			Map<Long, String> officeNames, Map<Long, ChatBlockStatus> blockStatuses, ChatReportStatus reportStatus) {
 		User partner = partnerOf(chatRoom, userId);
 		Property property = chatRoom.getProperty();
 		return ChatDto.RoomItemResponse.builder()
@@ -345,6 +381,7 @@ public class ChatService {
 			.chatStatus(chatRoom.getChatStatus())
 			.readOnlyReason(chatRoom.getChatStatus() == ChatStatus.READ_ONLY ? property.getPropertyStatus() : null)
 			.blockStatus(blockStatuses.getOrDefault(partner.getUserId(), ChatBlockStatus.NONE))
+			.reportStatus(reportStatus)
 			.partnerName(partner.getName())
 			.partnerOfficeName(officeNames.get(partner.getUserId()))
 			.propertyId(property.getPropertyId())
@@ -422,6 +459,24 @@ public class ChatService {
 		} catch (RuntimeException exception) {
 			log.error("롤백된 채팅 사진 정리 실패: key={}", key, exception);
 		}
+	}
+
+	// 최근 메시지부터 30개(cursor가 있으면 그보다 오래된 30개)를 받아 오래된 것부터 담는다
+	private MessagePage readMessagePage(Long chatRoomId, Long cursor) {
+		// 하나 더 받아서 더 오래된 메시지가 남았는지 안다
+		Limit limit = Limit.of(MESSAGE_PAGE_SIZE + 1);
+		List<ChatMessage> found = cursor == null
+			? chatMessageRepository.findAllByChatRoom_ChatRoomIdOrderByChatMessageIdDesc(chatRoomId, limit)
+			: chatMessageRepository.findAllByChatRoom_ChatRoomIdAndChatMessageIdLessThanOrderByChatMessageIdDesc(
+				chatRoomId, cursor, limit);
+		boolean hasNext = found.size() > MESSAGE_PAGE_SIZE;
+		List<ChatMessage> messages = new ArrayList<>(found.subList(0, Math.min(found.size(), MESSAGE_PAGE_SIZE)));
+		// 화면은 위에서 아래로 오래된 것부터 그린다
+		Collections.reverse(messages);
+		return new MessagePage(messages, hasNext ? messages.get(0).getChatMessageId() : null, hasNext);
+	}
+
+	private record MessagePage(List<ChatMessage> messages, Long nextCursor, boolean hasNext) {
 	}
 
 	// 참여하지 않은 방은 없는 방과 똑같이 CHAT_ROOM_NOT_FOUND로 거절한다
