@@ -30,6 +30,22 @@ export async function getAdminRentPayments(keyword, page, signal) {
   return data
 }
 
+// CHAT_001: 신고 목록 ({ reports, page, totalPages, totalElements }). 최근 신고부터 5개씩, page는 1부터
+export async function getAdminChatReports(page, signal) {
+  const { data } = await api.get('/api/admin/chat-reports', { params: { page }, signal })
+  return data
+}
+
+// CHAT_001: 신고된 방의 대화 ({ roomType, inquirer, agent, messages, nextCursor, hasNext }). 30개씩, cursor가 있으면 그보다 오래된 것
+// 처음 열면 서버가 신고를 확인 상태로 바꾼다. 없는 신고면 404(CHAT_REPORT_NOT_FOUND)
+export async function getAdminChatReportMessages(chatReportId, cursor, signal) {
+  const { data } = await api.get(`/api/admin/chat-reports/${chatReportId}/messages`, {
+    params: cursor == null ? {} : { cursor },
+    signal,
+  })
+  return data
+}
+
 export async function getInstitutionToken() {
   const { data } = await api.get('/openbanking/admin/institution-token')
   return data
