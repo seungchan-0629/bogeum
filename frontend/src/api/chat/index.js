@@ -38,6 +38,12 @@ export async function deleteChatBlock(chatRoomId) {
   await api.delete(`/chat/rooms/${chatRoomId}/block`, CHAT_CONFIG)
 }
 
+// CHAT_011 채팅방의 상대를 관리자에게 신고한다 (204). 상대에게는 알리지 않는다
+// 기타(ETC) 사유에 내용이 없으면 400(CHAT_REPORT_CONTENT_REQUIRED), 같은 방을 다시 신고하면 409(CHAT_ALREADY_REPORTED)
+export async function createChatReport(chatRoomId, reasonType, content) {
+  await api.post(`/chat/rooms/${chatRoomId}/report`, { reasonType, content }, CHAT_CONFIG)
+}
+
 // CHAT_007 방의 마지막 메시지까지 읽었다고 남긴다 (204). 상대 화면의 "1"과 내 목록의 안 읽은 수가 바로 바뀐다
 // 참여하지 않은 방이면 404(CHAT_ROOM_NOT_FOUND)
 export async function updateChatRead(chatRoomId) {
