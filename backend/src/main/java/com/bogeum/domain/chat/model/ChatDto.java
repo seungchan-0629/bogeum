@@ -4,14 +4,18 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+
 import com.bogeum.common.enums.ChatBlockStatus;
 import com.bogeum.common.enums.ChatReportReason;
+import com.bogeum.common.enums.ChatReportStatus;
 import com.bogeum.common.enums.ChatRoomType;
 import com.bogeum.common.enums.ChatStatus;
 import com.bogeum.common.enums.LeaseType;
 import com.bogeum.common.enums.MessageType;
 import com.bogeum.common.enums.PropertyStatus;
 import com.bogeum.common.enums.PropertyType;
+import com.bogeum.domain.user.model.User;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -61,6 +65,8 @@ public class ChatDto {
 		private PropertyStatus readOnlyReason;
 		// 상대와의 차단 상태. 차단이 있으면 두 사람 모두 보낼 수 없다 (CHAT_010)
 		private ChatBlockStatus blockStatus;
+		// 내가 이 방을 신고했으면 가장 최근 신고의 처리 상태. 신고하지 않았으면 비어 있다 (CHAT_001)
+		private ChatReportStatus reportStatus;
 		private String partnerName;
 		// 상대가 중개사일 때만 있다
 		private String partnerOfficeName;
@@ -120,6 +126,92 @@ public class ChatDto {
 
 		@Size(max = 1000, message = "신고 내용은 1,000자까지 입력할 수 있습니다.")
 		private String content;
+	}
+
+	/** 관리자 신고 목록 한 줄. 신고한 사람과 신고당한 사람(방의 상대), 매물 주소를 함께 준다 (CHAT_001) */
+	@Getter
+	@Builder
+	public static class ReportItemResponse {
+
+		private Long chatReportId;
+		private ChatReportStatus chatReportStatus;
+		private ChatReportReason reasonType;
+		private String content;
+		private LocalDateTime createdAt;
+		private Long chatRoomId;
+		private ChatRoomType roomType;
+		private Long reporterId;
+		private String reporterName;
+		// 위험 사용자 등록(RISK_001)으로 이어 갈 때 쓴다
+		private Long reportedUserId;
+		private String reportedName;
+		private Long propertyId;
+		private String roadAddress;
+
+		public static ReportItemResponse from(ChatReport report) {
+			ChatRoom chatRoom = report.getChatRoom();
+			User reporter = report.getReporter();
+			User reported = chatRoom.getAgent().getUserId().equals(reporter.getUserId()) ? chatRoom.getInquirer() : chatRoom.getAgent();
+			return ReportItemResponse.builder()
+				.chatReportId(report.getChatReportId())
+				.chatReportStatus(report.getChatReportStatus())
+				.reasonType(report.getReasonType())
+				.content(report.getContent())
+				.createdAt(report.getCreatedAt())
+				.chatRoomId(chatRoom.getChatRoomId())
+				.roomType(chatRoom.getRoomType())
+				.reporterId(reporter.getUserId())
+				.reporterName(reporter.getName())
+				.reportedUserId(reported.getUserId())
+				.reportedName(reported.getName())
+				.propertyId(chatRoom.getProperty().getPropertyId())
+				.roadAddress(chatRoom.getProperty().getRoadAddress())
+				.build();
+		}
+	}
+
+	/** 관리자 신고 목록과 1부터 시작하는 페이지 정보. 최근 신고부터 (CHAT_001) */
+	@Getter
+	@Builder
+	public static class ReportListResponse {
+
+		private List<ReportItemResponse> reports;
+		private int page;
+		private int totalPages;
+		private long totalElements;
+
+		public static ReportListResponse from(Page<ChatReport> reports) {
+			return ReportListResponse.builder().reports(reports.map(ReportItemResponse::from).getContent())
+				.page(reports.getNumber() + 1).totalPages(reports.getTotalPages())
+				.totalElements(reports.getTotalElements()).build();
+		}
+	}
+
+	/** 대화 참여자. 메시지의 senderId로 이름을 찾는다 (CHAT_001) */
+	@Getter
+	@AllArgsConstructor
+	public static class ParticipantResponse {
+
+		private Long userId;
+		private String name;
+
+		public static ParticipantResponse from(User user) {
+			return new ParticipantResponse(user.getUserId(), user.getName());
+		}
+	}
+
+	/** 관리자가 보는 신고된 방의 대화 한 묶음. 메시지 형식은 사용자 대화 내역(CHAT_006)과 같다 (CHAT_001) */
+	@Getter
+	@AllArgsConstructor
+	public static class ReportMessageListResponse {
+
+		private ChatRoomType roomType;
+		// 문의 방이면 임차인, 임대인–중개사 방이면 임대인
+		private ParticipantResponse inquirer;
+		private ParticipantResponse agent;
+		private List<MessageItemResponse> messages;
+		private Long nextCursor;
+		private Boolean hasNext;
 	}
 
 	/** 메시지 하나 (CHAT_003, CHAT_004, CHAT_006) */
