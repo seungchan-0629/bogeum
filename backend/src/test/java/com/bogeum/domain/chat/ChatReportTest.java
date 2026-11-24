@@ -21,6 +21,7 @@ import org.springframework.test.context.event.ApplicationEvents;
 import org.springframework.test.context.event.RecordApplicationEvents;
 
 import com.bogeum.common.enums.ChatReportReason;
+import com.bogeum.common.enums.ChatReportStatus;
 import com.bogeum.common.enums.ChatRoomType;
 import com.bogeum.common.enums.ChatStatus;
 import com.bogeum.common.enums.LeaseType;
@@ -117,6 +118,35 @@ class ChatReportTest {
 			() -> chatService.createReport(tenant.getUserId(), chatRoom.getChatRoomId(), ChatReportReason.FRAUD, null));
 		chatService.createReport(agent.getUserId(), chatRoom.getChatRoomId(), ChatReportReason.ABUSIVE, null);
 		assertEquals(2L, chatReportRepository.count());
+	}
+
+	@Test
+	@DisplayName("처리 완료된 신고가 있으면 같은 방을 다시 신고할 수 있다 (CHAT_001)")
+	void reportsAgainAfterResolved() {
+		chatReportRepository.saveAndFlush(ChatReport.builder().chatRoom(chatRoom).reporter(tenant)
+			.reasonType(ChatReportReason.ABUSIVE).chatReportStatus(ChatReportStatus.RESOLVED).build());
+
+		chatService.createReport(tenant.getUserId(), chatRoom.getChatRoomId(), ChatReportReason.ABUSIVE, "또 욕설을 했어요");
+
+		assertEquals(2L, chatReportRepository.count());
+	}
+
+	@Test
+	@DisplayName("채팅 목록에는 내가 그 방에 한 가장 최근 신고의 상태가 나오고, 신고하지 않은 방은 비어 있다 (CHAT_001)")
+	void showsReportStatusInRoomList() {
+		ChatRoom otherRoom = room(ChatStatus.ACTIVE);
+		chatReportRepository.saveAndFlush(ChatReport.builder().chatRoom(chatRoom).reporter(tenant)
+			.reasonType(ChatReportReason.ABUSIVE).chatReportStatus(ChatReportStatus.RESOLVED).build());
+		chatService.createReport(tenant.getUserId(), chatRoom.getChatRoomId(), ChatReportReason.FRAUD, null);
+		chatService.readReportMessages(chatReportRepository.findAll().get(1).getChatReportId(), null);
+
+		var rooms = chatService.readRooms(tenant.getUserId()).getRooms();
+		assertEquals(ChatReportStatus.CHECKED, rooms.stream()
+			.filter(room -> room.getChatRoomId().equals(chatRoom.getChatRoomId())).findFirst().orElseThrow().getReportStatus());
+		assertNull(rooms.stream()
+			.filter(room -> room.getChatRoomId().equals(otherRoom.getChatRoomId())).findFirst().orElseThrow().getReportStatus());
+		// 신고당한 사람 목록에는 신고 상태가 나오지 않는다
+		assertNull(chatService.readRooms(agent.getUserId()).getRooms().get(0).getReportStatus());
 	}
 
 	@Test
