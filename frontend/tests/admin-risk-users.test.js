@@ -219,7 +219,9 @@ test('미로그인·일반 사용자·중개사는 캐시가 있어도 관리자
 
 test('위험 사용자 접근 허용 후에도 다른 미제공 관리자 메뉴와 화면은 계속 차단한다', () => {
   const html = renderAdmin('/admin/risk-users')
-  for (const path of ['properties', 'risk-properties', 'chats', 'notifications']) {
+  // 신고 대화(CHAT_001)는 제공하는 메뉴가 됐다
+  assert.ok(html.includes('href="/admin/chats"'))
+  for (const path of ['properties', 'risk-properties', 'notifications']) {
     assert.ok(!html.includes(`href="/admin/${path}"`), path)
     assert.doesNotMatch(renderAdmin(`/admin/${path}`), /미제공 관리자 화면/)
   }

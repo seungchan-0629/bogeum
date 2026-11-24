@@ -35,6 +35,15 @@ export default defineConfig({
         ...backendProxy,
         rewrite: (path) => path.replace(/^\/api\/admin\/rents\/payments/, '/admin/rents/payments'),
       },
+      // CHAT_001: 신고 목록과 숫자 신고 번호의 대화만 변환한다. 화면 주소 /admin/chats는 Vite가 처리한다
+      '^/api/admin/chat-reports(?:\\?|$)': {
+        ...backendProxy,
+        rewrite: (path) => path.replace(/^\/api\/admin\/chat-reports/, '/admin/chat-reports'),
+      },
+      '^/api/admin/chat-reports/[0-9]+/messages(?:\\?|$)': {
+        ...backendProxy,
+        rewrite: (path) => path.replace(/^\/api\/admin\/chat-reports/, '/admin/chat-reports'),
+      },
       '/api': backendProxy,
       // 매물 목록 API(/property, /property?cursor...)만 정확히 넘긴다. 화면 주소 /properties는 Vite가 처리한다 (PROPERTY_004)
       '^/property(\\?.*)?$': backendProxy,

@@ -21,6 +21,7 @@ import ConfirmModal from '../../components/common/ConfirmModal.jsx'
 import { SelectInput, TextArea } from '../../components/common/FormControls.jsx'
 import { useAuthStore } from '../../stores/authStore.js'
 import { ROLES } from '../../constants/auth.js'
+import { REPORT_REASON_LABELS } from '../../constants/chat.js'
 import { createChatBlock, createChatImage, createChatMessage, createChatReport, deleteChatBlock, getChatMessages, getChatRooms, updateChatRead } from '../../api/chat/index.js'
 import { useChatSocket } from '../../hooks/useChatSocket.js'
 import { formatLeasePrice, getPropertyTypeLabel } from '../../utils/format.js'
@@ -33,13 +34,10 @@ const IMAGE_MAX_BYTES = 20 * 1024 * 1024
 // 서버가 받는 신고 사유와 내용 최대 길이 (CHAT_011). 기타는 내용이 있어야 한다
 const REPORT_REASON_OPTIONS = [
   { value: '', label: '사유를 골라 주세요' },
-  { value: 'FALSE_LISTING', label: '허위 매물' },
-  { value: 'RISKY_PROPERTY', label: '위험 매물' },
-  { value: 'RISK_INFO', label: '위험 정보' },
-  { value: 'ABUSIVE', label: '욕설·비매너' },
-  { value: 'FRAUD', label: '사기 의심' },
-  { value: 'ETC', label: '기타' },
+  ...Object.entries(REPORT_REASON_LABELS).map(([value, label]) => ({ value, label })),
 ]
+// 내 신고가 처리 중이면 [신고] 대신 보여 줄 문구. 처리 완료(RESOLVED)면 다시 신고할 수 있다 (CHAT_001)
+const REPORT_PENDING_LABELS = { RECEIVED: '신고 접수됨', CHECKED: '관리자가 확인했어요' }
 const REPORT_CONTENT_MAX_LENGTH = 1000
 // 맨 아래에서 이만큼 안이면 새 메시지가 올 때 따라 내려간다
 const NEAR_BOTTOM_PX = 80
@@ -392,6 +390,8 @@ function ChatRoom({ room, isAgent }) {
       setReport(null)
       window.alert(error.response?.data?.message || '서버에 연결할 수 없습니다.')
     } finally {
+      // 성공했거나 이미 신고한 방이면 목록을 새로 받아 버튼을 "신고 접수됨"으로 바꾼다
+      queryClient.invalidateQueries({ queryKey: ['chat-rooms'] })
       setIsReportPending(false)
     }
   }
@@ -412,11 +412,18 @@ function ChatRoom({ room, isAgent }) {
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {/* CHAT_011: 차단과 같은 빨간 계열이지만 바탕을 비워 다른 버튼으로 보이게 한다 */}
-          <button type="button" onClick={openReport} disabled={isReportPending}
-            className="inline-flex h-9 shrink-0 items-center rounded-lg border border-red-600 bg-white px-3 text-sm font-bold whitespace-nowrap text-red-600 hover:bg-red-50 disabled:cursor-wait disabled:opacity-60">
-            신고
-          </button>
+          {/* CHAT_011: 차단과 같은 빨간 계열이지만 바탕을 비워 다른 버튼으로 보이게 한다
+              CHAT_001: 내 신고가 접수·확인 상태면 누를 수 없는 회색 안내로 바꾼다 */}
+          {REPORT_PENDING_LABELS[room.reportStatus] ? (
+            <span className="inline-flex h-9 shrink-0 items-center rounded-lg bg-gray-100 px-3 text-sm font-bold whitespace-nowrap text-gray-500">
+              {REPORT_PENDING_LABELS[room.reportStatus]}
+            </span>
+          ) : (
+            <button type="button" onClick={openReport} disabled={isReportPending}
+              className="inline-flex h-9 shrink-0 items-center rounded-lg border border-red-600 bg-white px-3 text-sm font-bold whitespace-nowrap text-red-600 hover:bg-red-50 disabled:cursor-wait disabled:opacity-60">
+              신고
+            </button>
+          )}
           {/* CHAT_010: 요구사항의 "이름을 누르면 차단 버튼"을 한눈에 보이도록 머리글 오른쪽 버튼으로 둔다
               상대가 나를 차단했어도 나도 차단할 수 있다. 내가 차단했으면 [차단 해제] */}
           {room.blockStatus === 'BLOCKED_BY_ME' ? (
