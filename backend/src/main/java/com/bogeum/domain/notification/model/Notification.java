@@ -70,4 +70,16 @@ public class Notification {
 	@CreationTimestamp
 	@Column(nullable = false, updatable = false)
 	private LocalDateTime createdAt;
+
+	// 다른 기능에서 일이 생기면 알림 서비스가 만든다. 처음에는 안 읽은 상태다
+	public static Notification create(User user, NotificationType type, String title, String body,
+			NotificationRefType refType, Long refId) {
+		return Notification.builder().user(user).type(type).title(title).body(body).refType(refType).refId(refId).build();
+	}
+
+	public void read() {
+		if (readAt == null) {
+			readAt = LocalDateTime.now();
+		}
+	}
 }
