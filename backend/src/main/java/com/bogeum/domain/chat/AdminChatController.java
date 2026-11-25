@@ -1,12 +1,15 @@
 package com.bogeum.domain.chat;
 
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.bogeum.domain.chat.model.ChatDto;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -26,5 +29,12 @@ public class AdminChatController {
 	public ChatDto.ReportMessageListResponse readReportMessages(@PathVariable("chatReportId") Long chatReportId,
 			@RequestParam(value = "cursor", required = false) Long cursor) {
 		return chatService.readReportMessages(chatReportId, cursor);
+	}
+
+	// 처리 내용을 남기고 신고를 처리 완료한다. 없는 신고면 CHAT_REPORT_NOT_FOUND, 이미 처리했으면 CHAT_REPORT_ALREADY_RESOLVED (CHAT_012)
+	@PatchMapping("/admin/chat-reports/{chatReportId}/resolve")
+	public ChatDto.ReportItemResponse updateReportResolve(@PathVariable("chatReportId") Long chatReportId,
+			@Valid @RequestBody ChatDto.ReportResolveRequest request) {
+		return chatService.updateReportResolve(chatReportId, request.getResolutionNote());
 	}
 }

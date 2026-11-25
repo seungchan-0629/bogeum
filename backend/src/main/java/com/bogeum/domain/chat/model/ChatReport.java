@@ -66,6 +66,12 @@ public class ChatReport {
 	@Column(nullable = false, length = 20)
 	private ChatReportStatus chatReportStatus = ChatReportStatus.RECEIVED;
 
+	// 관리자가 처리 완료할 때 남기는 처리 내용. 신고한 사람에게는 보여 주지 않는다 (CHAT_012)
+	@Column(length = 1000)
+	private String resolutionNote;
+
+	private LocalDateTime resolvedAt;
+
 	@CreationTimestamp
 	@Column(nullable = false, updatable = false)
 	private LocalDateTime createdAt;
@@ -80,5 +86,12 @@ public class ChatReport {
 		if (chatReportStatus == ChatReportStatus.RECEIVED) {
 			chatReportStatus = ChatReportStatus.CHECKED;
 		}
+	}
+
+	// 관리자가 처리 내용을 남기고 처리 완료한다. 처리 완료 후에는 같은 방을 다시 신고할 수 있다 (CHAT_012)
+	public void resolve(String resolutionNote) {
+		this.chatReportStatus = ChatReportStatus.RESOLVED;
+		this.resolutionNote = resolutionNote;
+		this.resolvedAt = LocalDateTime.now();
 	}
 }

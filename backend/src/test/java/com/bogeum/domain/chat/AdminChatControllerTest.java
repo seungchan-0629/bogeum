@@ -1,7 +1,9 @@
 package com.bogeum.domain.chat;
 
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -12,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -21,7 +24,7 @@ import com.bogeum.common.enums.ChatRoomType;
 import com.bogeum.common.enums.MessageType;
 import com.bogeum.domain.chat.model.ChatDto;
 
-/** 관리자 신고 목록·대화 열람 요청의 주소·응답을 DB 없이 확인한다. 관리자 권한은 Security 설정이 맡는다 (CHAT_001). */
+/** 관리자 신고 목록·대화 열람·처리 완료 요청의 주소·응답을 DB 없이 확인한다. 관리자 권한은 Security 설정이 맡는다 (CHAT_001, CHAT_012). */
 @WebMvcTest(AdminChatController.class)
 @AutoConfigureMockMvc(addFilters = false)
 class AdminChatControllerTest {
@@ -85,5 +88,42 @@ class AdminChatControllerTest {
 		mockMvc.perform(get("/admin/chat-reports/999/messages"))
 			.andExpect(status().isNotFound())
 			.andExpect(jsonPath("$.code").value("CHAT_REPORT_NOT_FOUND"));
+	}
+
+	@Test
+	@DisplayName("처리 내용을 넘겨 신고를 처리 완료하고, 처리된 신고를 돌려준다")
+	void resolvesReport() throws Exception {
+		when(chatService.updateReportResolve(3L, "경고 조치했어요")).thenReturn(ChatDto.ReportItemResponse.builder()
+			.chatReportId(3L).chatReportStatus(ChatReportStatus.RESOLVED).resolutionNote("경고 조치했어요").build());
+
+		mockMvc.perform(patch("/admin/chat-reports/3/resolve").contentType(MediaType.APPLICATION_JSON)
+				.content("{\"resolutionNote\":\"경고 조치했어요\"}"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.chatReportStatus").value("RESOLVED"))
+			.andExpect(jsonPath("$.resolutionNote").value("경고 조치했어요"));
+	}
+
+	@Test
+	@DisplayName("처리 내용이 비었거나 1,000자를 넘으면 400이다")
+	void rejectsInvalidResolutionNote() throws Exception {
+		mockMvc.perform(patch("/admin/chat-reports/3/resolve").contentType(MediaType.APPLICATION_JSON)
+				.content("{\"resolutionNote\":\"  \"}"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+		mockMvc.perform(patch("/admin/chat-reports/3/resolve").contentType(MediaType.APPLICATION_JSON)
+				.content("{\"resolutionNote\":\"" + "가".repeat(1001) + "\"}"))
+			.andExpect(status().isBadRequest());
+		verifyNoInteractions(chatService);
+	}
+
+	@Test
+	@DisplayName("이미 처리 완료된 신고는 409다")
+	void rejectsResolvedReport() throws Exception {
+		when(chatService.updateReportResolve(3L, "다시 처리")).thenThrow(ChatException.reportAlreadyResolved());
+
+		mockMvc.perform(patch("/admin/chat-reports/3/resolve").contentType(MediaType.APPLICATION_JSON)
+				.content("{\"resolutionNote\":\"다시 처리\"}"))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.code").value("CHAT_REPORT_ALREADY_RESOLVED"));
 	}
 }

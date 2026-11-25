@@ -257,6 +257,20 @@ public class ChatService {
 	}
 
 	/**
+	 * 관리자가 처리 내용을 남기고 신고를 처리 완료한다 (CHAT_012).
+	 * 처리 완료 후에는 신고한 사람이 같은 방을 다시 신고할 수 있다. 처리 완료는 되돌리지 않는다
+	 */
+	@Transactional
+	public ChatDto.ReportItemResponse updateReportResolve(Long chatReportId, String resolutionNote) {
+		ChatReport report = chatReportRepository.findById(chatReportId).orElseThrow(ChatException::reportNotFound);
+		if (report.getChatReportStatus() == ChatReportStatus.RESOLVED) {
+			throw ChatException.reportAlreadyResolved();
+		}
+		report.resolve(resolutionNote.strip());
+		return ChatDto.ReportItemResponse.from(report);
+	}
+
+	/**
 	 * 방의 마지막 메시지까지 읽었다고 남기고, 상대 화면의 "1"과 내 채팅 목록의 안 읽은 수를 바로 바꾸게 알린다 (CHAT_007).
 	 * 읽기 전용 방도 남은 메시지를 읽을 수 있어 처리한다. 메시지가 없거나 이미 다 읽었으면 바꾸지 않는다
 	 */
