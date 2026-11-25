@@ -4,13 +4,17 @@
 // API:
 // - 신고 목록: GET /admin/chat-reports?page= — 최근 신고부터 5개씩
 // - 원문: GET /admin/chat-reports/{chatReportId}/messages?cursor= — 30개씩, 처음 열면 신고가 확인 상태가 된다
+// - 처리 완료: PATCH /admin/chat-reports/{chatReportId}/resolve — 처리 내용 필수, 되돌릴 수 없다 (CHAT_012)
 import { useEffect, useState } from 'react'
-import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from 'react-router'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import clsx from 'clsx'
 import PageHeader from '../../../components/common/PageHeader.jsx'
 import Pagination from '../../../components/common/Pagination.jsx'
 import StatusBadge from '../../../components/common/StatusBadge.jsx'
-import { getAdminChatReportMessages, getAdminChatReports } from '../../../api/admin/index.js'
+import ConfirmModal from '../../../components/common/ConfirmModal.jsx'
+import { TextArea } from '../../../components/common/FormControls.jsx'
+import { getAdminChatReportMessages, getAdminChatReports, resolveAdminChatReport } from '../../../api/admin/index.js'
 import { useAuthStore } from '../../../stores/authStore.js'
 import { REPORT_REASON_LABELS, REPORT_STATUS_BADGES } from '../../../constants/chat.js'
 
@@ -24,6 +28,8 @@ const formatDateTime = (dateTime) =>
   new Date(dateTime).toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' })
 
 const errorMessageOf = (error) => error?.response?.data?.message || '서버에 연결할 수 없습니다.'
+
+const RESOLUTION_NOTE_MAX_LENGTH = 1000
 
 function ReportStatusBadge({ status }) {
   const badge = REPORT_STATUS_BADGES[status]
@@ -130,6 +136,7 @@ function ReportDetail({ report }) {
         <p className="text-sm text-gray-700">신고한 사람 {report.reporterName} → 신고된 사람 {report.reportedName}</p>
         <p className="text-sm text-gray-500">{report.roadAddress}</p>
         {report.content && <p className="rounded-xl bg-gray-50 px-4 py-3 text-sm whitespace-pre-wrap">{report.content}</p>}
+        <ReportResolution report={report} />
       </section>
       <section aria-labelledby="raw-chat-title" className="card flex flex-col gap-3 bg-slate-50">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -189,6 +196,84 @@ function ReportDetail({ report }) {
           </>
         )}
       </section>
+    </div>
+  )
+}
+
+// 신고 처리 (CHAT_012). 처리 전에는 처리 내용을 적어 처리 완료하고, 처리 후에는 처리 기록을 보여 준다.
+// 위험 사용자 등록은 처리 전후 모두 할 수 있게 위험 사용자 화면으로 신고된 사람의 회원 ID를 넘긴다
+function ReportResolution({ report }) {
+  const queryClient = useQueryClient()
+  const [note, setNote] = useState('')
+  const [error, setError] = useState(null)
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false)
+  const resolve = useMutation({
+    mutationFn: () => resolveAdminChatReport(report.chatReportId, note),
+    retry: false,
+    // 목록을 새로 받으면 배지와 처리 기록이 같이 바뀐다. 이미 처리됐으면(409) 그 기록을 보여 주려고 새로 받는다
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-chat-reports'] }),
+    onError: (resolveError) => {
+      setError(errorMessageOf(resolveError))
+      if (resolveError?.response?.status === 409) queryClient.invalidateQueries({ queryKey: ['admin-chat-reports'] })
+    },
+  })
+  const isResolved = report.chatReportStatus === 'RESOLVED'
+
+  const openConfirm = () => {
+    if (!note.trim()) {
+      setError('처리 내용을 입력해 주세요.')
+      return
+    }
+    setIsConfirmOpen(true)
+  }
+  const handleResolve = () => {
+    setIsConfirmOpen(false)
+    resolve.mutate()
+  }
+
+  const riskLink = (
+    <Link to={`/admin/risk-users?userId=${report.reportedUserId}`} className="btn-secondary btn-sm">
+      위험 사용자로 등록
+    </Link>
+  )
+
+  return (
+    <div className="mt-2 flex flex-col gap-2 border-t border-gray-100 pt-4">
+      <h3 className="text-sm font-bold">처리</h3>
+      {isResolved ? (
+        <>
+          <div className="rounded-xl bg-gray-50 px-4 py-3 text-sm">
+            <p className="whitespace-pre-wrap">{report.resolutionNote}</p>
+            {report.resolvedAt && <p className="mt-1 text-xs text-gray-500">{formatDateTime(report.resolvedAt)} 처리 완료</p>}
+          </div>
+          <div className="flex justify-end">{riskLink}</div>
+        </>
+      ) : (
+        <>
+          <TextArea aria-label="처리 내용" maxLength={RESOLUTION_NOTE_MAX_LENGTH} value={note} placeholder="처리 내용 (필수)"
+            onChange={(event) => { setNote(event.target.value); setError(null) }} />
+          <div className="flex justify-between gap-2 text-sm">
+            <span role={error ? 'alert' : undefined} className="text-red-600">{error}</span>
+            <span className="shrink-0 text-gray-400">{note.length}/{RESOLUTION_NOTE_MAX_LENGTH}</span>
+          </div>
+          <div className="flex flex-wrap justify-end gap-2">
+            {riskLink}
+            <button type="button" onClick={openConfirm} disabled={resolve.isPending || resolve.isSuccess}
+              className="btn-primary btn-sm disabled:cursor-wait">
+              {resolve.isPending ? '처리 중' : '처리 완료'}
+            </button>
+          </div>
+        </>
+      )}
+      {isConfirmOpen && (
+        <ConfirmModal
+          title="신고를 처리 완료할까요?"
+          description="처리 완료하면 되돌릴 수 없어요. 신고한 사람은 이 채팅방을 다시 신고할 수 있게 돼요."
+          confirmLabel="처리 완료"
+          onConfirm={handleResolve}
+          onClose={() => setIsConfirmOpen(false)}
+        />
+      )}
     </div>
   )
 }
