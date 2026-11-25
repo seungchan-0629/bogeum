@@ -35,12 +35,12 @@ export default defineConfig({
         ...backendProxy,
         rewrite: (path) => path.replace(/^\/api\/admin\/rents\/payments/, '/admin/rents/payments'),
       },
-      // CHAT_001: 신고 목록과 숫자 신고 번호의 대화만 변환한다. 화면 주소 /admin/chats는 Vite가 처리한다
+      // CHAT_001·012: 신고 목록과 숫자 신고 번호의 대화·처리 완료만 변환한다. 화면 주소 /admin/chats는 Vite가 처리한다
       '^/api/admin/chat-reports(?:\\?|$)': {
         ...backendProxy,
         rewrite: (path) => path.replace(/^\/api\/admin\/chat-reports/, '/admin/chat-reports'),
       },
-      '^/api/admin/chat-reports/[0-9]+/messages(?:\\?|$)': {
+      '^/api/admin/chat-reports/[0-9]+/(?:messages|resolve)(?:\\?|$)': {
         ...backendProxy,
         rewrite: (path) => path.replace(/^\/api\/admin\/chat-reports/, '/admin/chat-reports'),
       },
