@@ -1,6 +1,7 @@
 // RISK_001·002·003: 관리자 위험 사용자 등록·조회·수정.
 // 증빙은 키 기록 여부만 표시하며 후보 조회·파일 열람은 별도 기능이다.
 import { useRef, useState } from 'react'
+import { useSearchParams } from 'react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -35,14 +36,17 @@ function AdminRiskUserContent({ user }) {
   const [userType, setUserType] = useState('TENANT')
   const [keyword, setKeyword] = useState('')
   const [page, setPage] = useState(1)
-  const [formOpen, setFormOpen] = useState(false)
+  // 신고 대화(CHAT_012)에서 넘어오면 신고된 사람의 회원 ID를 채워 등록 폼을 연다
+  const [searchParams] = useSearchParams()
+  const presetUserId = /^\d+$/.test(searchParams.get('userId') ?? '') ? searchParams.get('userId') : ''
+  const [formOpen, setFormOpen] = useState(presetUserId !== '')
   const [confirmation, setConfirmation] = useState(null)
   const [editing, setEditing] = useState(null)
   const [success, setSuccess] = useState('')
   const submitLock = useRef(false)
   const { register, handleSubmit, reset, formState: { errors } } = useForm({
     resolver: zodResolver(riskUserSchema),
-    defaultValues: { userId: '', reasonType: '', detail: '' },
+    defaultValues: { userId: presetUserId, reasonType: '', detail: '' },
   })
   const registration = useMutation({
     mutationFn: createAdminRiskUser,

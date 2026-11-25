@@ -46,6 +46,12 @@ export async function getAdminChatReportMessages(chatReportId, cursor, signal) {
   return data
 }
 
+// CHAT_012: 처리 내용을 남기고 신고를 처리 완료한다. 처리된 신고 한 건을 돌려준다. 이미 처리 완료면 409(CHAT_REPORT_ALREADY_RESOLVED)
+export async function resolveAdminChatReport(chatReportId, resolutionNote) {
+  const { data } = await api.patch(`/api/admin/chat-reports/${chatReportId}/resolve`, { resolutionNote })
+  return data
+}
+
 export async function getInstitutionToken() {
   const { data } = await api.get('/openbanking/admin/institution-token')
   return data

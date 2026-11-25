@@ -5,7 +5,7 @@ import { createFormControl } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { createMemoryRouter, RouterProvider } from 'react-router'
+import { createMemoryRouter, MemoryRouter, RouterProvider } from 'react-router'
 import { createServer } from 'vite'
 import react from '@vitejs/plugin-react'
 
@@ -52,7 +52,7 @@ before(async () => {
 
 after(async () => { await server?.close() })
 
-function renderList({ user = admin, riskUsers = [], page = 1, totalPages = 1, totalElements = riskUsers.length, error, loading = false, fetching = false, cached = [] } = {}) {
+function renderList({ user = admin, riskUsers = [], page = 1, totalPages = 1, totalElements = riskUsers.length, error, loading = false, fetching = false, cached = [], url = '/admin/risk-users' } = {}) {
   store.getInitialState().user = user
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, retryOnMount: false, staleTime: Infinity } } })
   const key = ['admin-risk-users', admin.userId, 'TENANT', '', 1]
@@ -64,7 +64,8 @@ function renderList({ user = admin, riskUsers = [], page = 1, totalPages = 1, to
     client.setQueryData(key, { riskUsers, page, totalPages, totalElements })
   }
   try {
-    return renderToStaticMarkup(createElement(QueryClientProvider, { client }, createElement(AdminRiskUserPage)))
+    return renderToStaticMarkup(createElement(QueryClientProvider, { client },
+      createElement(MemoryRouter, { initialEntries: [url] }, createElement(AdminRiskUserPage))))
   } finally {
     client.clear()
   }
@@ -305,6 +306,11 @@ test('관리자에게만 등록 진입을 제공하고 등록 폼은 처음에�
     assert.equal(renderList({ user }), '', '페이지 단독 렌더링도 비관리자에게 노출하지 않는다')
     assert.doesNotMatch(renderAdmin('/admin/risk-users', user), /위험 사용자 등록|risk-user-form/)
   }
+})
+
+test('신고 대화에서 회원 ID를 넘기면 등록 폼을 열고, 숫자가 아니면 무시한다', () => {
+  assert.match(renderList({ url: '/admin/risk-users?userId=7' }), /<form[^>]*id="risk-user-form"/)
+  assert.doesNotMatch(renderList({ url: '/admin/risk-users?userId=abc' }), /<form[^>]*id="risk-user-form"/)
 })
 
 test('등록 검증은 양의 안전한 정수 ID를 숫자로 변환하고 서버 사유 6종만 허용한다', () => {
