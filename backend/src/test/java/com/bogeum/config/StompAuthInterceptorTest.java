@@ -98,6 +98,8 @@ class StompAuthInterceptorTest {
 		// 상대가 어디까지 읽었는지 알림 (CHAT_007)
 		assertDoesNotThrow(() -> interceptor.preSend(subscribe("/topic/chat-rooms/126/read", loginUser), channel));
 		assertDoesNotThrow(() -> interceptor.preSend(subscribe("/user/queue/chat-rooms", loginUser), channel));
+		// 내 안 읽은 알림 수 (NOTIFY_007, NOTIFY_021)
+		assertDoesNotThrow(() -> interceptor.preSend(subscribe("/user/queue/notifications", loginUser), channel));
 	}
 
 	@Test

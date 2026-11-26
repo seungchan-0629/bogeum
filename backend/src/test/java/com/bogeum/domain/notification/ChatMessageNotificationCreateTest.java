@@ -4,7 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
@@ -20,6 +23,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.context.annotation.Import;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.user.SimpSession;
 import org.springframework.messaging.simp.user.SimpSubscription;
 import org.springframework.messaging.simp.user.SimpUser;
@@ -41,6 +45,7 @@ import com.bogeum.domain.chat.ChatRepository;
 import com.bogeum.domain.chat.ChatService;
 import com.bogeum.domain.chat.model.ChatRoom;
 import com.bogeum.domain.notification.model.Notification;
+import com.bogeum.domain.notification.model.NotificationDto;
 import com.bogeum.domain.property.PropertyRepository;
 import com.bogeum.domain.property.model.Property;
 import com.bogeum.domain.user.UserRepository;
@@ -60,7 +65,8 @@ import com.bogeum.utils.ImageProcessor;
 })
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
-@Import({ ChatService.class, NotificationService.class, NotificationEventListener.class })
+@Import({ ChatService.class, NotificationService.class, NotificationEventListener.class,
+	NotificationPublisher.class })
 class ChatMessageNotificationCreateTest {
 
 	@Autowired
@@ -79,6 +85,8 @@ class ChatMessageNotificationCreateTest {
 	private UserRepository userRepository;
 	@MockitoBean
 	private SimpUserRegistry simpUserRegistry;
+	@MockitoBean
+	private SimpMessagingTemplate messagingTemplate;
 	// 채팅방 열기와 사진 보내기에만 쓰는 의존성
 	@MockitoBean
 	private UserService userService;
@@ -175,6 +183,18 @@ class ChatMessageNotificationCreateTest {
 		String body = notificationRepository.findAll().get(0).getBody();
 		assertEquals("김중개: " + "가".repeat(100) + "…", body);
 		assertTrue(body.length() < 500);
+	}
+
+	@Test
+	@DisplayName("새 메시지 알림이 생기거나 방에서 읽으면, 확정된 뒤 받는 사람에게 바뀐 안 읽은 알림 수를 보낸다")
+	void publishesUnreadCount() {
+		chatService.createMessage(tenant.getUserId(), chatRoom.getChatRoomId(), "안녕하세요");
+		verify(messagingTemplate).convertAndSendToUser(eq(String.valueOf(agent.getUserId())), eq("/queue/notifications"),
+			argThat(payload -> ((NotificationDto.UnreadCountResponse) payload).getUnreadCount() == 1L));
+
+		chatService.updateRead(agent.getUserId(), chatRoom.getChatRoomId());
+		verify(messagingTemplate).convertAndSendToUser(eq(String.valueOf(agent.getUserId())), eq("/queue/notifications"),
+			argThat(payload -> ((NotificationDto.UnreadCountResponse) payload).getUnreadCount() == 0L));
 	}
 
 	private void viewing(User user, String destination) {
