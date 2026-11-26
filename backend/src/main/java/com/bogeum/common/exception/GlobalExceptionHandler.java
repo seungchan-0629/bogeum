@@ -5,6 +5,7 @@ import com.bogeum.domain.aftersales.AfterSalesException;
 import com.bogeum.domain.chat.ChatException;
 import com.bogeum.domain.contract.ContractException;
 import com.bogeum.domain.favorite.FavoriteException;
+import com.bogeum.domain.notification.NotificationException;
 import com.bogeum.domain.property.PropertyException;
 import com.bogeum.domain.openbanking.OpenBankingException;
 import com.bogeum.domain.rent.RentException;
@@ -81,6 +82,11 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(ChatException.class)
 	public ResponseEntity<ErrorResponse> handleChatException(ChatException exception) {
+		return toResponse(exception.getErrorCode());
+	}
+
+	@ExceptionHandler(NotificationException.class)
+	public ResponseEntity<ErrorResponse> handleNotificationException(NotificationException exception) {
 		return toResponse(exception.getErrorCode());
 	}
 
