@@ -8,6 +8,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 
 import com.bogeum.domain.chat.ChatMessageCreatedEvent;
 import com.bogeum.domain.chat.ChatMessageReadEvent;
+import com.bogeum.domain.property.BrokerageRequestCreatedEvent;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -47,6 +48,18 @@ public class NotificationEventListener {
 			notificationService.updateChatMessageRead(event.userId(), event.chatRoomId());
 		} catch (RuntimeException exception) {
 			log.error("채팅 알림 읽음 처리 실패: chatRoomId={}, userId={}", event.chatRoomId(), event.userId(), exception);
+		}
+	}
+
+	// 중개 신청이 확정되면 배정된 중개사에게 알린다 (NOTIFY_022)
+	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+	public void createBrokerageRequestNotification(BrokerageRequestCreatedEvent event) {
+		try {
+			notificationService.createBrokerageRequestNotification(event.agentUserId(), event.brokerageRequestId(),
+				event.landlordName(), event.roadAddress());
+		} catch (RuntimeException exception) {
+			log.error("중개 신청 알림 생성 실패: brokerageRequestId={}, agentUserId={}", event.brokerageRequestId(),
+				event.agentUserId(), exception);
 		}
 	}
 
