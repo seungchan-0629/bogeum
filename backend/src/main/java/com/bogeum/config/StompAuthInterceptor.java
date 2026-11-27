@@ -30,6 +30,8 @@ public class StompAuthInterceptor implements ChannelInterceptor {
 
 	private static final Pattern CHAT_ROOM_TOPIC = Pattern.compile("^/topic/chat-rooms/(\\d+)(/read)?$");
 	private static final String MY_CHAT_ROOMS_QUEUE = "/user/queue/chat-rooms";
+	// 내 안 읽은 알림 수 (NOTIFY_007, NOTIFY_021)
+	private static final String MY_NOTIFICATIONS_QUEUE = "/user/queue/notifications";
 	private static final String BEARER_PREFIX = "Bearer ";
 
 	private final JwtUtil jwtUtil;
@@ -63,12 +65,12 @@ public class StompAuthInterceptor implements ChannelInterceptor {
 		return UsernamePasswordAuthenticationToken.authenticated(String.valueOf(userId), null, null);
 	}
 
-	// 내 목록 갱신과, 내가 참여한 방의 대화·읽음 알림(/read, CHAT_007)만 구독할 수 있다
+	// 내 목록 갱신, 내 알림 수와, 내가 참여한 방의 대화·읽음 알림(/read, CHAT_007)만 구독할 수 있다
 	private void checkSubscription(Principal user, String destination) {
 		if (user == null || destination == null) {
 			throw new AccessDeniedException("로그인이 필요합니다.");
 		}
-		if (MY_CHAT_ROOMS_QUEUE.equals(destination)) {
+		if (MY_CHAT_ROOMS_QUEUE.equals(destination) || MY_NOTIFICATIONS_QUEUE.equals(destination)) {
 			return;
 		}
 		Matcher matcher = CHAT_ROOM_TOPIC.matcher(destination);
