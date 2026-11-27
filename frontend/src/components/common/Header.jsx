@@ -3,19 +3,25 @@
 // 요구사항: NOTIFY_001, NOTIFY_007, NOTIFY_021 (안 읽은 알림 수), CHAT_007 (안 읽은 메시지 수)
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, Link, useLocation, useNavigate } from 'react-router'
+import { useQuery } from '@tanstack/react-query'
 import clsx from 'clsx'
 import Logo from './Logo.jsx'
 import Icon from './Icon.jsx'
+import NotificationItem from '../notification/NotificationItem.jsx'
 import { useAuthStore } from '../../stores/authStore.js'
 import { logout } from '../../utils/jwtUtil.js'
+import { getNotifications } from '../../api/notification/index.js'
+import { useOpenNotification, useUnreadNotificationCount } from '../../hooks/useNotifications.js'
+import { useNotificationSocket } from '../../hooks/useNotificationSocket.js'
 import { ROLE_LABELS } from '../../constants/auth.js'
 import { MY_PAGE_PATH_BY_ROLE, NAV_ITEMS_BY_ROLE } from '../../constants/navigation.js'
 
 // TODO: 안 읽은 수 API 연동 전까지 쓰는 임시 값
-// - 알림: GET /api/v1/notifications/unread-count (BE-080) 응답의 unreadCount
 // - 채팅: GET /api/v1/chat/rooms (BE-038) 응답의 rooms[].unreadCount 합계. 전체 합계 API가 없어 백엔드와 협의 필요
-const SAMPLE_UNREAD_NOTIFICATIONS = 3
 const SAMPLE_UNREAD_CHATS = 2
+
+// 종 말풍선에 보여 줄 최신 알림 수
+const PREVIEW_SIZE = 5
 
 function CountBadge({ count }) {
   if (count <= 0) return null
@@ -83,6 +89,83 @@ function NavGroup({ item }) {
   )
 }
 
+// 종 버튼. 누르면 최신 알림 5개를 말풍선으로 보여 준다. 바깥을 누르거나 Esc를 누르거나 알림을 고르면 닫힌다 (NOTIFY_007, NOTIFY_021)
+// 로그인해 있는 동안 알림 실시간 연결을 열어 두어 안 읽은 수를 바로 바꾼다
+// 말풍선은 헤더 전체 기준으로 띄운다. 좁은 화면에서는 종이 왼쪽 줄로 내려가서, 종 기준이면 화면 밖으로 나간다
+function NotificationBell() {
+  const [isOpen, setIsOpen] = useState(false)
+  const bellRef = useRef(null)
+  const unreadCount = useUnreadNotificationCount().data ?? 0
+  const openNotification = useOpenNotification()
+  useNotificationSocket(true)
+  // 열 때마다 새로 받는다
+  const preview = useQuery({
+    queryKey: ['notifications', 'preview'],
+    queryFn: ({ signal }) => getNotifications({ size: PREVIEW_SIZE }, signal),
+    enabled: isOpen,
+  })
+
+  useEffect(() => {
+    if (!isOpen) return
+    const handlePointerDown = (event) => {
+      if (!bellRef.current.contains(event.target)) setIsOpen(false)
+    }
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setIsOpen(false)
+    }
+    document.addEventListener('pointerdown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isOpen])
+
+  const handleOpen = (notification) => {
+    setIsOpen(false)
+    openNotification(notification)
+  }
+
+  return (
+    <div ref={bellRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        aria-expanded={isOpen}
+        aria-label={`알림, 안 읽은 알림 ${unreadCount}개`}
+        className="relative flex size-11 items-center justify-center rounded-lg text-gray-700 hover:bg-gray-100"
+      >
+        <Icon name="bell" size={22} />
+        <span className="absolute top-1 right-0.5">
+          <CountBadge count={unreadCount} />
+        </span>
+      </button>
+      {isOpen && (
+        <section aria-label="최근 알림"
+          className="absolute top-full right-4 left-4 z-40 flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.18)] sm:right-6 sm:left-auto sm:w-[22rem]">
+          <p className="border-b border-gray-100 px-5 py-3 font-bold">알림</p>
+          {preview.isPending && <p role="status" className="px-5 py-6 text-center text-sm text-gray-600">알림을 불러오고 있어요.</p>}
+          {preview.isError && <p role="alert" className="px-5 py-6 text-center text-sm text-gray-600">알림을 불러오지 못했어요.</p>}
+          {preview.isSuccess && preview.data.notifications.length === 0 && (
+            <p className="px-5 py-6 text-center text-sm text-gray-600">새 알림이 없어요.</p>
+          )}
+          {preview.isSuccess && preview.data.notifications.length > 0 && (
+            <ul>
+              {preview.data.notifications.map((notification) => (
+                <NotificationItem key={notification.notificationId} notification={notification} onOpen={handleOpen} />
+              ))}
+            </ul>
+          )}
+          <Link to="/notifications" onClick={() => setIsOpen(false)}
+            className="border-t border-gray-100 px-5 py-3 text-center text-sm font-medium text-blue-700 hover:bg-slate-50">
+            전체 보기
+          </Link>
+        </section>
+      )}
+    </div>
+  )
+}
+
 function Header() {
   const user = useAuthStore((state) => state.user)
   const navigate = useNavigate()
@@ -101,7 +184,7 @@ function Header() {
 
   return (
     <header className="border-b border-gray-200 bg-white">
-      <div className="mx-auto flex max-w-[1200px] flex-wrap items-center gap-x-7 gap-y-3 px-6 py-3.5">
+      <div className="relative mx-auto flex max-w-[1200px] flex-wrap items-center gap-x-7 gap-y-3 px-6 py-3.5">
         <Logo />
         <nav aria-label="주요 메뉴" className="flex grow flex-wrap gap-x-6 gap-y-2 text-[15px] font-medium">
           {navItems.map((item) => {
@@ -122,16 +205,7 @@ function Header() {
         </nav>
         {user ? (
           <div className="flex flex-wrap items-center gap-2.5">
-            <Link
-              to="/notifications"
-              aria-label={`알림, 안 읽은 알림 ${SAMPLE_UNREAD_NOTIFICATIONS}개`}
-              className="relative flex size-11 items-center justify-center rounded-lg text-gray-700 hover:bg-gray-100"
-            >
-              <Icon name="bell" size={22} />
-              <span className="absolute top-1 right-0.5">
-                <CountBadge count={SAMPLE_UNREAD_NOTIFICATIONS} />
-              </span>
-            </Link>
+            <NotificationBell />
             <span className="text-sm text-gray-600">
               {ROLE_LABELS[user.role]} · {user.name}
             </span>
