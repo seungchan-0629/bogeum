@@ -14,7 +14,7 @@ test('계좌 콜백·관리자 화면은 API 프록시를 거치지 않고 프�
   try {
     await server.listen()
     const origin = `http://127.0.0.1:${server.httpServer.address().port}`
-    for (const path of ['/mypage/openbanking/callback?code=test&state=test', '/admin/rent', '/admin/rent?keyword=test', '/admin/properties', '/admin/agents', '/admin/risk-users', '/admin/risk-users?type=TENANT']) {
+    for (const path of ['/mypage/openbanking/callback?code=test&state=test', '/admin/rent', '/admin/rent?keyword=test', '/admin/properties', '/admin/agents', '/admin/risk-users', '/admin/risk-users?type=TENANT', '/notifications']) {
       const response = await fetch(origin + path, { headers: { Accept: 'text/html' } })
       assert.equal(response.status, 200)
       assert.match(response.headers.get('content-type'), /text\/html/)
