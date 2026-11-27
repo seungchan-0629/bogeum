@@ -23,6 +23,7 @@ import lombok.RequiredArgsConstructor;
 public class NotificationService {
 
 	private static final String CHAT_MESSAGE_TITLE = "새 메시지";
+	private static final String BROKERAGE_REQUESTED_TITLE = "새 중개 신청";
 	private static final int CHAT_PREVIEW_MAX_LENGTH = 100;
 	private static final int MAX_PAGE_SIZE = 20;
 
@@ -55,6 +56,19 @@ public class NotificationService {
 		}
 		createNotification(userRepository.getReferenceById(recipientId), NotificationType.CHAT_MESSAGE, CHAT_MESSAGE_TITLE,
 			sender.getName() + ": " + preview, NotificationRefType.CHAT_ROOM, chatRoomId);
+	}
+
+	/**
+	 * 임대인이 중개를 신청하면 배정된 중개사에게 알림을 만든다 (NOTIFY_022).
+	 * 지정 신청과 랜덤 배정 모두 중개사가 할 일(수락)은 같아서 문구를 나누지 않는다.
+	 * 신청 저장이 끝난 뒤 불리므로 새 트랜잭션에서 저장한다
+	 */
+	@Transactional(propagation = Propagation.REQUIRES_NEW)
+	public void createBrokerageRequestNotification(Long agentUserId, Long brokerageRequestId, String landlordName,
+			String roadAddress) {
+		createNotification(userRepository.getReferenceById(agentUserId), NotificationType.BROKERAGE_REQUESTED,
+			BROKERAGE_REQUESTED_TITLE, landlordName + "님이 " + roadAddress + " 매물 중개를 신청했어요.",
+			NotificationRefType.BROKERAGE_REQUEST, brokerageRequestId);
 	}
 
 	/**

@@ -32,6 +32,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -86,6 +87,8 @@ class PropertyServiceTest {
 	private ImageProcessor imageProcessor;
 	@Mock
 	private ChatService chatService;
+	@Mock
+	private ApplicationEventPublisher eventPublisher;
 
 	private PropertyService propertyService;
 	private final User landlord = User.builder().userId(1L).name("박임대").build();
@@ -93,7 +96,7 @@ class PropertyServiceTest {
 	@BeforeEach
 	void setUp() {
 		propertyService = new PropertyService(userService, agentRepository, propertyRepository, brokerageRequestRepository,
-			propertyImageRepository, storageProvider, imageProcessor, chatService);
+			propertyImageRepository, storageProvider, imageProcessor, chatService, eventPublisher);
 	}
 
 	@AfterEach
@@ -270,6 +273,25 @@ class PropertyServiceTest {
 
 		assertEquals(ErrorCode.BROKERAGE_AGENT_NOT_AVAILABLE, exception.getErrorCode());
 		verify(propertyRepository, never()).save(any());
+		verifyNoInteractions(eventPublisher);
+	}
+
+	@Test
+	@DisplayName("중개 신청을 저장하면 배정된 중개사·임대인 이름·주소를 담아 신청 사건을 알린다")
+	void publishesBrokerageRequestCreatedEvent() {
+		givenLandlord();
+		when(propertyRepository.save(any(Property.class))).thenAnswer(invocation -> invocation.getArgument(0));
+		when(brokerageRequestRepository.save(any(BrokerageRequest.class))).thenAnswer(invocation -> {
+			BrokerageRequest request = invocation.getArgument(0);
+			return BrokerageRequest.builder().brokerageRequestId(50L).property(request.getProperty())
+				.landlord(request.getLandlord()).agent(request.getAgent()).build();
+		});
+		when(agentRepository.findByAgentProfileIdAndApprovalStatus(3L, ApprovalStatus.APPROVED))
+			.thenReturn(Optional.of(agent(3L, "서울특별시 강남구 도곡로 116")));
+
+		propertyService.createBrokerageRequest(1L, request(LeaseType.MONTHLY, 10_000_000, 700_000, 3L));
+
+		verify(eventPublisher).publishEvent(new BrokerageRequestCreatedEvent(50L, 103L, "박임대", MAPO_ADDRESS));
 	}
 
 	@RepeatedTest(10)
