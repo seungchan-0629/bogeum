@@ -61,8 +61,9 @@ test('알림 시각을 방금·N분 전·N시간 전·어제·날짜로 보여 �
   assert.equal(formatNotificationTime('2025-10-18T08:00:00', now), '2025.10.18')
 })
 
-test('채팅 알림만 채팅방으로 잇고, 다른 종류는 이동하지 않는다', () => {
+test('채팅 알림은 채팅방, 중개 신청 알림은 신청 목록으로 잇고, 다른 종류는 이동하지 않는다', () => {
   assert.equal(getNotificationPath({ refType: 'CHAT_ROOM', refId: 3 }), '/chats/3')
+  assert.equal(getNotificationPath({ refType: 'BROKERAGE_REQUEST', refId: 50 }), '/agent/requests')
   assert.equal(getNotificationPath({ refType: 'AS_REQUEST', refId: 3 }), null)
   assert.equal(getNotificationPath({ refType: null, refId: null }), null)
 })

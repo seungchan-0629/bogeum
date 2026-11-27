@@ -19,9 +19,10 @@ export function formatNotificationTime(createdAt, now = new Date()) {
   return date.getFullYear() === now.getFullYear() ? monthDay : `${date.getFullYear()}.${monthDay}`
 }
 
-// 알림을 눌렀을 때 갈 화면. 지금 실제로 생기는 알림은 채팅뿐이라 채팅방만 잇는다
-// 다른 종류(AS, 중개 등)는 그 알림을 만들 때 이동할 화면을 정한다. 그 전까지는 읽음 처리만 하고 이동하지 않는다
+// 알림을 눌렀을 때 갈 화면. 채팅은 채팅방, 중개 신청은 신청 상세 화면이 없어서 중개사의 신청 목록으로 잇는다 (NOTIFY_022)
+// 다른 종류(AS 등)는 그 알림을 만들 때 이동할 화면을 정한다. 그 전까지는 읽음 처리만 하고 이동하지 않는다
 export function getNotificationPath({ refType, refId }) {
   if (refType === 'CHAT_ROOM') return `/chats/${refId}`
+  if (refType === 'BROKERAGE_REQUEST') return '/agent/requests'
   return null
 }
