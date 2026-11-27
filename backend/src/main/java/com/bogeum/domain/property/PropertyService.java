@@ -11,6 +11,7 @@ import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -66,6 +67,7 @@ public class PropertyService {
 	private final ObjectProvider<PropertyImageStorage> storageProvider;
 	private final ImageProcessor imageProcessor;
 	private final ChatService chatService;
+	private final ApplicationEventPublisher eventPublisher;
 
 	/**
 	 * 매물을 만들고 중개사에게 중개를 신청한다 (PROPERTY_002).
@@ -94,6 +96,8 @@ public class PropertyService {
 			.agent(agent.getUser())
 			.isDesignated(isDesignated)
 			.build());
+		eventPublisher.publishEvent(new BrokerageRequestCreatedEvent(brokerageRequest.getBrokerageRequestId(),
+			agent.getUser().getUserId(), landlord.getName(), property.getRoadAddress()));
 		return PropertyDto.BrokerageResponse.from(brokerageRequest, agent);
 	}
 
